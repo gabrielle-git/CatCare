@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WeightChartPoint } from "@/components/weight-chart";
 import { formatWeight } from "@/lib/format";
 import type { RecordSource } from "@/types/database";
 import { recordKindFromHealth, recordKindFromNeonatal } from "@/lib/record-form";
@@ -69,6 +70,17 @@ async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "househo
 
 export function listPetTimeline(supabase: SupabaseClient, petId: string, limit = 40) {
   return loadTimeline(supabase, "pet_id", petId, limit);
+}
+
+export async function listPetWeights(supabase: SupabaseClient, petId: string, limit = 60): Promise<WeightChartPoint[]> {
+  const { data, error } = await supabase
+    .from("weight_records")
+    .select("weight_grams, measured_at")
+    .eq("pet_id", petId)
+    .order("measured_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ date: row.measured_at as string, grams: row.weight_grams as number }));
 }
 
 export function listHouseholdTimeline(supabase: SupabaseClient, householdId: string, limit = 12) {

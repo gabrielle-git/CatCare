@@ -80,6 +80,21 @@ export const demoPets: PetWithPhotoUrl[] = [
   },
 ];
 
+export const demoWeights: Record<string, { date: string; grams: number }[]> = {
+  [demoPets[0].id]: [
+    { date: "2026-06-20T10:00:00-03:00", grams: 3200 },
+    { date: "2026-07-05T10:00:00-03:00", grams: 3550 },
+    { date: "2026-07-22T10:00:00-03:00", grams: 3900 },
+    { date: "2026-08-08T10:00:00-03:00", grams: 4100 },
+    { date: "2026-08-16T10:00:00-03:00", grams: 4250 },
+  ],
+  [demoPets[1].id]: [
+    { date: "2026-06-20T10:00:00-03:00", grams: 2900 },
+    { date: "2026-07-12T10:00:00-03:00", grams: 3300 },
+    { date: "2026-08-10T10:00:00-03:00", grams: 3600 },
+  ],
+};
+
 export const demoTimeline: TimelineItem[] = [
   { id: "demo-1", pet_id: demoPets[2].id, source: "neonatal", kind: "feeding", title: "Mamada", detail: "8 ml • pegou bem", occurred_at: "2026-08-16T21:10:00-03:00", tone: "rose" },
   { id: "demo-3", pet_id: demoPets[0].id, source: "health", kind: "surgery", title: "Castração", detail: "Data aproximada • cerca de 12 dias atrás", occurred_at: "2026-08-05T12:00:00-03:00", tone: "mint" },

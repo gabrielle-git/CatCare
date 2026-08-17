@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, BadgeCheck, CalendarPlus, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
 import { TimelineList } from "@/components/timeline-list";
+import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
-import { demoPets, demoTimeline } from "@/lib/mock-data";
+import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
-import { listPetTimeline } from "@/lib/records";
+import { listPetTimeline, listPetWeights } from "@/lib/records";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { updatePetDescription } from "../actions";
@@ -14,17 +15,19 @@ import { updatePetDescription } from "../actions";
 async function loadPetPage(id: string) {
   if (!hasSupabaseEnv()) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), configured: false };
+    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], configured: false };
   }
   const supabase = await createClient();
   const pet = await getPet(supabase, id);
-  return { pet, timeline: pet ? await listPetTimeline(supabase, id) : [], configured: true };
+  if (!pet) return { pet: null, timeline: [], weights: [], configured: true };
+  const [timeline, weights] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id)]);
+  return { pet, timeline, weights, configured: true };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, configured } = await loadPetPage(id);
+  const { pet, timeline, weights, configured } = await loadPetPage(id);
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
@@ -86,6 +89,10 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
           <span className="flex items-center gap-2"><HeartPulse size={19} /> Registrar cuidado neonatal</span><Plus size={18} />
         </Link>
       )}
+
+      <div className="mt-6">
+        <WeightChart data={weights} petId={pet.id} petName={pet.name} />
+      </div>
 
       <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section>
