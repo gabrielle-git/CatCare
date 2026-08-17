@@ -9,30 +9,30 @@ function message(path: string, key: "error" | "success", value: string) {
   return `${path}?${key}=${encodeURIComponent(value)}`;
 }
 
-function credentials(formData: FormData) {
+function credentials(formData: FormData, path: string) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  if (!email || !password) redirect(message("/login", "error", "Informe e-mail e senha."));
-  if (password.length < 6) redirect(message("/login", "error", "A senha precisa ter pelo menos 6 caracteres."));
+  if (!email || !password) redirect(message(path, "error", "Informe e-mail e senha."));
+  if (password.length < 6) redirect(message(path, "error", "A senha precisa ter pelo menos 6 caracteres."));
   return { email, password };
 }
 
 function authErrorMessage(error: { message: string; code?: string }) {
   const text = `${error.code ?? ""} ${error.message}`.toLowerCase();
   if (text.includes("email not confirmed") || text.includes("email_not_confirmed")) {
-    return "A conta foi criada, mas o Supabase ainda exige confirmação de e-mail. Em Authentication → Providers → Email, desligue Confirm email para desenvolver localmente — ou abra o link enviado ao e-mail.";
+    return "Conta criada. Se o e-mail de confirmação estiver ligado neste projeto, abra o link da caixa de entrada e depois use Entrar. Isso se configura uma vez no Supabase, não a cada cadastro.";
   }
   if (text.includes("invalid login credentials") || text.includes("invalid_credentials")) {
-    return "E-mail ou senha não conferem. Se ainda não cadastrou neste projeto, use Criar conta. Se já cadastrou, confira a senha ou se o e-mail precisa ser confirmado no dashboard.";
+    return "E-mail ou senha não conferem. Se ainda não tem conta, use Criar cadastro.";
   }
   if (text.includes("already registered") || text.includes("user_already_exists")) {
     return "Esta conta já existe. Use Entrar com a senha cadastrada.";
   }
   if (text.includes("signups not allowed")) {
-    return "O cadastro está desativado neste projeto Supabase. Em Authentication → Providers → Email, habilite os cadastros.";
+    return "O cadastro está desativado neste projeto Supabase. Em Authentication → Providers → Email, habilite os cadastros uma vez.";
   }
   if (text.includes("redirect")) {
-    return "A URL de retorno não está liberada no Supabase. Em Authentication → URL Configuration, adicione http://localhost:3000/auth/callback.";
+    return "A URL de retorno não está liberada no Supabase. Em Authentication → URL Configuration, adicione a URL do app + /auth/callback.";
   }
   if (text.includes("leaked") || text.includes("pwned")) {
     return "Essa senha é muito comum. Escolha outra com pelo menos 6 caracteres.";
@@ -45,14 +45,8 @@ async function enterApp() {
   redirect("/");
 }
 
-export async function authenticate(formData: FormData) {
-  const intent = String(formData.get("intent") ?? "login");
-  if (intent === "signup") return signup(formData);
-  return login(formData);
-}
-
 export async function login(formData: FormData) {
-  const { email, password } = credentials(formData);
+  const { email, password } = credentials(formData, "/login");
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect(message("/login", "error", authErrorMessage(error)));
@@ -60,7 +54,7 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const { email, password } = credentials(formData);
+  const { email, password } = credentials(formData, "/cadastro");
   const origin = (await headers()).get("origin") ?? "http://localhost:3000";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -68,18 +62,16 @@ export async function signup(formData: FormData) {
     password,
     options: { emailRedirectTo: `${origin}/auth/callback` },
   });
-  if (error) redirect(message("/login", "error", authErrorMessage(error)));
+  if (error) redirect(message("/cadastro", "error", authErrorMessage(error)));
 
   const newIdentities = data.user?.identities ?? [];
   if (data.user && newIdentities.length === 0) {
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) redirect(message("/login", "error", "Esta conta já existe. Use Entrar com a senha cadastrada."));
-    await enterApp();
+    redirect(message("/login", "error", "Esta conta já existe. Use Entrar com a senha cadastrada."));
   }
 
   if (data.session) await enterApp();
 
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-  if (signInError) redirect(message("/login", "error", authErrorMessage(signInError)));
+  if (signInError) redirect(message("/cadastro", "error", authErrorMessage(signInError)));
   await enterApp();
 }
