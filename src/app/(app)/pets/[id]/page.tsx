@@ -10,7 +10,6 @@ import { listPetTimeline } from "@/lib/records";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { updatePetDescription } from "../actions";
-import { deleteRecord } from "../../records/actions";
 
 async function loadPetPage(id: string) {
   if (!hasSupabaseEnv()) {
@@ -94,11 +93,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
             <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p><h2 className="mt-1 text-xl font-bold">Linha do tempo</h2></div>
             <Link href={`/records/new?pet=${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} /> Novo registro</Link>
           </div>
-          <TimelineList
-            items={timeline}
-            editable={configured}
-            deleteAction={configured ? (item) => deleteRecord.bind(null, item.id, item.source, item.pet_id) : undefined}
-          />
+          <TimelineList items={timeline} editable={configured} />
         </section>
 
         <aside className="space-y-4">

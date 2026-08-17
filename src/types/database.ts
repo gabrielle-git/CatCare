@@ -94,6 +94,7 @@ export type Expense = {
   id: string;
   household_id: string;
   pet_id: string | null;
+  pet_ids?: string[];
   health_record_id: string | null;
   category: ExpenseCategory;
   description: string;
@@ -122,6 +123,7 @@ export type Purchase = {
   household_id: string;
   product_id: string;
   pet_id: string | null;
+  pet_ids?: string[];
   expense_id: string | null;
   store_name: string;
   channel: PurchaseChannel;
@@ -138,6 +140,7 @@ export type ProductReview = {
   household_id: string;
   product_id: string;
   pet_id: string | null;
+  pet_ids?: string[];
   quality_score: number;
   acceptance_score: number;
   cost_benefit_score: number;

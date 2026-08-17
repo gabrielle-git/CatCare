@@ -1,3 +1,4 @@
+import { formatWeight } from "@/lib/format";
 import type { Expense, MemoryWithMediaUrl, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
 
 export const demoPets: PetWithPhotoUrl[] = [
@@ -99,23 +100,23 @@ export const demoProducts: Product[] = [
 ];
 
 export const demoPurchases: Purchase[] = [
-  { id: "buy-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, expense_id: "exp-2", store_name: "Petz", channel: "online_store", quantity: 1, amount_cents: 8990, purchased_at: "2026-08-14T14:00:00-03:00", product_url: null, notes: "Cupom de 10%", created_at: "2026-08-14T14:00:00-03:00" },
-  { id: "buy-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, expense_id: "exp-3", store_name: "Cobasi", channel: "physical_store", quantity: 6, amount_cents: 3954, purchased_at: "2026-08-12T17:00:00-03:00", product_url: null, notes: null, created_at: "2026-08-12T17:00:00-03:00" },
-  { id: "buy-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, expense_id: "exp-4", store_name: "Amazon", channel: "marketplace", quantity: 2, amount_cents: 8390, purchased_at: "2026-08-05T09:00:00-03:00", product_url: null, notes: "Compra recorrente", created_at: "2026-08-05T09:00:00-03:00" },
-  { id: "buy-4", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, expense_id: null, store_name: "Cobasi", channel: "physical_store", quantity: 1, amount_cents: 9490, purchased_at: "2026-07-18T11:00:00-03:00", product_url: null, notes: null, created_at: "2026-07-18T11:00:00-03:00" },
+  { id: "buy-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [demoPets[0].id, demoPets[1].id], expense_id: "exp-2", store_name: "Petz", channel: "online_store", quantity: 1, amount_cents: 8990, purchased_at: "2026-08-14T14:00:00-03:00", product_url: null, notes: "Cupom de 10%", created_at: "2026-08-14T14:00:00-03:00" },
+  { id: "buy-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], expense_id: "exp-3", store_name: "Cobasi", channel: "physical_store", quantity: 6, amount_cents: 3954, purchased_at: "2026-08-12T17:00:00-03:00", product_url: null, notes: null, created_at: "2026-08-12T17:00:00-03:00" },
+  { id: "buy-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, pet_ids: [], expense_id: "exp-4", store_name: "Amazon", channel: "marketplace", quantity: 2, amount_cents: 8390, purchased_at: "2026-08-05T09:00:00-03:00", product_url: null, notes: "Compra recorrente", created_at: "2026-08-05T09:00:00-03:00" },
+  { id: "buy-4", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [], expense_id: null, store_name: "Cobasi", channel: "physical_store", quantity: 1, amount_cents: 9490, purchased_at: "2026-07-18T11:00:00-03:00", product_url: null, notes: null, created_at: "2026-07-18T11:00:00-03:00" },
 ];
 
 export const demoProductReviews: ProductReview[] = [
-  { id: "review-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, quality_score: 4, acceptance_score: 4, cost_benefit_score: 5, would_buy_again: true, notes: "Todos comeram bem e o pacote rende.", reviewed_at: "2026-08-15T12:00:00-03:00", created_at: "2026-08-15T12:00:00-03:00", updated_at: "2026-08-15T12:00:00-03:00" },
-  { id: "review-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, quality_score: 5, acceptance_score: 5, cost_benefit_score: 3, would_buy_again: true, notes: "Dobby lambe o potinho inteiro.", reviewed_at: "2026-08-13T12:00:00-03:00", created_at: "2026-08-13T12:00:00-03:00", updated_at: "2026-08-13T12:00:00-03:00" },
-  { id: "review-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, quality_score: 5, acceptance_score: 4, cost_benefit_score: 4, would_buy_again: true, notes: "Segura bem o cheiro e faz pouco pó.", reviewed_at: "2026-08-06T12:00:00-03:00", created_at: "2026-08-06T12:00:00-03:00", updated_at: "2026-08-06T12:00:00-03:00" },
+  { id: "review-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [demoPets[0].id, demoPets[1].id], quality_score: 4, acceptance_score: 4, cost_benefit_score: 5, would_buy_again: true, notes: "Todos comeram bem e o pacote rende.", reviewed_at: "2026-08-15T12:00:00-03:00", created_at: "2026-08-15T12:00:00-03:00", updated_at: "2026-08-15T12:00:00-03:00" },
+  { id: "review-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], quality_score: 5, acceptance_score: 5, cost_benefit_score: 3, would_buy_again: true, notes: "Dobby lambe o potinho inteiro.", reviewed_at: "2026-08-13T12:00:00-03:00", created_at: "2026-08-13T12:00:00-03:00", updated_at: "2026-08-13T12:00:00-03:00" },
+  { id: "review-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, pet_ids: [], quality_score: 5, acceptance_score: 4, cost_benefit_score: 4, would_buy_again: true, notes: "Segura bem o cheiro e faz pouco pó.", reviewed_at: "2026-08-06T12:00:00-03:00", created_at: "2026-08-06T12:00:00-03:00", updated_at: "2026-08-06T12:00:00-03:00" },
 ];
 
 export const demoExpenses: Expense[] = [
-  { id: "exp-1", household_id: demoPets[0].household_id, pet_id: demoPets[0].id, health_record_id: null, category: "veterinary", description: "Consulta veterinária", amount_cents: 15000, occurred_at: "2026-08-15T10:00:00-03:00", shared: false, receipt_path: null, notes: "Retorno em 30 dias", created_at: "2026-08-15T10:00:00-03:00" },
-  { id: "exp-2", household_id: demoPets[0].household_id, pet_id: null, health_record_id: null, category: "food", description: "GranPlus • Ração Menu Gatos", amount_cents: 8990, occurred_at: "2026-08-14T14:00:00-03:00", shared: true, receipt_path: null, notes: "Compra na Petz", created_at: "2026-08-14T14:00:00-03:00" },
-  { id: "exp-3", household_id: demoPets[0].household_id, pet_id: demoPets[0].id, health_record_id: null, category: "food", description: "Fancy Feast • Sachezinho Frango", amount_cents: 3954, occurred_at: "2026-08-12T17:00:00-03:00", shared: false, receipt_path: null, notes: "6 unidades", created_at: "2026-08-12T17:00:00-03:00" },
-  { id: "exp-4", household_id: demoPets[0].household_id, pet_id: null, health_record_id: null, category: "hygiene", description: "Viva Verde • Areia biodegradável", amount_cents: 8390, occurred_at: "2026-08-05T09:00:00-03:00", shared: true, receipt_path: null, notes: "2 pacotes", created_at: "2026-08-05T09:00:00-03:00" },
+  { id: "exp-1", household_id: demoPets[0].household_id, pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], health_record_id: null, category: "veterinary", description: "Consulta veterinária", amount_cents: 15000, occurred_at: "2026-08-15T10:00:00-03:00", shared: false, receipt_path: null, notes: "Retorno em 30 dias", created_at: "2026-08-15T10:00:00-03:00" },
+  { id: "exp-2", household_id: demoPets[0].household_id, pet_id: null, pet_ids: [demoPets[0].id, demoPets[1].id], health_record_id: null, category: "food", description: "GranPlus • Ração Menu Gatos", amount_cents: 8990, occurred_at: "2026-08-14T14:00:00-03:00", shared: true, receipt_path: null, notes: "Compra na Petz", created_at: "2026-08-14T14:00:00-03:00" },
+  { id: "exp-3", household_id: demoPets[0].household_id, pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], health_record_id: null, category: "food", description: "Fancy Feast • Sachezinho Frango", amount_cents: 3954, occurred_at: "2026-08-12T17:00:00-03:00", shared: false, receipt_path: null, notes: "6 unidades", created_at: "2026-08-12T17:00:00-03:00" },
+  { id: "exp-4", household_id: demoPets[0].household_id, pet_id: null, pet_ids: [], health_record_id: null, category: "hygiene", description: "Viva Verde • Areia biodegradável", amount_cents: 8390, occurred_at: "2026-08-05T09:00:00-03:00", shared: true, receipt_path: null, notes: "2 pacotes", created_at: "2026-08-05T09:00:00-03:00" },
 ];
 
 const demoMemoryMedia = (memoryId: string, urls: string[]) => urls.map((url, position) => ({
@@ -138,5 +139,5 @@ export const demoArchivedMemories: MemoryWithMediaUrl[] = [
   { id: "memory-4", household_id: demoPets[0].household_id, pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], type: "milestone", title: "Primeiro dia em casa", body: "Ainda tímido, mas já escolheu o cantinho favorito.", occurred_at: "2026-04-20T19:00:00-03:00", media_path: null, media_url: "/demo-memories/primeiro-dia.svg", media: demoMemoryMedia("memory-4", ["/demo-memories/primeiro-dia.svg"]), archived_at: "2026-08-10T12:00:00-03:00", created_at: "2026-04-20T20:00:00-03:00", updated_at: "2026-08-10T12:00:00-03:00" },
 ];
 
-export const mockPets = demoPets.map((pet) => ({ name: pet.name, detail: pet.current_weight_grams ? `${pet.current_weight_grams} g` : "Sem peso" }));
+export const mockPets = demoPets.map((pet) => ({ name: pet.name, detail: pet.current_weight_grams ? formatWeight(pet.current_weight_grams) : "Sem peso" }));
 export const mockUpcoming = demoReminders.map((reminder) => reminder.title);

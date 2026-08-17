@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureHousehold } from "@/lib/households";
+import { parsePetIds, resolveOptionalPetId } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
 
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
@@ -24,8 +25,20 @@ export async function createReminder(formData: FormData) {
   const recurrence = value(formData, "recurrence");
   const recurrenceRule = recurrence === "daily" ? "FREQ=DAILY" : recurrence === "weekly" ? "FREQ=WEEKLY" : recurrence === "monthly" ? "FREQ=MONTHLY" : null;
   const { supabase, household } = await authContext();
-  const { error } = await supabase.from("reminders").insert({ household_id: household.id, pet_id: value(formData, "pet_id") || null, title, category, due_at: `${dueAt}:00-03:00`, recurrence_rule: recurrenceRule, notes: value(formData, "notes") || null });
-  if (error) redirect(`/agenda/new?error=${encodeURIComponent(error.message)}`);
+  const petIds = parsePetIds(formData);
+  const targets = petIds.length === 0 ? [null] : petIds;
+  const common = {
+    household_id: household.id,
+    title,
+    category,
+    due_at: `${dueAt}:00-03:00`,
+    recurrence_rule: recurrenceRule,
+    notes: value(formData, "notes") || null,
+  };
+  for (const petId of targets) {
+    const { error } = await supabase.from("reminders").insert({ ...common, pet_id: petId });
+    if (error) redirect(`/agenda/new?error=${encodeURIComponent(error.message)}`);
+  }
   revalidatePath("/agenda");
   revalidatePath("/");
   redirect("/agenda?saved=1");
@@ -46,8 +59,10 @@ export async function updateReminder(reminderId: string, formData: FormData) {
   const recurrence = value(formData, "recurrence");
   const recurrenceRule = recurrence === "daily" ? "FREQ=DAILY" : recurrence === "weekly" ? "FREQ=WEEKLY" : recurrence === "monthly" ? "FREQ=MONTHLY" : null;
   const { supabase, household } = await authContext();
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
   const { error } = await supabase.from("reminders").update({
-    pet_id: value(formData, "pet_id") || null,
+    pet_id: petId,
     title,
     category,
     due_at: `${dueAt}:00-03:00`,

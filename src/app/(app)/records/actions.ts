@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
+import { parsePetIds } from "@/lib/pet-form";
 import { numberValue, parseLocalDateTime, quickRecordTypes, value, type RecordSource } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
@@ -27,7 +29,8 @@ function revalidateRecordPaths(petId: string) {
 }
 
 export async function updateRecord(recordId: string, source: RecordSource, formData: FormData) {
-  const petId = value(formData, "pet_id");
+  const petIds = parsePetIds(formData);
+  const petId = petIds[0];
   const type = value(formData, "record_type");
   if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o gatinho e confira o registro.");
 
@@ -42,10 +45,9 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const notes = value(formData, "notes") || null;
 
   if (source === "weight") {
-    const grams = numberValue(formData, "weight_grams");
-    if (grams == null || grams <= 0 || grams > 100000) fail(recordId, source, type, "Informe um peso válido em gramas.");
-    const rounded = Math.round(grams);
-    const { error } = await supabase.from("weight_records").update({ pet_id: petId, weight_grams: rounded, measured_at: occurredAt, notes }).eq("id", recordId).eq("household_id", household.id);
+    const grams = parseWeightKg(value(formData, "weight_kg"));
+    if (grams == null) fail(recordId, source, type, "Informe um peso válido em kg (ex.: 4,2).");
+    const { error } = await supabase.from("weight_records").update({ pet_id: petId, weight_grams: grams, measured_at: occurredAt, notes }).eq("id", recordId).eq("household_id", household.id);
     if (error) fail(recordId, source, type, error.message);
   } else if (source === "neonatal") {
     const neonatalType = type as NeonatalRecordType;

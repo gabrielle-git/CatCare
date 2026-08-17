@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ReceiptText, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PetMultiSelect } from "@/components/pet-multi-select";
 import { getExpense } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
@@ -34,7 +35,7 @@ export default async function EditExpensePage({ params, searchParams }: { params
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Descrição<input required name="description" defaultValue={expense.description} className="field mt-2" /></label><label className="text-sm font-bold">Valor total (R$)<input required name="amount" type="number" min="0" step="0.01" defaultValue={amount} className="field mt-2" /></label></div>
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Categoria<select required name="category" defaultValue={expense.category} className="field mt-2"><option value="veterinary">Veterinário</option><option value="food">Alimentação</option><option value="medication">Medicamentos</option><option value="hygiene">Higiene</option><option value="accessory">Acessórios</option><option value="transport">Transporte</option><option value="other">Outros</option></select></label><label className="text-sm font-bold">Data<input required name="occurred_on" type="date" defaultValue={date} className="field mt-2" /></label></div>
-        <label className="text-sm font-bold">Gatinho relacionado<select name="pet_id" defaultValue={expense.pet_id ?? ""} className="field mt-2"><option value="">Família / nenhum específico</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={expense.pet_ids ?? (expense.pet_id ? [expense.pet_id] : [])} required={false} legend="Gatinhos relacionados" hint="Opcional — escolha um ou mais gatinhos." />
         <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input type="checkbox" name="shared" defaultChecked={expense.shared} className="size-4 accent-[var(--lavender)]" /> Este gasto é compartilhado entre os gatos</label>
         <label className="block text-sm font-bold">Observações<textarea name="notes" rows={3} defaultValue={expense.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white"><ReceiptText size={17} /> Salvar alterações</button>

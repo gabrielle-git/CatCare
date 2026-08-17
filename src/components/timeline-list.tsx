@@ -1,9 +1,7 @@
-"use client";
-
 import Link from "next/link";
-import { Pencil, Trash2 } from "lucide-react";
+import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
+import { deleteRecord } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
-import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import type { TimelineItem } from "@/types/database";
 
@@ -29,12 +27,10 @@ export function TimelineList({
   items,
   emptyText = "Nenhum cuidado registrado ainda.",
   editable = false,
-  deleteAction,
 }: {
   items: TimelineItem[];
   emptyText?: string;
   editable?: boolean;
-  deleteAction?: (item: TimelineItem) => (formData: FormData) => Promise<void>;
 }) {
   if (items.length === 0) {
     return <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">{emptyText}</div>;
@@ -45,7 +41,7 @@ export function TimelineList({
       {items.map((item) => {
         const Icon = iconFor(item.kind);
         const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}`;
-        const remove = deleteAction?.(item);
+        const remove = deleteRecord.bind(null, item.id, item.source, item.pet_id);
         return (
           <li key={`${item.source}-${item.kind}-${item.id}`} className="flex gap-3 rounded-[20px] border border-[var(--border)] bg-white p-3.5">
             <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${toneClasses[item.tone]}`}><Icon size={18} /></span>
@@ -58,11 +54,9 @@ export function TimelineList({
               {editable && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link href={editHref} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]"><Pencil size={13} /> Editar</Link>
-                  {remove && (
-                    <form action={remove}>
-                      <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-bold text-[var(--danger)]"><Trash2 size={13} /> Apagar</ConfirmButton>
-                    </form>
-                  )}
+                  <form action={remove}>
+                    <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-bold text-[var(--danger)]"><Trash2 size={13} /> Apagar</ConfirmButton>
+                  </form>
                 </div>
               )}
             </div>

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { PetMultiSelect } from "@/components/pet-multi-select";
+import { gramsToKgInput } from "@/lib/format";
 import { toLocalDateTimeInput } from "@/lib/record-form";
 import type { QuickRecordType } from "@/components/record-fields-types";
 
@@ -61,8 +63,16 @@ export function RecordFields({
     ? (defaultValues?.record_type ?? initialType) as QuickRecordType
     : "weight";
   const [type, setType] = useState<QuickRecordType>(validInitial);
-  const [petId, setPetId] = useState(defaultValues?.pet_id ?? (initialPetId && pets.some((pet) => pet.id === initialPetId) ? initialPetId : pets[0]?.id ?? ""));
-  const selectedPet = useMemo(() => pets.find((pet) => pet.id === petId), [petId, pets]);
+  const defaultPetIds = defaultValues?.pet_id
+    ? [defaultValues.pet_id]
+    : initialPetId && pets.some((pet) => pet.id === initialPetId)
+      ? [initialPetId]
+      : pets[0]?.id
+        ? [pets[0].id]
+        : [];
+  const [selectedPetIds, setSelectedPetIds] = useState<string[]>(defaultPetIds);
+  const selectedPets = useMemo(() => pets.filter((pet) => selectedPetIds.includes(pet.id)), [pets, selectedPetIds]);
+  const neonatalBlocked = selectedPets.length > 0 && selectedPets.some((pet) => !pet.neonatal);
   const healthType = type === "vaccine" || type === "medication" || type === "consultation" || type === "observation";
   const lockedType = mode === "edit";
   const activeType = lockedType ? validInitial : type;
@@ -72,10 +82,22 @@ export function RecordFields({
     <>
       <input type="hidden" name="timezone_offset_minutes" value={new Date().getTimezoneOffset()} />
       <section>
-        <p className="text-sm font-bold">1. Qual gatinho?</p>
-        <select disabled={disabled || pets.length === 0} required name="pet_id" value={petId} onChange={(event) => setPetId(event.target.value)} className="field mt-2">
-          {pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}{pet.neonatal ? " • bebê" : ""}</option>)}
-        </select>
+        <p className="text-sm font-bold">1. {mode === "edit" ? "Gatinho" : "Quais gatinhos?"}</p>
+        <div className="mt-2">
+          <PetMultiSelect
+            pets={pets}
+            defaultSelectedIds={defaultPetIds}
+            disabled={disabled || pets.length === 0}
+            multiple={mode === "create"}
+            required
+            legend=""
+            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada gatinho selecionado." : undefined}
+            onSelectionChange={setSelectedPetIds}
+          />
+        </div>
+        {mode === "create" && activeType === "weight" && selectedPetIds.length > 1 && (
+          <p className="mt-2 text-xs text-[var(--muted)]">Cada gatinho receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
+        )}
       </section>
 
       <section className="mt-6">
@@ -86,7 +108,7 @@ export function RecordFields({
         ) : (
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
             {options.map(({ value, shortLabel, icon: Icon, neonatal }) => {
-              const unavailable = neonatal && selectedPet && !selectedPet.neonatal;
+              const unavailable = neonatal && neonatalBlocked;
               const active = type === value;
               return (
                 <button
@@ -106,7 +128,7 @@ export function RecordFields({
       </section>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2">
-        {activeType === "weight" && <label className="block text-sm font-bold">Peso em gramas<input disabled={disabled} required type="number" name="weight_grams" min="1" max="100000" inputMode="numeric" defaultValue={defaultValues?.weight_grams ?? ""} className="field mt-2" placeholder="Ex.: 168" /></label>}
+        {activeType === "weight" && <label className="block text-sm font-bold">Peso (kg)<input disabled={disabled} required type="text" name="weight_kg" inputMode="decimal" defaultValue={defaultValues?.weight_grams != null ? gramsToKgInput(defaultValues.weight_grams) : ""} className="field mt-2" placeholder="Ex.: 4,2" /></label>}
         {activeType === "feeding" && <label className="block text-sm font-bold">Quantidade em ml<input disabled={disabled} required type="number" name="amount_ml" min="0.1" max="1000" step="0.1" inputMode="decimal" defaultValue={defaultValues?.amount_ml ?? ""} className="field mt-2" placeholder="Ex.: 8" /></label>}
         {activeType === "temperature" && <label className="block text-sm font-bold">Temperatura em °C<input disabled={disabled} required type="number" name="temperature_c" min="30" max="45" step="0.1" inputMode="decimal" defaultValue={defaultValues?.temperature_c ?? ""} className="field mt-2" placeholder="Ex.: 37,8" /></label>}
         {(activeType === "feeding" || activeType === "urine" || activeType === "stool") && (

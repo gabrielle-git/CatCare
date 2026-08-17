@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
 import { ensureHousehold } from "@/lib/households";
+import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
 import type { ExpenseCategory } from "@/types/database";
 
@@ -15,6 +17,19 @@ function moneyToCents(raw: string) {
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 }
 
+async function authContext() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) redirect("/login");
+  const household = await ensureHousehold(supabase, data.user.id);
+  return { supabase, household };
+}
+
+async function saveExpensePets(supabase: Awaited<ReturnType<typeof createClient>>, householdId: string, expenseId: string, petIds: string[]) {
+  await validateEntityPets(supabase, householdId, petIds);
+  await syncEntityPets(supabase, "expense_pets", householdId, expenseId, petIds);
+}
+
 export async function createExpense(formData: FormData) {
   const description = value(formData, "description");
   const categoryValue = value(formData, "category") as ExpenseCategory;
@@ -22,27 +37,30 @@ export async function createExpense(formData: FormData) {
   const date = value(formData, "occurred_on");
   if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) redirect("/expenses/new?error=Confira%20os%20campos%20obrigat%C3%B3rios.");
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
-  const household = await ensureHousehold(supabase, data.user.id);
-  const petId = value(formData, "pet_id") || null;
-  const { error } = await supabase.from("expenses").insert({
-    household_id: household.id, pet_id: petId, category: categoryValue, description, amount_cents: amountCents,
-    occurred_at: `${date}T12:00:00-03:00`, shared: formData.get("shared") === "on", notes: value(formData, "notes") || null,
-  });
+  const { supabase, household } = await authContext();
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
+  const shared = formData.get("shared") === "on" || sharedFromPetIds(petIds);
+  const { data: created, error } = await supabase.from("expenses").insert({
+    household_id: household.id,
+    pet_id: petId,
+    category: categoryValue,
+    description,
+    amount_cents: amountCents,
+    occurred_at: `${date}T12:00:00-03:00`,
+    shared,
+    notes: value(formData, "notes") || null,
+  }).select("id").single();
   if (error) redirect(`/expenses/new?error=${encodeURIComponent(error.message)}`);
+  try {
+    await saveExpensePets(supabase, household.id, created.id, petIds);
+  } catch (petError) {
+    await supabase.from("expenses").delete().eq("id", created.id).eq("household_id", household.id);
+    redirect(`/expenses/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+  }
   revalidatePath("/expenses");
   revalidatePath("/");
   redirect("/expenses?saved=1");
-}
-
-async function authContext() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
-  const household = await ensureHousehold(supabase, data.user.id);
-  return { supabase, household };
 }
 
 export async function updateExpense(expenseId: string, formData: FormData) {
@@ -53,17 +71,24 @@ export async function updateExpense(expenseId: string, formData: FormData) {
   if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) redirect(`/expenses/${expenseId}/edit?error=Confira%20os%20campos%20obrigat%C3%B3rios.`);
 
   const { supabase, household } = await authContext();
-  const petId = value(formData, "pet_id") || null;
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
+  const shared = formData.get("shared") === "on" || sharedFromPetIds(petIds);
   const { error } = await supabase.from("expenses").update({
     pet_id: petId,
     category: categoryValue,
     description,
     amount_cents: amountCents,
     occurred_at: `${date}T12:00:00-03:00`,
-    shared: formData.get("shared") === "on",
+    shared,
     notes: value(formData, "notes") || null,
   }).eq("id", expenseId).eq("household_id", household.id);
   if (error) redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(error.message)}`);
+  try {
+    await saveExpensePets(supabase, household.id, expenseId, petIds);
+  } catch (petError) {
+    redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+  }
   revalidatePath("/expenses");
   revalidatePath("/");
   revalidatePath("/shopping");
