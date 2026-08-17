@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #faf7f2;
+  --surface: #ffffff;
+  --foreground: #292130;
+  --muted: #5c5266;
+  --border: #e4dde7;
+  --lavender: #8e7dbe;
+  --lavender-soft: #eee9f8;
+  --lavender-strong: #7663ad;
+  --rose: #e9b7c7;
+  --rose-soft: #f8e8ee;
+  --cream: #f7f1e8;
+  --mint: #bfd8c2;
+  --mint-soft: #e7f1e8;
+  --peach: #f6ddc4;
+  --graphite: #2a2230;
+  --danger: #a83d55;
+  --success: #347052;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10% 5%, rgba(142, 125, 190, 0.1), transparent 24rem),
+    var(--background);
+  color: var(--foreground);
+}
+
+::selection {
+  background: var(--rose);
+  color: var(--foreground);
+}
+
+a { text-decoration: none; }
+
+button,
+input,
+textarea,
+select { font: inherit; }
+
+button,
+select { cursor: pointer; }
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cat-card {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 36px rgba(42, 34, 48, 0.045);
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  padding: 0.8rem 0.9rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field:focus {
+  border-color: var(--lavender);
+  box-shadow: 0 0 0 3px rgba(142, 125, 190, 0.16);
+}
+
+.focus-ring:focus-visible {
+  outline: 3px solid rgba(142, 125, 190, 0.34);
+  outline-offset: 3px;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

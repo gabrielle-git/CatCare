@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="Ilustração de patinhas de filhote">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eee9f8"/><stop offset="1" stop-color="#f8e8ee"/></linearGradient></defs>
+  <rect width="900" height="620" rx="54" fill="url(#bg)"/>
+  <g transform="translate(190 92) rotate(-8 250 210)" fill="#fff" stroke="#7663ad" stroke-width="13">
+    <ellipse cx="262" cy="308" rx="132" ry="114"/><ellipse cx="140" cy="155" rx="61" ry="77"/><ellipse cx="255" cy="112" rx="61" ry="77"/><ellipse cx="375" cy="154" rx="61" ry="77"/>
+  </g>
+  <g transform="translate(500 250) scale(.66) rotate(15 180 170)" fill="#fff" stroke="#e9b7c7" stroke-width="17">
+    <ellipse cx="262" cy="308" rx="132" ry="114"/><ellipse cx="140" cy="155" rx="61" ry="77"/><ellipse cx="255" cy="112" rx="61" ry="77"/><ellipse cx="375" cy="154" rx="61" ry="77"/>
+  </g>
+  <circle cx="755" cy="115" r="28" fill="#bfd8c2"/><path d="M133 430l14 31 34 5-25 24 6 34-29-16-30 16 6-34-25-24 34-5z" fill="#8e7dbe" opacity=".7"/>
+</svg>

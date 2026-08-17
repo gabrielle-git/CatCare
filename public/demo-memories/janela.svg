@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="Ilustração de dois gatos olhando pela janela">
+  <rect width="900" height="620" rx="54" fill="#e7f1e8"/><rect x="165" y="80" width="570" height="420" rx="28" fill="#fff" stroke="#292130" stroke-width="15"/><path d="M450 88v404M173 292h554" stroke="#e4dde7" stroke-width="14"/>
+  <circle cx="310" cy="186" r="52" fill="#f6ddc4"/><path d="M247 255q42-69 84 0" fill="none" stroke="#bfd8c2" stroke-width="13" stroke-linecap="round"/>
+  <g fill="#292130"><path d="M230 560V389c0-76 50-125 111-125s111 49 111 125v171z"/><path d="M252 299l20-76 57 54M430 299l-20-76-57 54"/></g>
+  <g fill="#8e7dbe"><path d="M448 560V405c0-68 47-113 104-113s104 45 104 113v155z"/><path d="M470 323l18-70 53 49M634 323l-18-70-53 49"/></g>
+  <path d="M555 201q34-38 68 0-34 30-68 0z" fill="#e9b7c7"/><circle cx="594" cy="191" r="5" fill="#292130"/>
+  <rect x="112" y="500" width="676" height="65" rx="26" fill="#f7f1e8" stroke="#292130" stroke-width="13"/>
+</svg>

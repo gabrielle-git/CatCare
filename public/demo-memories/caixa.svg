@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="Ilustração de um gato dentro de uma caixa">
+  <rect width="900" height="620" rx="54" fill="#f7f1e8"/><ellipse cx="455" cy="532" rx="330" ry="42" fill="#292130" opacity=".09"/>
+  <g fill="#fff" stroke="#292130" stroke-width="14" stroke-linejoin="round"><path d="M284 368c0-118 69-194 166-194l-44-91 88 60 88-60-43 91c96 0 165 76 165 194z"/></g>
+  <g fill="none" stroke="#292130" stroke-width="15" stroke-linecap="round"><circle cx="399" cy="284" r="8" fill="#292130"/><circle cx="547" cy="284" r="8" fill="#292130"/><path d="M453 332q20 18 40 0M473 348v25M473 373q-28 19-48 0M473 373q28 19 48 0"/></g>
+  <path d="M168 365h566l-53 205H220z" fill="#f6ddc4" stroke="#292130" stroke-width="14" stroke-linejoin="round"/><path d="M168 365l-87-85h252l61 85M734 365l87-85H569l-61 85" fill="#e9b7c7" stroke="#292130" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M404 486h138" stroke="#7663ad" stroke-width="16" stroke-linecap="round"/>
+</svg>

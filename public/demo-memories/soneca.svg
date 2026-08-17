@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="Ilustração de dois gatos dormindo juntos">
+  <rect width="900" height="620" rx="54" fill="#f7f1e8"/><ellipse cx="450" cy="475" rx="335" ry="88" fill="#e9b7c7" opacity=".55"/>
+  <g stroke="#292130" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M176 405c0-118 91-193 209-193 51 0 97 18 132 48-41 29-66 77-66 132 0 45 17 86 46 117H289c-68 0-113-39-113-104z" fill="#292130"/>
+    <path d="M293 254l20-75 58 51" fill="#292130"/><path d="M471 271l-3-82-62 54" fill="#292130"/>
+    <path d="M430 411c0-106 80-174 184-174 92 0 154 72 154 174 0 63-50 98-125 98H501c-43-28-71-59-71-98z" fill="#8e7dbe"/>
+    <path d="M536 272l23-70 53 49M699 270l-18-71-54 48" fill="#8e7dbe"/>
+    <path d="M259 333q34 24 69 0M549 345q31 22 63 0" fill="none" stroke="#fff" stroke-width="12"/>
+  </g>
+  <path d="M720 105h72l-72 70h72" fill="none" stroke="#7663ad" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="135" cy="125" r="25" fill="#bfd8c2"/>
+</svg>

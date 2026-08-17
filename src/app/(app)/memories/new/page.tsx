@@ -1,0 +1,31 @@
+import Link from "next/link";
+import { ArrowLeft, ImagePlus } from "lucide-react";
+import { MemoryFields } from "@/components/memory-fields";
+import { ensureHousehold } from "@/lib/households";
+import { demoPets } from "@/lib/mock-data";
+import { listPets } from "@/lib/pets";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import { createMemory } from "../actions";
+
+async function loadForm() {
+  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false, editable: false };
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { pets: [], configured: true, editable: false };
+  const household = await ensureHousehold(supabase, data.user.id);
+  return { pets: await listPets(supabase, household.id), configured: true, editable: true };
+}
+
+export default async function NewMemoryPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const [{ pets, configured, editable }, flags] = await Promise.all([loadForm(), searchParams]);
+  return <div className="mx-auto w-full max-w-[820px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
+    <Link href="/memories" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar às memórias</Link>
+    <div className="mt-4 flex items-center gap-3"><span className="grid size-11 place-items-center rounded-[18px] bg-[var(--rose-soft)]"><ImagePlus size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Novo capítulo</p><h1 className="text-3xl font-bold tracking-[-0.04em]">Guardar memória</h1></div></div>
+    <p className="mt-3 text-sm text-[var(--muted)]">Escolha uma ou mais fotos, marque todos que aparecem e conte do seu jeito.</p>
+    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">O formulário está visível para comparação. <Link href="/login" className="font-bold underline">Conecte uma conta</Link> para salvar fotos privadas.</div>}
+    {configured && !editable && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm"><Link href="/login" className="font-bold underline">Entre na conta</Link> para guardar a memória.</div>}
+    {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+    <form action={createMemory} className="cat-card mt-6 p-5 md:p-7"><MemoryFields pets={pets} disabled={!editable} /><button disabled={!editable || pets.length === 0} className="focus-ring mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white"><ImagePlus size={18} /> Salvar fotos e memória</button></form>
+  </div>;
+}
