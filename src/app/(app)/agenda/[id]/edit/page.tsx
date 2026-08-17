@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, CalendarPlus, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PetMultiSelect } from "@/components/pet-multi-select";
 import { ensureHousehold } from "@/lib/households";
 import { getReminder } from "@/lib/commerce";
 import { listPets } from "@/lib/pets";
@@ -44,7 +45,7 @@ export default async function EditReminderPage({ params, searchParams }: { param
           <label className="text-sm font-bold">Data e hora<input required name="due_at" type="datetime-local" defaultValue={toLocalDateTimeInput(reminder.due_at)} className="field mt-2" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold">Gatinho<select name="pet_id" defaultValue={reminder.pet_id ?? ""} className="field mt-2"><option value="">Família / todos</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
+          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Gatinho" hint="Opcional — deixe vazio para lembrete da família toda." />
           <label className="text-sm font-bold">Repetição<select name="recurrence" defaultValue={recurrenceValue(reminder.recurrence_rule)} className="field mt-2"><option value="none">Não repetir</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option><option value="monthly">Todo mês</option></select></label>
         </div>
         <label className="block text-sm font-bold">Detalhes<textarea name="notes" rows={3} defaultValue={reminder.notes ?? ""} className="field mt-2 resize-none" /></label>

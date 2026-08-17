@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ShoppingBasket, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PetMultiSelect } from "@/components/pet-multi-select";
 import { getProduct, getPurchase } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
@@ -40,8 +41,8 @@ export default async function EditPurchasePage({ params, searchParams }: { param
           <label className="text-sm font-bold">Valor total (R$)<input required name="amount" type="number" min="0" step="0.01" defaultValue={(purchase.amount_cents / 100).toFixed(2)} className="field mt-2" /></label>
           <label className="text-sm font-bold">Quantidade de pacotes<input required name="quantity" type="number" min="0.01" step="0.01" defaultValue={purchase.quantity} className="field mt-2" /></label>
           <label className="text-sm font-bold">Data<input required name="purchased_on" type="date" defaultValue={purchase.purchased_at.slice(0, 10)} className="field mt-2" /></label>
-          <label className="text-sm font-bold">Para quem?<select name="pet_id" defaultValue={purchase.pet_id ?? ""} className="field mt-2"><option value="">Todos / casa</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
         </div>
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} required={false} legend="Para quem?" hint="Opcional — um, vários gatos ou nenhum (casa toda)." />
         <label className="block text-sm font-bold">Link do produto<input name="product_url" type="url" defaultValue={purchase.product_url ?? ""} className="field mt-2" /></label>
         <label className="block text-sm font-bold">Observações<textarea name="purchase_notes" rows={3} defaultValue={purchase.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white"><ShoppingBasket size={18} /> Salvar alterações</button>

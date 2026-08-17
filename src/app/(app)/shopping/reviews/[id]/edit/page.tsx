@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, Star, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PetMultiSelect } from "@/components/pet-multi-select";
 import { getProduct, getProductReview } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
+import { listPets } from "@/lib/pets";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { deleteProductReview, updateProductReview } from "../../../actions";
@@ -19,7 +21,10 @@ export default async function EditReviewPage({ params, searchParams }: { params:
   if (!data.user) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Entre na conta.</div>;
 
   const household = await ensureHousehold(supabase, data.user.id);
-  const review = await getProductReview(supabase, household.id, id);
+  const [review, pets] = await Promise.all([
+    getProductReview(supabase, household.id, id),
+    listPets(supabase, household.id),
+  ]);
   if (!review) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Avaliação não encontrada.</div>;
   const product = await getProduct(supabase, household.id, review.product_id);
 
@@ -33,6 +38,7 @@ export default async function EditReviewPage({ params, searchParams }: { params:
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-4 sm:grid-cols-3"><label className="text-sm font-bold">Qualidade<select required name="quality_score" defaultValue={review.quality_score} className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Aceitação<select required name="acceptance_score" defaultValue={review.acceptance_score} className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Custo-benefício<select required name="cost_benefit_score" defaultValue={review.cost_benefit_score} className="field mt-2">{scoreOptions}</select></label></div>
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={review.pet_ids ?? (review.pet_id ? [review.pet_id] : [])} required={false} legend="Quais gatos avaliaram?" hint="Opcional — quem experimentou o produto." />
         <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input type="checkbox" name="would_buy_again" defaultChecked={review.would_buy_again} className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
         <label className="block text-sm font-bold">Comentário<textarea name="review_notes" rows={3} defaultValue={review.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white">Salvar avaliação</button>

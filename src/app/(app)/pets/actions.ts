@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 import { createClient } from "@/lib/supabase/server";
@@ -72,10 +73,13 @@ export async function createPet(formData: FormData) {
   const { data: pet, error } = await supabase.from("pets").insert({ ...fields, household_id: household.id }).select("id").single();
   if (error) redirect(`/pets/new?error=${encodeURIComponent(error.message)}`);
 
-  const initialWeight = Number(value(formData, "initial_weight_grams"));
-  if (Number.isFinite(initialWeight) && initialWeight > 0 && initialWeight <= 100000) {
-    const { error: weightError } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: Math.round(initialWeight), notes: "Peso inicial" });
-    if (!weightError) await supabase.from("pets").update({ current_weight_grams: Math.round(initialWeight) }).eq("id", pet.id);
+  const initialWeightKg = value(formData, "initial_weight_kg");
+  if (initialWeightKg) {
+    const grams = parseWeightKg(initialWeightKg);
+    if (grams != null) {
+      const { error: weightError } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, notes: "Peso inicial" });
+      if (!weightError) await supabase.from("pets").update({ current_weight_grams: grams }).eq("id", pet.id);
+    }
   }
 
   if (photo) {

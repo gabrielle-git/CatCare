@@ -41,8 +41,8 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
 
       {includeInitialWeight && (
         <label className="block text-sm font-bold">
-          Peso inicial em gramas
-          <input disabled={disabled} type="number" min="1" max="100000" name="initial_weight_grams" className="field mt-2" placeholder="Ex.: 4200" inputMode="numeric" />
+          Peso inicial (kg)
+          <input disabled={disabled} type="text" name="initial_weight_kg" className="field mt-2" placeholder="Ex.: 4,2" inputMode="decimal" />
           <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">A primeira pesagem já aparecerá no histórico.</span>
         </label>
       )}

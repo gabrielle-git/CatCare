@@ -16,7 +16,7 @@ Abra [http://localhost:3100](http://localhost:3100). Sem `.env.local`, o app abr
 ## Conectar o Supabase
 
 1. Crie um projeto no Supabase.
-2. Execute, nesta ordem, as migrations `0001_initial.sql`, `0002_commerce.sql`, `0003_memories.sql` e `0004_memory_gallery.sql` da pasta `supabase/migrations` no SQL Editor.
+2. Execute, nesta ordem, as migrations da pasta `supabase/migrations` no SQL Editor: `0001_initial.sql`, `0002_commerce.sql`, `0003_memories.sql`, `0004_memory_gallery.sql`, `0005_household_bootstrap.sql` e `0006_entity_pets.sql`.
 3. Copie `.env.example` para `.env.local`.
 4. Preencha:
 

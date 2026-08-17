@@ -60,8 +60,24 @@ export const petLifeStageLabels: Record<PetLifeStage, string> = {
 
 export function formatWeight(grams: number | null) {
   if (grams == null) return "Sem peso";
-  if (grams < 1000) return `${grams} g`;
-  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(grams / 1000)} kg`;
+  const kg = grams / 1000;
+  const digits = kg < 1 ? 3 : 2;
+  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(kg)} kg`;
+}
+
+export function gramsToKgInput(grams: number | null | undefined) {
+  if (grams == null) return "";
+  const kg = grams / 1000;
+  return kg < 1 ? String(Number(kg.toFixed(3))) : String(Number(kg.toFixed(2)));
+}
+
+export function parseWeightKg(raw: string) {
+  const text = raw.trim();
+  if (!text) return null;
+  const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+  const kg = Number(normalized);
+  if (!Number.isFinite(kg) || kg <= 0 || kg > 100) return null;
+  return Math.round(kg * 1000);
 }
 
 export function formatDateTime(value: string) {
