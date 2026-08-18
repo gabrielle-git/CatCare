@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ArrowUpRight, PawPrint, Pencil, Plus, ReceiptText, Trash2, Users } from "lucide-react";
+import { ArrowUpRight, PawPrint, Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, Users } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PetNameChips } from "@/components/pet-name-chips";
 import { listExpenses } from "@/lib/commerce";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
-import { demoExpenses, demoPets } from "@/lib/mock-data";
+import { demoExpenses, demoPets, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
@@ -18,7 +18,11 @@ const categoryLabels: Record<ExpenseCategory, string> = {
 };
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) return { expenses: demoExpenses, pets: demoPets, configured: false, editable: false };
+  if (!hasSupabaseEnv()) {
+    const purchaseByExpense = new Map(demoPurchases.filter((item) => item.expense_id).map((item) => [item.expense_id as string, item.id]));
+    const expenses = demoExpenses.map((item) => ({ ...item, purchase_id: purchaseByExpense.get(item.id) ?? null }));
+    return { expenses, pets: demoPets, configured: false, editable: false };
+  }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { expenses: [], pets: [], configured: true, editable: false };
@@ -66,14 +70,14 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
           <div className="flex min-w-0 items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Movimentações</p><h2 className="mt-1 text-xl font-bold">Histórico recente</h2></div><span className="shrink-0 text-xs text-[var(--muted)]">{monthExpenses.length} no mês</span></div>
           <div className="mt-4 min-w-0 space-y-2.5">{monthExpenses.length === 0 ? <p className="rounded-2xl bg-[var(--cream)] p-5 text-sm text-[var(--muted)]">Nenhum gasto neste mês.</p> : monthExpenses.slice(0, 12).map((item) => {
             const remove = deleteExpense.bind(null, item.id);
-            return <div key={item.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--cream)]"><ReceiptText size={17} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{item.description}</p><p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--muted)]"><span>{formatShortDate(item.occurred_at)}</span><span>•</span><PetNameChips petIds={item.pet_ids ?? (item.pet_id ? [item.pet_id] : [])} names={names} /><span>•</span><span>{categoryLabels[item.category]}</span></p></div><strong className="shrink-0 text-sm">{formatCurrency(item.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/expenses/${item.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar este gasto permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
+            return <div key={item.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-[15px] ${item.purchase_id ? "bg-[var(--mint-soft)]" : "bg-[var(--cream)]"}`}>{item.purchase_id ? <ShoppingBasket size={17} /> : <ReceiptText size={17} />}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.description}</p>{item.purchase_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Compra</span>}</div><p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--muted)]"><span>{formatShortDate(item.occurred_at)}</span><span>•</span><PetNameChips petIds={item.pet_ids ?? (item.pet_id ? [item.pet_id] : [])} names={names} /><span>•</span><span>{categoryLabels[item.category]}</span></p></div><strong className="shrink-0 text-sm">{formatCurrency(item.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3">{item.purchase_id ? <Link href={`/shopping/purchases/${item.purchase_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ShoppingBasket size={12} /> Editar compra</Link> : null}<Link href={`/expenses/${item.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message={item.purchase_id ? "Apagar este gasto e a compra vinculada em Compras?" : "Apagar este gasto permanentemente?"} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
           })}</div>
         </section>
 
         <aside className="cat-card min-w-0 p-5 md:p-6">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Distribuição</p><h2 className="mt-1 text-xl font-bold">Por categoria</h2>
           <div className="mt-5 space-y-5">{totalsByCategory.length === 0 ? <p className="text-sm text-[var(--muted)]">As categorias aparecem quando houver gastos.</p> : totalsByCategory.map((item) => <div key={item.category}><div className="mb-2 flex items-center justify-between gap-2 text-xs"><span className="font-bold">{item.label}</span><span className="text-[var(--muted)]">{formatCurrency(item.total)}</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--lavender-soft)]"><div className="h-full rounded-full bg-[var(--graphite)]" style={{ width: `${Math.max(8, (item.total / maxCategory) * 100)}%` }} /></div></div>)}</div>
-          <Link href="/shopping" className="focus-ring mt-7 flex items-center justify-between rounded-[18px] bg-[var(--mint-soft)] p-4 text-sm font-bold"><span>Comparar produtos e preços</span><ArrowUpRight size={18} /></Link>
+          <Link href="/shopping" className="focus-ring mt-7 flex items-center justify-between rounded-[18px] bg-[var(--mint-soft)] p-4 text-sm font-bold"><span>Compras e avaliações — cada compra vira gasto aqui</span><ArrowUpRight size={18} /></Link>
         </aside>
       </div>
     </div>

@@ -95,6 +95,7 @@ export type Expense = {
   household_id: string;
   pet_id: string | null;
   pet_ids?: string[];
+  purchase_id?: string | null;
   health_record_id: string | null;
   category: ExpenseCategory;
   description: string;

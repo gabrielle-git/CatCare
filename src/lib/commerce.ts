@@ -8,6 +8,20 @@ async function attachExpensePetIds(supabase: SupabaseClient, householdId: string
   return rows.map((row) => ({ ...row, pet_ids: resolvePetIdsFromRow(map.get(row.id) ?? [], row.pet_id) }));
 }
 
+async function attachExpensePurchaseIds(supabase: SupabaseClient, householdId: string, rows: Expense[]) {
+  if (rows.length === 0) return rows;
+  const expenseIds = rows.map((row) => row.id);
+  const { data, error } = await supabase.from("purchases").select("id, expense_id").eq("household_id", householdId).in("expense_id", expenseIds);
+  if (error) throw error;
+  const map = new Map((data ?? []).map((row) => [row.expense_id as string, row.id as string]));
+  return rows.map((row) => ({ ...row, purchase_id: map.get(row.id) ?? null }));
+}
+
+async function attachExpenseLinks(supabase: SupabaseClient, householdId: string, rows: Expense[]) {
+  const withPets = await attachExpensePetIds(supabase, householdId, rows);
+  return attachExpensePurchaseIds(supabase, householdId, withPets);
+}
+
 async function attachPurchasePetIds(supabase: SupabaseClient, householdId: string, rows: Purchase[]) {
   if (rows.length === 0) return rows;
   const map = await loadPetIdsByEntity(supabase, "purchase_pets", householdId, rows.map((row) => row.id));
@@ -24,7 +38,13 @@ export async function getExpense(supabase: SupabaseClient, householdId: string, 
   const { data, error } = await supabase.from("expenses").select("*").eq("id", id).eq("household_id", householdId).maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return (await attachExpensePetIds(supabase, householdId, [data as Expense]))[0] ?? null;
+  return (await attachExpenseLinks(supabase, householdId, [data as Expense]))[0] ?? null;
+}
+
+export async function getPurchaseByExpenseId(supabase: SupabaseClient, householdId: string, expenseId: string) {
+  const { data, error } = await supabase.from("purchases").select("id").eq("household_id", householdId).eq("expense_id", expenseId).maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
 }
 
 export async function getPurchase(supabase: SupabaseClient, householdId: string, id: string) {
@@ -56,7 +76,7 @@ export async function getReminder(supabase: SupabaseClient, householdId: string,
 export async function listExpenses(supabase: SupabaseClient, householdId: string, limit = 120): Promise<Expense[]> {
   const { data, error } = await supabase.from("expenses").select("*").eq("household_id", householdId).order("occurred_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return attachExpensePetIds(supabase, householdId, (data ?? []) as Expense[]);
+  return attachExpenseLinks(supabase, householdId, (data ?? []) as Expense[]);
 }
 
 export async function listCommerce(supabase: SupabaseClient, householdId: string) {

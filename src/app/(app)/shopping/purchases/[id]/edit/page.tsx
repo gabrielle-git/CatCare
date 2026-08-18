@@ -34,6 +34,12 @@ export default async function EditPurchasePage({ params, searchParams }: { param
       <Link href="/shopping" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar às compras</Link>
       <div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Editar compra</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.04em]">{product.name}</h1></div>
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+      {purchase.expense_id && (
+        <div className="mt-6 rounded-[20px] border border-[#cfe8d8] bg-[var(--mint-soft)] px-4 py-3 text-sm leading-relaxed">
+          Esta compra já entrou em <strong>Gastos da família</strong>. Valor, data e gatinhos ficam sincronizados com{" "}
+          <Link href={`/expenses/${purchase.expense_id}/edit`} className="font-bold text-[var(--success)] underline">o gasto vinculado</Link>.
+        </div>
+      )}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-bold">Loja ou vendedor<input required name="store_name" defaultValue={purchase.store_name} className="field mt-2" /></label>
