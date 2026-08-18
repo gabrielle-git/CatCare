@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { buildInviteUrl, isLocalAppUrl } from "@/lib/app-url";
 import { sendInviteEmail } from "@/lib/email/send-invite";
 import { ensureHousehold } from "@/lib/households";
+import { getMyRole, isOwner } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdRole } from "@/types/database";
 
@@ -94,4 +95,17 @@ export async function setMemberAlias(userId: string, formData: FormData) {
   if (error) fail(error.message);
   revalidatePath("/settings/members");
   redirect("/settings/members?alias=1");
+}
+
+export async function transferOwnership(userId: string) {
+  const { supabase, userId: currentUserId } = await authContext();
+  if (userId === currentUserId) fail("Você já é o dono desta família.");
+  const role = await getMyRole(supabase);
+  if (!isOwner(role)) fail("Apenas o dono pode transferir a família.");
+  const { error } = await supabase.rpc("transfer_ownership", { target_user_id: userId });
+  if (error) fail(error.message);
+  revalidatePath("/", "layout");
+  revalidatePath("/settings");
+  revalidatePath("/settings/members");
+  redirect("/settings/members?transferred=1");
 }
