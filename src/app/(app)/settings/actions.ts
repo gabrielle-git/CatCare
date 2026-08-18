@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { setActiveHousehold } from "@/lib/household-switch";
+import { removeHouseholdMedia } from "@/lib/household-media";
 import { getMyRole, isOwner } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -98,6 +99,13 @@ export async function deleteHousehold(householdId: string, formData: FormData) {
   if (householdError) redirect(`/settings?error=${encodeURIComponent(householdError.message)}`);
   if (!household || confirmName !== household.name.trim()) {
     redirect("/settings?error=" + encodeURIComponent("Digite o nome exato da família para confirmar a exclusão."));
+  }
+
+  try {
+    await removeHouseholdMedia(supabase, householdId);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Não foi possível apagar as fotos da família.";
+    redirect(`/settings?error=${encodeURIComponent(message)}`);
   }
 
   const { error } = await supabase.rpc("delete_household");
