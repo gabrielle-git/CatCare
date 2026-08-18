@@ -5,22 +5,25 @@ import { isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole, requireEditPage } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { createRecord } from "./actions";
 
 async function loadPetOptions() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false };
+  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], configured: true };
+  if (!data.user) return { pets: [], configured: true, editable: false };
+  const role = await getMyRole(supabase);
   const household = await ensureHousehold(supabase, data.user.id);
-  return { pets: await listPets(supabase, household.id), configured: true };
+  return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
 export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string }> }) {
+  if (hasSupabaseEnv()) await requireEditPage("/");
   const query = await searchParams;
-  const { pets, configured } = await loadPetOptions();
+  const { pets, configured, editable } = await loadPetOptions();
   const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
 
   return (

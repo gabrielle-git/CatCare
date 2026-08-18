@@ -6,6 +6,7 @@ import { ensureHousehold } from "@/lib/households";
 import { listMemories } from "@/lib/memories";
 import { demoArchivedMemories, demoMemories, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { MemoryType } from "@/types/database";
@@ -25,8 +26,9 @@ async function loadPage(archived: boolean) {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { memories: [], pets: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
+  const role = await getMyRole(supabase);
   const [memories, pets] = await Promise.all([listMemories(supabase, household.id, archived), listPets(supabase, household.id)]);
-  return { memories, pets, configured: true, editable: true };
+  return { memories, pets, configured: true, editable: canEdit(role) };
 }
 
 export default async function MemoriesPage({ searchParams }: { searchParams: Promise<{ view?: string; type?: string; saved?: string; updated?: string; archived?: string; restored?: string; deleted?: string }> }) {

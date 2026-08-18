@@ -7,6 +7,7 @@ import { formatCurrency, formatShortDate } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoExpenses, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { ExpenseCategory } from "@/types/database";
@@ -17,17 +18,18 @@ const categoryLabels: Record<ExpenseCategory, string> = {
 };
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) return { expenses: demoExpenses, pets: demoPets, configured: false };
+  if (!hasSupabaseEnv()) return { expenses: demoExpenses, pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { expenses: [], pets: [], configured: true };
+  if (!data.user) return { expenses: [], pets: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
+  const role = await getMyRole(supabase);
   const [expenses, pets] = await Promise.all([listExpenses(supabase, household.id), listPets(supabase, household.id)]);
-  return { expenses, pets, configured: true };
+  return { expenses, pets, configured: true, editable: canEdit(role) };
 }
 
 export default async function ExpensesPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
-  const [{ expenses, pets, configured }, flags] = await Promise.all([loadPage(), searchParams]);
+  const [{ expenses, pets, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
   const current = new Date();
   const monthExpenses = expenses.filter((item) => {
     const date = new Date(item.occurred_at);
@@ -46,7 +48,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     <div className="mx-auto w-full max-w-[1080px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Vida financeira</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Gastos da família</h1><p className="mt-2 max-w-[620px] text-sm text-[var(--muted)]">Descubra para onde o dinheiro está indo sem perder o contexto de cada cuidado.</p></div>
-        <Link href="/expenses/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Adicionar gasto</Link>
+        {editable && <Link href="/expenses/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Adicionar gasto</Link>}
       </header>
       {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Os valores mostram como sua visão financeira ficará após conectar a conta.</div>}
       {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Gasto registrado e incluído no resumo.</div>}
@@ -64,7 +66,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
           <div className="flex min-w-0 items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Movimentações</p><h2 className="mt-1 text-xl font-bold">Histórico recente</h2></div><span className="shrink-0 text-xs text-[var(--muted)]">{monthExpenses.length} no mês</span></div>
           <div className="mt-4 min-w-0 space-y-2.5">{monthExpenses.length === 0 ? <p className="rounded-2xl bg-[var(--cream)] p-5 text-sm text-[var(--muted)]">Nenhum gasto neste mês.</p> : monthExpenses.slice(0, 12).map((item) => {
             const remove = deleteExpense.bind(null, item.id);
-            return <div key={item.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--cream)]"><ReceiptText size={17} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{item.description}</p><p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--muted)]"><span>{formatShortDate(item.occurred_at)}</span><span>•</span><PetNameChips petIds={item.pet_ids ?? (item.pet_id ? [item.pet_id] : [])} names={names} /><span>•</span><span>{categoryLabels[item.category]}</span></p></div><strong className="shrink-0 text-sm">{formatCurrency(item.amount_cents)}</strong></div>{configured && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/expenses/${item.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar este gasto permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
+            return <div key={item.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--cream)]"><ReceiptText size={17} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{item.description}</p><p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--muted)]"><span>{formatShortDate(item.occurred_at)}</span><span>•</span><PetNameChips petIds={item.pet_ids ?? (item.pet_id ? [item.pet_id] : [])} names={names} /><span>•</span><span>{categoryLabels[item.category]}</span></p></div><strong className="shrink-0 text-sm">{formatCurrency(item.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/expenses/${item.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar este gasto permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
           })}</div>
         </section>
 

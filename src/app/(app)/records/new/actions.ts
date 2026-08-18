@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { parsePetIds } from "@/lib/pet-form";
+import { assertCanEdit } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
@@ -44,6 +45,7 @@ export async function createRecord(formData: FormData) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login");
+  await assertCanEdit(supabase);
   const household = await ensureHousehold(supabase, auth.user.id);
   const { data: pets } = await supabase.from("pets").select("id, name").eq("household_id", household.id).in("id", petIds).is("archived_at", null);
   if (!pets?.length || pets.length !== petIds.length) fail(petIds, type, "Gatinho não encontrado.");

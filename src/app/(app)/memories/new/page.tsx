@@ -4,6 +4,7 @@ import { MemoryFields } from "@/components/memory-fields";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { createMemory } from "../actions";
@@ -14,7 +15,8 @@ async function loadForm() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { pets: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
-  return { pets: await listPets(supabase, household.id), configured: true, editable: true };
+  const role = await getMyRole(supabase);
+  return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
 export default async function NewMemoryPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

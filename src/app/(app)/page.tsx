@@ -6,6 +6,7 @@ import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,26 +20,28 @@ function greeting() {
 }
 
 async function loadDashboard() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false, error: null as string | null };
+  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false, editable: false, error: null as string | null };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], reminders: [], configured: true, error: null as string | null };
+  if (!data.user) return { pets: [], timeline: [], reminders: [], configured: true, editable: false, error: null as string | null };
   try {
     const household = await ensureHousehold(supabase, data.user.id);
+    const role = await getMyRole(supabase);
     const [pets, timeline, reminders] = await Promise.all([
       listPets(supabase, household.id),
       listHouseholdTimeline(supabase, household.id, 6),
       listUpcomingReminders(supabase, household.id, 4),
     ]);
-    return { pets, timeline, reminders, configured: true, error: null as string | null };
+    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
-    return { pets: [], timeline: [], reminders: [], configured: true, error };
+    return { pets: [], timeline: [], reminders: [], configured: true, editable: false, error };
   }
 }
 
-export default async function HomePage() {
-  const { pets, timeline, reminders, configured, error } = await loadDashboard();
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string; joined?: string }> }) {
+  const flags = await searchParams;
+  const { pets, timeline, reminders, configured, editable, error } = await loadDashboard();
   const petNames = new Map(pets.map((pet) => [pet.id, pet.name]));
   const babies = pets.filter(isNeonatalPet);
 
@@ -53,17 +56,20 @@ export default async function HomePage() {
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">{greeting()}, família.</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">Um resumo tranquilo do que importa hoje.</p>
         </div>
-        <Link href="/records/new" className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15"><Plus size={18} /> Registrar cuidado</Link>
+        {editable && <Link href="/records/new" className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15"><Plus size={18} /> Registrar cuidado</Link>}
       </header>
 
       {error && <div className="cat-card mt-5 border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+      {flags.error && <div className="cat-card mt-5 border-red-200 bg-red-50 p-4 text-sm text-red-800">{flags.error}</div>}
+      {configured && !editable && <div className="cat-card mt-5 bg-[var(--cream)] p-4 text-sm"><strong>Modo visitante.</strong> Você pode ver tudo, mas não registrar nem editar nesta família.</div>}
+      {flags.joined && <div className="cat-card mt-5 bg-[var(--mint-soft)] p-4 text-sm font-semibold text-[var(--success)]">Você entrou na família! Troque entre famílias em Configurações → Suas famílias.</div>}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
         <div className="space-y-5">
           <section className="overflow-hidden rounded-[26px] bg-[var(--lavender)] text-white shadow-xl shadow-[#8e7dbe]/15">
             <div className="grid gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center md:p-7">
               <div><p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-white/75"><Sparkles size={15} /> Registro rápido</p><h2 className="mt-3 max-w-lg text-2xl font-bold tracking-[-0.03em]">Quanto menos passos, mais completo fica o histórico.</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-white/80">Anote uma pesagem, vacina, mamada ou medicamento em menos de um minuto.</p></div>
-              <Link href="/records/new" className="focus-ring inline-flex items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-3 text-sm font-bold text-[var(--lavender-strong)]">Abrir registro rápido <ArrowRight size={18} /></Link>
+              {editable && <Link href="/records/new" className="focus-ring inline-flex items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-3 text-sm font-bold text-[var(--lavender-strong)]">Abrir registro rápido <ArrowRight size={18} /></Link>}
             </div>
           </section>
 
@@ -76,7 +82,7 @@ export default async function HomePage() {
           <section className="cat-card p-5 md:p-6">
             <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Família</p><h2 className="mt-1 text-xl font-bold">Meus gatos</h2></div><Link href="/pets" className="focus-ring rounded-xl px-2 py-1 text-xs font-bold text-[var(--lavender-strong)]">Ver todos</Link></div>
             {pets.length === 0 ? (
-              <div className="mt-4 rounded-[20px] border border-dashed border-[var(--border)] p-6 text-center"><p className="text-sm font-bold">Nenhum gatinho cadastrado.</p><Link href="/pets/new" className="mt-3 inline-flex text-xs font-bold text-[var(--lavender-strong)]">Adicionar o primeiro</Link></div>
+              <div className="mt-4 rounded-[20px] border border-dashed border-[var(--border)] p-6 text-center"><p className="text-sm font-bold">Nenhum gatinho cadastrado.</p>{editable && <Link href="/pets/new" className="mt-3 inline-flex text-xs font-bold text-[var(--lavender-strong)]">Adicionar o primeiro</Link>}</div>
             ) : (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {pets.slice(0, 4).map((pet) => <Link key={pet.id} href={`/pets/${pet.id}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-[var(--border)] bg-white p-3.5 transition hover:-translate-y-0.5"><PetAvatar name={pet.name} photoUrl={pet.photo_url} size="sm" /><div className="min-w-0"><p className="truncate font-bold">{pet.name}</p><p className="mt-0.5 truncate text-xs text-[var(--muted)]">{formatWeight(pet.current_weight_grams)} • {formatPetAge(pet.birth_date, pet.birth_date_estimated) ?? "idade não informada"}</p>{formatHumanEquivalentAge(pet.birth_date) && <p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">{formatHumanEquivalentAge(pet.birth_date)}</p>}</div></Link>)}
