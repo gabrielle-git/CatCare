@@ -91,6 +91,17 @@ export async function updateExpense(expenseId: string, formData: FormData) {
   } catch (petError) {
     redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
   }
+
+  const linkedPurchase = await supabase.from("purchases").select("id").eq("expense_id", expenseId).eq("household_id", household.id).maybeSingle();
+  if (linkedPurchase.data) {
+    await supabase.from("purchases").update({
+      pet_id: petId,
+      amount_cents: amountCents,
+      purchased_at: `${date}T12:00:00-03:00`,
+    }).eq("id", linkedPurchase.data.id).eq("household_id", household.id);
+    await syncEntityPets(supabase, "purchase_pets", household.id, linkedPurchase.data.id, petIds);
+  }
+
   revalidatePath("/expenses");
   revalidatePath("/");
   revalidatePath("/shopping");
@@ -99,7 +110,10 @@ export async function updateExpense(expenseId: string, formData: FormData) {
 
 export async function deleteExpense(expenseId: string) {
   const { supabase, household } = await authContext();
-  await supabase.from("purchases").update({ expense_id: null }).eq("expense_id", expenseId).eq("household_id", household.id);
+  const linkedPurchase = await supabase.from("purchases").select("id").eq("expense_id", expenseId).eq("household_id", household.id).maybeSingle();
+  if (linkedPurchase.data) {
+    await supabase.from("purchases").delete().eq("id", linkedPurchase.data.id).eq("household_id", household.id);
+  }
   const { error } = await supabase.from("expenses").delete().eq("id", expenseId).eq("household_id", household.id);
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/expenses");
