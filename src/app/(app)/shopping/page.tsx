@@ -8,7 +8,8 @@ import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations } from "@/lib/recommendations";
+import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
+import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { ProductCategory, PurchaseChannel } from "@/types/database";
@@ -64,13 +65,61 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
       latestReview: productReviews[0] ?? null,
     };
   });
-  const bestValue = [...insights].filter((item) => item.reviews > 0).sort((a, b) => b.value - a.value)[0];
+  const bestValue = [...insights].filter((item) => qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain)).sort((a, b) => b.value - a.value)[0]
+    ?? [...insights].filter((item) => item.reviews > 0).sort((a, b) => b.value - a.value)[0];
   const rankedProducts = rankProductRecommendations(products, purchases, reviews);
-  const foodRecommendation = bestFoodRecommendation(rankedProducts);
-  const litterRecommendation = bestLitterRecommendation(rankedProducts);
+  const worthRanked = worthRepeatingRecommendations(rankedProducts);
+  const foodRecommendation = bestFoodRecommendation(worthRanked);
+  const litterRecommendation = bestLitterRecommendation(worthRanked);
   const recommendations = [foodRecommendation, litterRecommendation].filter((item) => item !== null);
+  const worthRepeating = insights.filter((item) => qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain));
+  const catalog = insights.filter((item) => !qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain));
   const hasNeonatal = pets.some(isNeonatalPet);
   const hasKittens = pets.some((pet) => getPetLifeStage(pet.birth_date) === "kitten");
+
+  function renderInsightCard({ product, latest, priceChange, quality, acceptance, value, reviews: reviewCount, buyAgain, latestReview }: (typeof insights)[number]) {
+    const TrendIcon = priceChange < -0.1 ? ArrowDownRight : priceChange > 0.1 ? ArrowUpRight : Minus;
+    const trendTone = priceChange < -0.1 ? "text-[var(--success)]" : priceChange > 0.1 ? "text-[var(--danger)]" : "text-[var(--muted)]";
+    const overall = reviewCount ? (quality + acceptance + value) / 3 : 0;
+    return (
+      <article key={product.id} className="cat-card overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <span className={`grid size-11 shrink-0 place-items-center rounded-[17px] ${tones[product.category]}`}><PackageOpen size={20} /></span>
+            <span className="rounded-full bg-[var(--cream)] px-2.5 py-1 text-[10px] font-bold">{categoryLabels[product.category]}</span>
+          </div>
+          <p className="mt-4 text-xs font-semibold text-[var(--muted)]">{product.brand || "Sem marca"}</p>
+          <h3 className="mt-0.5 text-lg font-bold">{product.name}</h3>
+          <p className="mt-1 text-xs text-[var(--muted)]">{product.package_size || "Tamanho não informado"}</p>
+          <div className="mt-4 flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold text-[var(--muted)]">Último preço por pacote</p>
+              <p className="mt-1 text-xl font-bold">{latest ? formatCurrency(Math.round(latest.amount_cents / latest.quantity)) : "—"}</p>
+            </div>
+            {latest && <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${trendTone}`}><TrendIcon size={14} />{Math.abs(priceChange).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>}
+          </div>
+          {latest && <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Store size={13} /> {latest.store_name} • {channelLabels[latest.channel]}</p>}
+        </div>
+        <div className="grid grid-cols-3 border-t border-[var(--border)] bg-[var(--cream)]">
+          <div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Qualidade</p><p className="mt-1 text-sm font-bold">{reviewCount ? quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div>
+          <div className="border-x border-[var(--border)] p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Aceitação</p><p className="mt-1 text-sm font-bold">{reviewCount ? acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div>
+          <div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Custo-benefício</p><p className="mt-1 text-sm font-bold">{reviewCount ? value.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div>
+        </div>
+        {reviewCount > 0 && (
+          <div className="border-t border-[var(--border)] px-5 py-3">
+            <p className="text-[10px] text-[var(--muted)]"><Star size={11} className="mr-1 inline fill-[var(--lavender)] text-[var(--lavender)]" /> Média {scoreLabel(overall)} • {buyAgain} de {reviewCount} comprariam novamente</p>
+            {editable && latestReview && <Link href={`/shopping/reviews/${latestReview.id}/edit`} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar avaliação</Link>}
+          </div>
+        )}
+        {editable && (
+          <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3">
+            <Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link>
+            <form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form>
+          </div>
+        )}
+      </article>
+    );
+  }
 
   return <div className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço e aceitação dos produtos. Cada compra registrada vira gasto automaticamente em Gastos da família.</p></div>{editable && <Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link>}</header>
@@ -86,22 +135,17 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
     <section className="mt-7 overflow-hidden rounded-[26px] border border-[#d9cfee] bg-[linear-gradient(135deg,var(--lavender-soft),#fff)]">
       <div className="flex flex-col gap-3 border-b border-[#d9cfee] p-5 sm:flex-row sm:items-center sm:justify-between md:p-6"><div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-[17px] bg-white text-[var(--lavender-strong)]"><Brain size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Recomendação inteligente</p><h2 className="mt-1 text-xl font-bold">O histórico da família escolheria</h2><p className="mt-1 text-xs text-[var(--muted)]">Ranking baseado nas suas notas e recompras — nunca em publicidade.</p></div></div><Link href="/assistant" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-xs font-bold text-[var(--lavender-strong)]"><Sparkles size={14} /> Perguntar ao assistente</Link></div>
-      {recommendations.length === 0 ? <p className="p-6 text-sm text-[var(--muted)]">Avalie ao menos um alimento ou areia para liberar recomendações confiáveis.</p> : <div className="grid gap-px bg-[#d9cfee] md:grid-cols-2">{recommendations.map((recommendation) => <div key={recommendation.product.id} className="bg-white p-5 md:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{recommendation.product.category === "litter" ? "Areia recomendada" : "Alimento recomendado"}</p><h3 className="mt-1 text-lg font-bold">{recommendation.product.name}</h3><p className="mt-1 text-xs text-[var(--muted)]">{recommendation.product.brand || "Sem marca"} • {recommendation.reviewCount} {recommendation.reviewCount === 1 ? "avaliação" : "avaliações"}</p></div><span className="rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-xs font-bold text-[var(--success)]">{recommendation.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5</span></div><p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Recomendada por {recommendation.reason}.</p>{recommendation.latest && <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold"><Store size={14} /> {formatCurrency(Math.round(recommendation.latest.amount_cents / recommendation.latest.quantity))} por pacote • {recommendation.latest.store_name}</p>}</div>)}</div>}
+      {recommendations.length === 0 ? <p className="p-6 text-sm text-[var(--muted)]">Avalie um produto com nota média ≥ 4 e marque «compraria de novo» para liberar recomendações confiáveis.</p> : <div className="grid gap-px bg-[#d9cfee] md:grid-cols-2">{recommendations.map((recommendation) => <div key={recommendation.product.id} className="bg-white p-5 md:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{recommendation.product.category === "litter" ? "Areia recomendada" : "Alimento recomendado"}</p><h3 className="mt-1 text-lg font-bold">{recommendation.product.name}</h3><p className="mt-1 text-xs text-[var(--muted)]">{recommendation.product.brand || "Sem marca"} • {recommendation.reviewCount} {recommendation.reviewCount === 1 ? "avaliação" : "avaliações"} • {scoreLabel((recommendation.quality + recommendation.acceptance + recommendation.value) / 3)}</p></div><span className="rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-xs font-bold text-[var(--success)]">{recommendation.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5</span></div><p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Recomendada por {recommendation.reason}.</p>{recommendation.latest && <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold"><Store size={14} /> {formatCurrency(Math.round(recommendation.latest.amount_cents / recommendation.latest.quantity))} por pacote • {recommendation.latest.store_name}</p>}</div>)}</div>}
       {(hasNeonatal || hasKittens) && <p className="border-t border-[#d9cfee] bg-[var(--peach)] px-5 py-3 text-[11px] leading-relaxed text-[var(--muted)]"><strong className="text-[var(--foreground)]">Atenção à fase de vida:</strong> {hasNeonatal ? "as recomendações de ração não se aplicam aos bebês neonatais; mantenha a orientação veterinária para eles. " : ""}{hasKittens ? "Para os filhotes maiores, confira no rótulo se a fórmula é própria para filhotes." : ""}</p>}
     </section>
 
-    <div className="mt-8 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Comparador da família</p><h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">O que vale repetir</h2></div><span className="hidden text-xs text-[var(--muted)] sm:block">Preço por pacote na compra mais recente</span></div>
-    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{insights.length === 0 ? <div className="cat-card p-6 text-sm text-[var(--muted)]">Registre a primeira compra para iniciar sua comparação.</div> : insights.map(({ product, latest, priceChange, quality, acceptance, value, reviews: reviewCount, buyAgain, latestReview }) => {
-      const TrendIcon = priceChange < -0.1 ? ArrowDownRight : priceChange > 0.1 ? ArrowUpRight : Minus;
-      const trendTone = priceChange < -0.1 ? "text-[var(--success)]" : priceChange > 0.1 ? "text-[var(--danger)]" : "text-[var(--muted)]";
-      return <article key={product.id} className="cat-card overflow-hidden"><div className="p-5"><div className="flex items-start justify-between gap-3"><span className={`grid size-11 shrink-0 place-items-center rounded-[17px] ${tones[product.category]}`}><PackageOpen size={20} /></span><span className="rounded-full bg-[var(--cream)] px-2.5 py-1 text-[10px] font-bold">{categoryLabels[product.category]}</span></div><p className="mt-4 text-xs font-semibold text-[var(--muted)]">{product.brand || "Sem marca"}</p><h3 className="mt-0.5 text-lg font-bold">{product.name}</h3><p className="mt-1 text-xs text-[var(--muted)]">{product.package_size || "Tamanho não informado"}</p>
-        <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold text-[var(--muted)]">Último preço por pacote</p><p className="mt-1 text-xl font-bold">{latest ? formatCurrency(Math.round(latest.amount_cents / latest.quantity)) : "—"}</p></div>{latest && <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${trendTone}`}><TrendIcon size={14} />{Math.abs(priceChange).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>}</div>
-        {latest && <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Store size={13} /> {latest.store_name} • {channelLabels[latest.channel]}</p>}
-      </div>
-      <div className="grid grid-cols-3 border-t border-[var(--border)] bg-[var(--cream)]"><div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Qualidade</p><p className="mt-1 text-sm font-bold">{reviewCount ? quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div><div className="border-x border-[var(--border)] p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Aceitação</p><p className="mt-1 text-sm font-bold">{reviewCount ? acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div><div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Custo-benefício</p><p className="mt-1 text-sm font-bold">{reviewCount ? value.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div></div>
-      {reviewCount > 0 && <div className="border-t border-[var(--border)] px-5 py-3"><p className="text-[10px] text-[var(--muted)]"><Star size={11} className="mr-1 inline fill-[var(--lavender)] text-[var(--lavender)]" /> {buyAgain} de {reviewCount} avaliações comprariam novamente</p>{editable && latestReview && <Link href={`/shopping/reviews/${latestReview.id}/edit`} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar avaliação</Link>}</div>}
-      {editable && <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3"><Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link><form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}
-    </article>;})}</section>
+    <div className="mt-8 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Comparador da família</p><h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">O que vale repetir</h2><p className="mt-1 text-xs text-[var(--muted)]">Só entra com avaliação, nota média ≥ 4 e «compraria de novo».</p></div><span className="hidden text-xs text-[var(--muted)] sm:block">Preço por pacote na compra mais recente</span></div>
+    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{worthRepeating.length === 0 ? <div className="cat-card p-6 text-sm text-[var(--muted)]">{insights.length === 0 ? "Registre a primeira compra para iniciar sua comparação." : "Nenhum produto qualificado ainda. Avalie uma compra com boa nota e marque «compraria de novo»."}</div> : worthRepeating.map(renderInsightCard)}</section>
+
+    {catalog.length > 0 && <>
+      <div className="mt-10 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">Histórico completo</p><h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">Catálogo e acompanhamento</h2><p className="mt-1 text-xs text-[var(--muted)]">Sem avaliação, notas baixas ou sem intenção de recompra.</p></div></div>
+      <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{catalog.map(renderInsightCard)}</section>
+    </>}
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2><p className="mt-1 text-xs text-[var(--muted)]">Cada compra com gasto vinculado aparece também em Gastos da família.</p></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);
