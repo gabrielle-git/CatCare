@@ -50,6 +50,11 @@ export async function assertCanEdit(supabase?: SupabaseClient) {
   if (!canEdit(role)) throw new Error("Visitantes só podem visualizar.");
 }
 
+export async function assertOwner(supabase?: SupabaseClient) {
+  const role = await getMyRole(supabase);
+  if (!isOwner(role)) throw new Error("Apenas o dono pode fazer isso.");
+}
+
 export async function requireEditPage(redirectTo = "/") {
   const supabase = await createClient();
   const role = await getMyRole(supabase);

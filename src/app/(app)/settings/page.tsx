@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Bell, Cat, ChevronRight, Download, Home, LogOut, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import { ConfirmButton } from "@/components/confirm-button";
+import { DeleteHouseholdForm } from "@/components/delete-household-form";
 import { ensureHousehold } from "@/lib/households";
 import { listMyHouseholds } from "@/lib/household-switch";
-import { roleLabel } from "@/lib/roles";
+import { isOwner, roleLabel } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import { logout, switchHousehold, updateDisplayName } from "./actions";
+import { deleteHousehold, leaveHousehold, logout, switchHousehold, updateDisplayName } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ async function loadSettings() {
   return { configured: true, email: data.user.email ?? null, displayName: profile.data?.display_name ?? data.user.email?.split("@")[0] ?? "Responsável", householdName: household.name, members: members.count ?? 1, activePets: activePets.count ?? 0, archivedPets: archivedPets.count ?? 0, households };
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; switched?: string; error?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; switched?: string; error?: string; left?: string; deleted?: string }> }) {
   const flags = await searchParams;
   const data = await loadSettings();
   const signedIn = Boolean(data.configured && data.email);
@@ -40,6 +42,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Configurações</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Conta e dados</h1>    <p className="mt-2 text-sm text-[var(--muted)]">Acesso da família, privacidade e organização dos perfis.</p>
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Nome atualizado.</div>}
     {flags.switched && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Família ativa alterada. A home e os gatos agora refletem esta família.</div>}
+    {flags.left && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Você saiu da família.</div>}
+    {flags.deleted && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Família excluída, incluindo gatos, registros e arquivos.</div>}
     {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
     {signedIn && data.households.length > 0 && (
@@ -48,25 +52,37 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <span className="grid size-10 place-items-center rounded-[16px] bg-[var(--lavender-soft)]"><Home size={18} /></span>
           <div>
             <h2 className="font-bold">Suas famílias</h2>
-            <p className="mt-1 text-xs text-[var(--muted)]">Troque qual família você está vendo e gerenciando agora.</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">Troque qual família você está vendo. Para sair ou excluir, use as ações de cada família.</p>
           </div>
         </div>
         <div className="divide-y divide-[var(--border)]">
           {data.households.map((item) => {
             const use = switchHousehold.bind(null, item.household_id);
+            const leave = leaveHousehold.bind(null, item.household_id);
+            const remove = deleteHousehold.bind(null, item.household_id);
+            const ownerOfThis = isOwner(item.role);
             return (
-              <article key={item.household_id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <article key={item.household_id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="font-bold">{item.name}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">{roleLabel(item.role)}{item.is_active ? " • em uso agora" : ""}</p>
                 </div>
-                {item.is_active ? (
-                  <span className="rounded-full bg-[var(--mint-soft)] px-3 py-1.5 text-[10px] font-bold text-[var(--success)]">Ativa</span>
-                ) : (
-                  <form action={use}>
-                    <button type="submit" className="focus-ring rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white">Usar esta família</button>
-                  </form>
-                )}
+                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                  {item.is_active ? (
+                    <span className="w-fit rounded-full bg-[var(--mint-soft)] px-3 py-1.5 text-[10px] font-bold text-[var(--success)]">Ativa</span>
+                  ) : (
+                    <form action={use}>
+                      <button type="submit" className="focus-ring rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white">Usar esta família</button>
+                    </form>
+                  )}
+                  {ownerOfThis ? (
+                    <DeleteHouseholdForm householdName={item.name} action={remove} />
+                  ) : (
+                    <form action={leave}>
+                      <ConfirmButton message={`Sair de ${item.name}? Você deixa de ver os gatos e os registros desta família.`} className="focus-ring rounded-xl border border-[var(--border)] px-3 py-2 text-[10px] font-bold text-[var(--muted)]">Sair da família</ConfirmButton>
+                    </form>
+                  )}
+                </div>
               </article>
             );
           })}

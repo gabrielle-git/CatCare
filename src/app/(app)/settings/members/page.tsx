@@ -8,7 +8,7 @@ import { getMyRole, isOwner, listHouseholdRoster, roleLabel } from "@/lib/roles"
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdRole } from "@/types/database";
-import { removeMember, revokeInvite, renameHousehold, sendInvite, setMemberAlias, setMemberRole } from "./actions";
+import { removeMember, revokeInvite, renameHousehold, sendInvite, setMemberAlias, setMemberRole, transferOwnership } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,7 @@ async function loadMembersPage() {
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; updated?: string; removed?: string; invited?: string; revoked?: string; manual?: string; renamed?: string; alias?: string }>;
+  searchParams: Promise<{ error?: string; updated?: string; removed?: string; invited?: string; revoked?: string; manual?: string; renamed?: string; alias?: string; transferred?: string }>;
 }) {
   const params = await searchParams;
   const { configured, householdName, roster, invites, myRole, myUserId, error } = await loadMembersPage();
@@ -75,6 +75,7 @@ export default async function MembersPage({
       {params.revoked && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Convite cancelado.</div>}
       {params.renamed && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Nome da família atualizado.</div>}
       {params.alias && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Apelido salvo — só você vê assim.</div>}
+      {params.transferred && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Dono da família transferido. Você agora é cuidador.</div>}
       {error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error} Rode as migrations no Supabase se necessário.</div>}
 
       {owner && configured && (
@@ -139,6 +140,7 @@ export default async function MembersPage({
           const changeRole = setMemberRole.bind(null, member.user_id);
           const remove = removeMember.bind(null, member.user_id);
           const saveAlias = setMemberAlias.bind(null, member.user_id);
+          const makeOwner = transferOwnership.bind(null, member.user_id);
           return (
             <article key={member.user_id} className="flex flex-col gap-3 p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -160,6 +162,9 @@ export default async function MembersPage({
                         <option value="viewer">Visitante</option>
                       </select>
                       <button type="submit" className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[10px] font-bold text-[var(--lavender-strong)]">Salvar papel</button>
+                    </form>
+                    <form action={makeOwner}>
+                      <ConfirmButton message={`${member.display_name} passará a gerenciar membros e editar tudo. Você vira cuidador e perde o papel de dono. Continuar?`} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[var(--border)] px-3 py-2 text-[10px] font-bold"><Shield size={13} /> Tornar dono</ConfirmButton>
                     </form>
                     <form action={remove}>
                       <ConfirmButton message={`Remover ${member.display_name} da família?`} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-3 py-2 text-[10px] font-bold text-[var(--danger)]"><UserMinus size={13} /> Remover</ConfirmButton>
@@ -183,7 +188,7 @@ export default async function MembersPage({
       </section>
 
       <div className="mt-6 rounded-[20px] bg-[var(--cream)] px-4 py-3 text-xs leading-relaxed text-[var(--muted)]">
-        <strong className="text-[var(--foreground)]">Dono</strong> — gerencia membros e edita tudo.<br />
+        <strong className="text-[var(--foreground)]">Dono</strong> — gerencia membros, transfere o dono e edita tudo.<br />
         <strong className="text-[var(--foreground)]">Cuidador</strong> — registra peso, vacinas, gastos e memórias.<br />
         <strong className="text-[var(--foreground)]">Visitante</strong> — só visualiza; o banco já bloqueia alterações.
       </div>
