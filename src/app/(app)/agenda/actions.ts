@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureHousehold } from "@/lib/households";
+import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,7 @@ async function authContext() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
+  await assertCanEdit(supabase);
   const household = await ensureHousehold(supabase, data.user.id);
   return { supabase, household };
 }

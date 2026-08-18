@@ -3,10 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { isSafeNextPath } from "@/lib/invites";
 import { createClient } from "@/lib/supabase/server";
 
 function message(path: string, key: "error" | "success", value: string) {
   return `${path}?${key}=${encodeURIComponent(value)}`;
+}
+
+function destination(formData: FormData) {
+  const next = String(formData.get("next") ?? "");
+  return isSafeNextPath(next) ? next : "/";
 }
 
 function credentials(formData: FormData, path: string) {
@@ -40,9 +46,9 @@ function authErrorMessage(error: { message: string; code?: string }) {
   return error.message;
 }
 
-async function enterApp() {
+async function enterApp(formData?: FormData) {
   revalidatePath("/", "layout");
-  redirect("/");
+  redirect(formData ? destination(formData) : "/");
 }
 
 export async function login(formData: FormData) {
@@ -50,7 +56,7 @@ export async function login(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect(message("/login", "error", authErrorMessage(error)));
-  await enterApp();
+  await enterApp(formData);
 }
 
 export async function signup(formData: FormData) {
@@ -69,9 +75,9 @@ export async function signup(formData: FormData) {
     redirect(message("/login", "error", "Esta conta já existe. Use Entrar com a senha cadastrada."));
   }
 
-  if (data.session) await enterApp();
+  if (data.session) await enterApp(formData);
 
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
   if (signInError) redirect(message("/cadastro", "error", authErrorMessage(signInError)));
-  await enterApp();
+  await enterApp(formData);
 }

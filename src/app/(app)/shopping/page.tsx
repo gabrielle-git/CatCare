@@ -7,6 +7,7 @@ import { formatCurrency, formatShortDate, getPetLifeStage, isNeonatalPet } from 
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations } from "@/lib/recommendations";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -24,13 +25,14 @@ const tones: Record<ProductCategory, string> = {
 };
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) return { products: demoProducts, purchases: demoPurchases, reviews: demoProductReviews, pets: demoPets, configured: false };
+  if (!hasSupabaseEnv()) return { products: demoProducts, purchases: demoPurchases, reviews: demoProductReviews, pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { products: [], purchases: [], reviews: [], pets: [], configured: true };
+  if (!data.user) return { products: [], purchases: [], reviews: [], pets: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
+  const role = await getMyRole(supabase);
   const [commerce, pets] = await Promise.all([listCommerce(supabase, household.id), listPets(supabase, household.id)]);
-  return { ...commerce, pets, configured: true };
+  return { ...commerce, pets, configured: true, editable: canEdit(role) };
 }
 
 function average(values: number[]) {
@@ -38,7 +40,7 @@ function average(values: number[]) {
 }
 
 export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string }> }) {
-  const [{ products, purchases, reviews, pets, configured }, flags] = await Promise.all([loadPage(), searchParams]);
+  const [{ products, purchases, reviews, pets, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
   const now = new Date();
   const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
   const monthTotal = monthPurchases.reduce((sum, item) => sum + item.amount_cents, 0);
@@ -71,7 +73,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
   const hasKittens = pets.some((pet) => getPetLifeStage(pet.birth_date) === "kitten");
 
   return <div className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço com a experiência real dos gatos: qualidade, aceitação, rendimento e onde vale comprar.</p></div><Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link></header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço com a experiência real dos gatos: qualidade, aceitação, rendimento e onde vale comprar.</p></div>{editable && <Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link>}</header>
     {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Estes produtos ilustram como suas próprias comparações aparecerão.</div>}
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Compra salva, gasto lançado e comparações atualizadas.</div>}
     {flags.review === "partial" && <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">A compra foi salva; a avaliação ficou para depois porque faltou uma das três notas.</div>}
@@ -97,13 +99,13 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         {latest && <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Store size={13} /> {latest.store_name} • {channelLabels[latest.channel]}</p>}
       </div>
       <div className="grid grid-cols-3 border-t border-[var(--border)] bg-[var(--cream)]"><div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Qualidade</p><p className="mt-1 text-sm font-bold">{reviewCount ? quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div><div className="border-x border-[var(--border)] p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Aceitação</p><p className="mt-1 text-sm font-bold">{reviewCount ? acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div><div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Custo-benefício</p><p className="mt-1 text-sm font-bold">{reviewCount ? value.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div></div>
-      {reviewCount > 0 && <div className="border-t border-[var(--border)] px-5 py-3"><p className="text-[10px] text-[var(--muted)]"><Star size={11} className="mr-1 inline fill-[var(--lavender)] text-[var(--lavender)]" /> {buyAgain} de {reviewCount} avaliações comprariam novamente</p>{configured && latestReview && <Link href={`/shopping/reviews/${latestReview.id}/edit`} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar avaliação</Link>}</div>}
-      {configured && <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3"><Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link><form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}
+      {reviewCount > 0 && <div className="border-t border-[var(--border)] px-5 py-3"><p className="text-[10px] text-[var(--muted)]"><Star size={11} className="mr-1 inline fill-[var(--lavender)] text-[var(--lavender)]" /> {buyAgain} de {reviewCount} avaliações comprariam novamente</p>{editable && latestReview && <Link href={`/shopping/reviews/${latestReview.id}/edit`} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar avaliação</Link>}</div>}
+      {editable && <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3"><Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link><form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}
     </article>;})}</section>
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);
-      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{productNames.get(purchase.product_id) || "Produto"}</p><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{configured && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar esta compra permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
+      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{productNames.get(purchase.product_id) || "Produto"}</p><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar esta compra permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
     })}</div></section>
   </div>;
 }

@@ -8,6 +8,7 @@ import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, 
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
 import { listPetTimeline, listPetWeights } from "@/lib/records";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { updatePetDescription } from "../actions";
@@ -15,19 +16,20 @@ import { updatePetDescription } from "../actions";
 async function loadPetPage(id: string) {
   if (!hasSupabaseEnv()) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], configured: false };
+    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], configured: false, editable: false };
   }
   const supabase = await createClient();
+  const role = await getMyRole(supabase);
   const pet = await getPet(supabase, id);
-  if (!pet) return { pet: null, timeline: [], weights: [], configured: true };
+  if (!pet) return { pet: null, timeline: [], weights: [], configured: true, editable: false };
   const [timeline, weights] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id)]);
-  return { pet, timeline, weights, configured: true };
+  return { pet, timeline, weights, configured: true, editable: canEdit(role) };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, configured } = await loadPetPage(id);
+  const { pet, timeline, weights, configured, editable } = await loadPetPage(id);
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
@@ -70,21 +72,23 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
                   {birthDate && <p className="mt-1 text-xs text-[var(--muted)]">Nascimento: {birthDate}</p>}
                   <div className="mt-3 flex flex-wrap gap-2">{age && <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold">{age} de vida</span>}{humanAge && <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold">{humanAge}</span>}{pet.neutered && <span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--success)]"><BadgeCheck size={12} /> Castrado</span>}</div>
                 </div>
-                {configured ? <Link href={`/pets/${pet.id}/edit`} className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white/80 px-3.5 py-2.5 text-xs font-bold"><Pencil size={16} /> Editar perfil</Link> : <button disabled title="Disponível depois de entrar na conta" className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white/80 px-3.5 py-2.5 text-xs font-bold"><Pencil size={16} /> Editar perfil</button>}
+                {editable ? <Link href={`/pets/${pet.id}/edit`} className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white/80 px-3.5 py-2.5 text-xs font-bold"><Pencil size={16} /> Editar perfil</Link> : null}
               </div>
               <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1.5 text-sm font-bold"><Scale size={16} /> {formatWeight(pet.current_weight_grams)}</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 p-4 md:gap-3 md:p-5">
-          {actions.map(({ type, label, icon: Icon, tone }) => (
-            <Link key={type} href={`/records/new?pet=${pet.id}&type=${type}`} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
-          ))}
-        </div>
+        {editable && (
+          <div className="grid grid-cols-3 gap-2 p-4 md:gap-3 md:p-5">
+            {actions.map(({ type, label, icon: Icon, tone }) => (
+              <Link key={type} href={`/records/new?pet=${pet.id}&type=${type}`} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
+            ))}
+          </div>
+        )}
       </section>
 
-      {neonatal && (
+      {neonatal && editable && (
         <Link href={`/records/new?pet=${pet.id}&type=feeding`} className="focus-ring mt-4 flex items-center justify-between rounded-[22px] bg-[var(--rose)] p-4 font-bold">
           <span className="flex items-center gap-2"><HeartPulse size={19} /> Registrar cuidado neonatal</span><Plus size={18} />
         </Link>
@@ -98,26 +102,26 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p><h2 className="mt-1 text-xl font-bold">Linha do tempo</h2></div>
-            <Link href={`/records/new?pet=${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} /> Novo registro</Link>
+            {editable && <Link href={`/records/new?pet=${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} /> Novo registro</Link>}
           </div>
-          <TimelineList items={timeline} editable={configured} />
+          <TimelineList items={timeline} editable={editable} />
         </section>
 
         <aside className="space-y-4">
           <div className="cat-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade e cuidados</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>
-              {configured ? <Link href={`/pets/${pet.id}/edit#description`} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</Link> : <button disabled title="Disponível depois de entrar na conta" className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</button>}
+              {editable ? <Link href={`/pets/${pet.id}/edit#description`} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</Link> : null}
             </div>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{pet.notes || "Nenhuma descrição pessoal foi adicionada ainda."}</p>
             <details className="mt-4 rounded-2xl bg-[var(--cream)] p-3">
               <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl text-xs font-bold"><Sparkles size={15} className="text-[var(--lavender-strong)]" /> Sugerir pelo histórico</summary>
               <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">{suggestedDescription}</p>
               <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Resumo automático feito com perfil e registros. A leitura das fotos poderá ser ativada quando conectarmos uma IA visual.</p>
-              {configured ? <form action={saveDescription} className="mt-3"><input type="hidden" name="notes" value={suggestedDescription} /><button className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[var(--graphite)] px-3 py-2 text-[11px] font-bold text-white"><Sparkles size={13} /> Usar esta sugestão</button></form> : <button disabled title="Disponível depois de entrar na conta" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--graphite)] px-3 py-2 text-[11px] font-bold text-white"><Sparkles size={13} /> Usar esta sugestão</button>}
+              {editable ? <form action={saveDescription} className="mt-3"><input type="hidden" name="notes" value={suggestedDescription} /><button className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[var(--graphite)] px-3 py-2 text-[11px] font-bold text-white"><Sparkles size={13} /> Usar esta sugestão</button></form> : null}
             </details>
           </div>
-          <Link href={`/records/new?pet=${pet.id}&type=consultation`} className="focus-ring flex items-center gap-3 rounded-[22px] bg-[var(--mint-soft)] p-4 text-sm font-bold"><CalendarPlus size={19} /> Consulta ou retorno</Link>
+          {editable && <Link href={`/records/new?pet=${pet.id}&type=consultation`} className="focus-ring flex items-center gap-3 rounded-[22px] bg-[var(--mint-soft)] p-4 text-sm font-bold"><CalendarPlus size={19} /> Consulta ou retorno</Link>}
         </aside>
       </div>
     </div>

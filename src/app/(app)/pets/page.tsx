@@ -5,20 +5,22 @@ import { formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, 
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 async function loadPets() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false };
+  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], configured: true };
+  if (!data.user) return { pets: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
-  return { pets: await listPets(supabase, household.id), configured: true };
+  const role = await getMyRole(supabase);
+  return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
 export default async function PetsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
-  const { pets, configured } = await loadPets();
+  const { pets, configured, editable } = await loadPets();
   const { archived } = await searchParams;
 
   return (
@@ -29,9 +31,9 @@ export default async function PetsPage({ searchParams }: { searchParams: Promise
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Meus gatos</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">Cada gatinho com sua história, rotina e cuidados.</p>
         </div>
-        <Link href="/pets/new" className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">
+        {editable && <Link href="/pets/new" className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">
           <Plus size={18} /> <span className="hidden sm:inline">Adicionar gato</span><span className="sm:hidden">Adicionar</span>
-        </Link>
+        </Link>}
       </header>
 
       {!configured && <div className="mt-6 rounded-[20px] border border-[#d9cfee] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Dobby, Crystal e os dois bebês já usam os dados informados; fotos e registros de rotina continuam demonstrativos até conectar o Supabase.</div>}
