@@ -2,14 +2,13 @@ import Link from "next/link";
 import { ArrowLeft, Star, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PetMultiSelect } from "@/components/pet-multi-select";
+import { StarRating } from "@/components/star-rating";
 import { getProduct, getProductReview } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { deleteProductReview, updateProductReview } from "../../../actions";
-
-const scoreOptions = [1, 2, 3, 4, 5].map((score) => <option key={score} value={score}>{score}</option>);
 
 export default async function EditReviewPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
@@ -30,6 +29,11 @@ export default async function EditReviewPage({ params, searchParams }: { params:
 
   const save = updateProductReview.bind(null, id);
   const remove = deleteProductReview.bind(null, id);
+  const scoreFields = [
+    { name: "quality_score", legend: "Qualidade", value: review.quality_score },
+    { name: "acceptance_score", legend: "Aceitação", value: review.acceptance_score },
+    { name: "cost_benefit_score", legend: "Custo-benefício", value: review.cost_benefit_score },
+  ] as const;
 
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -37,7 +41,7 @@ export default async function EditReviewPage({ params, searchParams }: { params:
       <div className="mt-4 flex items-center gap-3"><Star size={20} className="text-[var(--lavender-strong)]" /><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Editar avaliação</p><h1 className="text-3xl font-bold tracking-[-0.04em]">{product?.name ?? "Produto"}</h1></div></div>
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
-        <div className="grid gap-4 sm:grid-cols-3"><label className="text-sm font-bold">Qualidade<select required name="quality_score" defaultValue={review.quality_score} className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Aceitação<select required name="acceptance_score" defaultValue={review.acceptance_score} className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Custo-benefício<select required name="cost_benefit_score" defaultValue={review.cost_benefit_score} className="field mt-2">{scoreOptions}</select></label></div>
+        <div className="grid gap-5 sm:grid-cols-3">{scoreFields.map((field) => <StarRating key={field.name} name={field.name} legend={field.legend} defaultValue={field.value} required />)}</div>
         <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={review.pet_ids ?? (review.pet_id ? [review.pet_id] : [])} required={false} legend="Quais gatos avaliaram?" hint="Opcional — quem experimentou o produto." />
         <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input type="checkbox" name="would_buy_again" defaultChecked={review.would_buy_again} className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
         <label className="block text-sm font-bold">Comentário<textarea name="review_notes" rows={3} defaultValue={review.notes ?? ""} className="field mt-2 resize-none" /></label>

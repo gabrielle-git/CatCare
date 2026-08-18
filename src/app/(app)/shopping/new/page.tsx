@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ShoppingBasket, Star } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
+import { StarRating } from "@/components/star-rating";
 import { listCommerce } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoProducts } from "@/lib/mock-data";
@@ -19,7 +20,11 @@ async function loadForm() {
   return { products, pets, configured: true };
 }
 
-const scoreOptions = <><option value="">Avaliar depois</option>{[1, 2, 3, 4, 5].map((score) => <option key={score} value={score}>{score} — {score === 1 ? "Ruim" : score === 5 ? "Excelente" : ""}</option>)}</>;
+const scoreFields = [
+  { name: "quality_score", legend: "Qualidade" },
+  { name: "acceptance_score", legend: "Aceitação dos gatos" },
+  { name: "cost_benefit_score", legend: "Custo-benefício" },
+] as const;
 
 export default async function NewPurchasePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const [{ products, pets, configured }, flags] = await Promise.all([loadForm(), searchParams]);
@@ -43,8 +48,8 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
       </section>
 
       <section className="cat-card p-5 md:p-7"><div className="flex items-center gap-2"><Star size={18} className="text-[var(--lavender-strong)]" /><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">3. Avaliação opcional</p><h2 className="mt-1 text-xl font-bold">Valeu a pena?</h2></div></div><p className="mt-2 text-xs text-[var(--muted)]">Preencha as três notas quando já tiver uma opinião; senão, avalie depois.</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm font-bold">Qualidade<select disabled={!configured} name="quality_score" className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Aceitação dos gatos<select disabled={!configured} name="acceptance_score" className="field mt-2">{scoreOptions}</select></label><label className="text-sm font-bold">Custo-benefício<select disabled={!configured} name="cost_benefit_score" className="field mt-2">{scoreOptions}</select></label></div>
-        <label className="mt-4 flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input disabled={!configured} type="checkbox" name="would_buy_again" defaultChecked className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
+        <div className="mt-5 grid gap-5 sm:grid-cols-3">{scoreFields.map((field) => <StarRating key={field.name} name={field.name} legend={field.legend} allowEmpty disabled={!configured} />)}</div>
+        <label className="mt-4 flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input disabled={!configured} type="checkbox" name="would_buy_again" className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
         <label className="mt-4 block text-sm font-bold">Comentário da avaliação<textarea disabled={!configured} name="review_notes" rows={3} className="field mt-2 resize-none" placeholder="Rendimento, cheiro, textura, reação dos gatos..." /></label>
       </section>
       <button disabled={!configured} className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white"><ShoppingBasket size={18} /> Salvar compra e atualizar comparações</button>
