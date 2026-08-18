@@ -91,7 +91,6 @@ declare
   uid uuid := auth.uid();
   hid uuid := public.my_household_id();
   next_id uuid;
-  folder text;
 begin
   if uid is null then
     raise exception 'Not authenticated' using errcode = '42501';
@@ -105,11 +104,7 @@ begin
     raise exception 'Há outros membros. Transfira o dono ou remova as outras pessoas antes de excluir.' using errcode = '42501';
   end if;
 
-  folder := hid::text;
-
-  delete from storage.objects
-  where bucket_id = 'pet-media'
-    and (name = folder or name like folder || '/%');
+  -- Arquivos do bucket pet-media são apagados na Server Action via Storage API.
 
   delete from public.memory_media where household_id = hid;
   delete from public.memory_pets where household_id = hid;
