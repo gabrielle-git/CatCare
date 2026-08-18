@@ -77,6 +77,10 @@ export async function signup(formData: FormData) {
 
   if (data.session) await enterApp(formData);
 
+  if (data.user && !data.session) {
+    redirect(message("/cadastro", "success", "Conta criada. Abra o link de confirmação no e-mail e depois use Entrar."));
+  }
+
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
   if (signInError) redirect(message("/cadastro", "error", authErrorMessage(signInError)));
   await enterApp(formData);
