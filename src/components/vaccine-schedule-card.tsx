@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Clock, Pencil, Syringe } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, Syringe } from "lucide-react";
 import { formatFullDate } from "@/lib/format";
 import { formatWeeksAge, type ScheduledVaccine, type VaccineStatus } from "@/lib/vaccine-schedule";
 
@@ -10,6 +13,70 @@ const statusConfig: Record<VaccineStatus, { label: string; className: string; ic
   upcoming: { label: "Em breve", className: "bg-[var(--cream)] text-[var(--muted)]", icon: Clock },
   not_applicable: { label: "—", className: "bg-gray-50 text-gray-400", icon: Clock },
 };
+
+function VaccineRow({ vaccine, petId, editable }: { vaccine: ScheduledVaccine; petId: string; editable: boolean }) {
+  const [open, setOpen] = useState(false);
+  const config = statusConfig[vaccine.status];
+  const Icon = config.icon;
+  const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
+  const registerTitle = `${vaccine.name} — ${vaccine.doseLabel}`;
+  const registerHref = `/records/new?pet=${petId}&type=vaccine&title=${encodeURIComponent(registerTitle)}`;
+
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white">
+      <button
+        type="button"
+        onClick={() => actionable && setOpen(!open)}
+        className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left ${actionable ? "cursor-pointer" : "cursor-default"}`}
+      >
+        <span className={`grid size-7 shrink-0 place-items-center rounded-lg ${config.className}`}>
+          <Icon size={14} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold">{vaccine.name}</p>
+          <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+            {vaccine.doseLabel} • a partir de {formatWeeksAge(vaccine.minAgeDays)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="text-right">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${config.className}`}>
+              {config.label}
+            </span>
+            {vaccine.appliedAt && (
+              <p className="mt-0.5 text-[10px] text-[var(--muted)]">{formatFullDate(`${vaccine.appliedAt.slice(0, 10)}T12:00:00-03:00`)}</p>
+            )}
+          </div>
+          {actionable && (
+            <span className="text-[var(--muted)]">
+              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {open && actionable && (
+        <div className="border-t border-[var(--border)] px-3.5 py-3">
+          <p className="text-xs leading-relaxed text-[var(--muted)]">
+            {vaccine.status === "overdue"
+              ? `Esta dose já deveria ter sido aplicada. O ideal era a partir de ${formatWeeksAge(vaccine.minAgeDays)} de vida.`
+              : vaccine.status === "due"
+                ? `O momento ideal para esta dose é agora — a partir de ${formatWeeksAge(vaccine.minAgeDays)} de vida.`
+                : `Esta dose deve ser aplicada a partir de ${formatWeeksAge(vaccine.minAgeDays)} de vida.`}
+          </p>
+          {editable && (
+            <Link
+              href={registerHref}
+              className="focus-ring mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--mint-soft)] px-3 py-2 text-xs font-bold text-[var(--success)]"
+            >
+              <Check size={14} /> Registrar como aplicada
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function VaccineScheduleCard({ schedule, petId, petName, editable }: { schedule: ScheduledVaccine[]; petId: string; petName: string; editable: boolean }) {
   const overdueCount = schedule.filter((v) => v.status === "overdue").length;
@@ -56,31 +123,9 @@ export function VaccineScheduleCard({ schedule, petId, petName, editable }: { sc
       )}
 
       <div className="mt-4 space-y-2">
-        {schedule.map((vaccine, i) => {
-          const config = statusConfig[vaccine.status];
-          const Icon = config.icon;
-          return (
-            <div key={`${vaccine.key}-${i}`} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white px-3.5 py-2.5">
-              <span className={`grid size-7 shrink-0 place-items-center rounded-lg ${config.className}`}>
-                <Icon size={14} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">{vaccine.name}</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                  {vaccine.doseLabel} • a partir de {formatWeeksAge(vaccine.minAgeDays)}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${config.className}`}>
-                  {config.label}
-                </span>
-                {vaccine.appliedAt && (
-                  <p className="mt-0.5 text-[10px] text-[var(--muted)]">{formatFullDate(`${vaccine.appliedAt.slice(0, 10)}T12:00:00-03:00`)}</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {schedule.map((vaccine, i) => (
+          <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} />
+        ))}
       </div>
     </div>
   );

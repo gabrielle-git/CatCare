@@ -20,7 +20,7 @@ async function loadPetOptions() {
   return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
-export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string }> }) {
+export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
   if (hasSupabaseEnv()) await requireEditPage("/");
   const query = await searchParams;
   const { pets, configured, editable } = await loadPetOptions();
@@ -39,9 +39,9 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       {query.error && <div role="alert" className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{query.error}</div>}
 
       {configured && pets.length === 0 ? (
-        <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um gatinho</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar gato</Link></section>
+        <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
       ) : (
-        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields pets={options} initialPetId={query.pet} initialType={query.type} disabled={!configured} /></form>
+        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={query.title ?? query.suggested_title ?? query.suggestedTitle} disabled={!configured} /></form>
       )}
     </div>
   );

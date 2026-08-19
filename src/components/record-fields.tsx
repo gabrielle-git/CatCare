@@ -47,6 +47,7 @@ export function RecordFields({
   pets,
   initialPetId,
   initialType = "weight",
+  initialTitle,
   disabled = false,
   mode = "create",
   defaultValues,
@@ -55,6 +56,7 @@ export function RecordFields({
   pets: PetOption[];
   initialPetId?: string;
   initialType?: string;
+  initialTitle?: string;
   disabled?: boolean;
   mode?: "create" | "edit";
   defaultValues?: RecordFieldDefaults;
@@ -64,6 +66,7 @@ export function RecordFields({
     ? (defaultValues?.record_type ?? initialType) as QuickRecordType
     : "weight";
   const [type, setType] = useState<QuickRecordType>(validInitial);
+  const [title, setTitle] = useState(defaultValues?.title ?? initialTitle ?? "");
   const defaultPetIds = defaultValues?.pet_id
     ? [defaultValues.pet_id]
     : initialPetId && pets.some((pet) => pet.id === initialPetId)
@@ -134,7 +137,7 @@ export function RecordFields({
         {(activeType === "feeding" || activeType === "urine" || activeType === "stool") && (
           <label className="block text-sm font-bold">Como foi?<select disabled={disabled} name="quality" defaultValue={defaultValues?.quality ?? "normal"} className="field mt-2"><option value="normal">Normal</option><option value="good">Foi bem</option><option value="little">Pouquinho</option><option value="difficult">Com dificuldade</option><option value="attention">Precisa de atenção</option></select></label>
         )}
-        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" defaultValue={defaultValues?.title ?? ""} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
+        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
         {(activeType === "vaccine" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
       </section>
 
