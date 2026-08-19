@@ -13,6 +13,7 @@ import {
   ReceiptText,
   Settings,
   ShoppingBasket,
+  Shield,
   UserRound,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ const sections = [
     label: "Rotina e saúde",
     items: [
       { href: "/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/health-plan", label: "Plano de saúde", icon: Shield },
       { href: "/neonatal", label: "Modo neonatal", icon: HeartPulse },
       { href: "/expenses", label: "Gastos", icon: ReceiptText },
     ],

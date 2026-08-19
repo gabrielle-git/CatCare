@@ -25,6 +25,16 @@ const neonatalFilters = [
   { value: "weight", label: "Peso" },
 ] as const;
 
+const adultFilters = [
+  { value: "all", label: "Todos" },
+  { value: "weight", label: "Peso" },
+  { value: "vaccine", label: "Vacina" },
+  { value: "deworming", label: "Vermífugo" },
+  { value: "medication", label: "Remédio" },
+  { value: "consultation", label: "Consulta" },
+  { value: "observation", label: "Nota" },
+] as const;
+
 const fullFilters = [
   ...neonatalFilters,
   { value: "vaccine", label: "Vacina" },
@@ -55,22 +65,29 @@ export function TimelineList({
   petNames,
   newRecordPetId,
   showNewRecord = false,
+  limit,
+  fullHistoryHref,
 }: {
   items: TimelineItem[];
   emptyText?: string;
   editable?: boolean;
   returnTo?: string;
-  filterMode?: "neonatal" | "all";
+  filterMode?: "neonatal" | "all" | "adult";
   /** When set, shows "Mamada · Luna" style labels (for multi-pet lists like neonatal). */
   petNames?: Record<string, string>;
   /** Pre-fills pet on "Novo registro" (e.g. pet profile). */
   newRecordPetId?: string;
   showNewRecord?: boolean;
+  /** Caps how many items are shown; use with fullHistoryHref for a compact preview. */
+  limit?: number;
+  fullHistoryHref?: string;
 }) {
+  const totalCount = items.length;
+  const visibleItems = limit ? items.slice(0, limit) : items;
   const [filter, setFilter] = useState<string>("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const filters = filterMode === "neonatal" ? neonatalFilters : fullFilters;
+  const filters = filterMode === "neonatal" ? neonatalFilters : filterMode === "adult" ? adultFilters : fullFilters;
   const fallbackReturn = returnTo ?? "/";
   const newRecordHref = preselectRecordHref({
     pet: newRecordPetId,
@@ -85,8 +102,8 @@ export function TimelineList({
   }
 
   const filtered = useMemo(
-    () => (filter === "all" ? items : items.filter((item) => item.kind === filter)),
-    [items, filter],
+    () => (filter === "all" ? visibleItems : visibleItems.filter((item) => item.kind === filter)),
+    [visibleItems, filter],
   );
 
   const selectedItems = filtered.filter((item) => selected.has(item.id));
@@ -117,7 +134,7 @@ export function TimelineList({
     });
   }
 
-  if (items.length === 0) {
+  if (totalCount === 0) {
     return <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">{emptyText}</div>;
   }
 
@@ -138,7 +155,11 @@ export function TimelineList({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] text-[var(--muted)]">
-          {filter === "all" ? `${items.length} registro${items.length === 1 ? "" : "s"}` : `${filtered.length} de ${items.length} registros`}
+          {filter === "all"
+            ? limit && totalCount > limit
+              ? `${visibleItems.length} de ${totalCount} registros recentes`
+              : `${totalCount} registro${totalCount === 1 ? "" : "s"}`
+            : `${filtered.length} de ${visibleItems.length} registros`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {editable && showNewRecord && !selectionMode && (
@@ -231,6 +252,14 @@ export function TimelineList({
             );
           })}
         </ol>
+      )}
+
+      {fullHistoryHref && totalCount > visibleItems.length && (
+        <div className="pt-1 text-center">
+          <Link href={fullHistoryHref} className="focus-ring inline-flex rounded-full border border-[var(--border)] bg-white px-4 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+            Ver histórico completo ({totalCount} registros)
+          </Link>
+        </div>
       )}
     </div>
   );

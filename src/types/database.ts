@@ -6,6 +6,19 @@ export type ReminderStatus = "pending" | "done" | "snoozed" | "cancelled";
 export type ExpenseCategory = "veterinary" | "food" | "medication" | "hygiene" | "accessory" | "transport" | "other";
 export type ProductCategory = "dry_food" | "wet_food" | "litter" | "treat" | "hygiene" | "medicine" | "accessory" | "other";
 export type PurchaseChannel = "physical_store" | "online_store" | "marketplace" | "delivery" | "veterinary" | "other";
+export type HealthCopayServiceType =
+  | "consultation"
+  | "exam"
+  | "surgery"
+  | "hospitalization"
+  | "vaccine"
+  | "deworming"
+  | "emergency"
+  | "physiotherapy"
+  | "other";
+export type HealthPlanProvider = "petlove" | "other";
+export type HealthPlanCoverageStatus = "covered" | "not_covered" | "partial";
+export type BenefitMembershipKind = "petlove_club" | "petz_club" | "other";
 export type MemoryType = "diary" | "milestone" | "photo";
 export type PetLifeStage = "neonatal" | "kitten" | "adult" | "mature" | "senior" | "unknown";
 
@@ -14,6 +27,7 @@ export type Household = {
   name: string;
   owner_id: string;
   created_at: string;
+  petlove_leve_base_fee_cents?: number | null;
 };
 
 export type Pet = {
@@ -136,10 +150,105 @@ export type Purchase = {
   channel: PurchaseChannel;
   quantity: number;
   amount_cents: number;
+  subtotal_cents: number | null;
+  discount_cents: number;
+  coupon_code: string | null;
+  /** @deprecated Prefer membership_id — kept for legacy rows */
+  petlove_club: boolean;
+  membership_id: string | null;
   purchased_at: string;
   product_url: string | null;
   notes: string | null;
   created_at: string;
+};
+
+export type HealthPlan = {
+  id: string;
+  household_id: string;
+  pet_id: string;
+  provider: HealthPlanProvider;
+  plan_name: string;
+  monthly_fee_cents: number | null;
+  started_at: string | null;
+  active: boolean;
+  notes: string | null;
+  coverage_summary: string | null;
+  template_id: string | null;
+  promo_coupon_code: string | null;
+  zero_waiting_consultation: boolean;
+  zero_waiting_vaccine: boolean;
+  promo_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthPlanCopayRule = {
+  id: string;
+  health_plan_id: string;
+  service_type: HealthCopayServiceType;
+  copay_cents: number | null;
+  notes: string | null;
+  coverage_status: HealthPlanCoverageStatus | null;
+  coverage_notes: string | null;
+  sort_order: number;
+};
+
+export type HealthPlanWithCopays = HealthPlan & { copay_rules: HealthPlanCopayRule[] };
+
+export type HealthPlanTemplate = {
+  id: string;
+  household_id: string;
+  provider: HealthPlanProvider;
+  plan_name: string;
+  coverage_summary: string | null;
+  guide_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthPlanGuide = {
+  id: string;
+  household_id: string;
+  slug: string;
+  title: string;
+  provider: HealthPlanProvider;
+  base_monthly_fee_cents: number | null;
+  official_url: string | null;
+  notes: string | null;
+  payment_notes: string | null;
+  waiting_notes: string | null;
+  show_multi_pet_discount: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthPlanGuideService = {
+  id: string;
+  guide_id: string;
+  group_key: string;
+  group_title: string;
+  name: string;
+  copay_cents: number;
+  annual_limit: string | null;
+  waiting_days: number;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type HealthPlanGuideWithServices = HealthPlanGuide & { services: HealthPlanGuideService[] };
+
+export type BenefitMembership = {
+  id: string;
+  household_id: string;
+  kind: BenefitMembershipKind;
+  custom_name: string | null;
+  active: boolean;
+  monthly_fee_cents: number | null;
+  renews_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ProductReview = {

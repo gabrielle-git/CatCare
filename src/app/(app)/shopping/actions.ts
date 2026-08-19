@@ -27,13 +27,47 @@ function expenseCategory(category: ProductCategory): ExpenseCategory {
   return "other";
 }
 
+function resolvePurchaseAmounts(formData: FormData) {
+  const paid = moneyToCents(value(formData, "amount"));
+  const discountRaw = value(formData, "discount");
+  const discountCents = discountRaw ? moneyToCents(discountRaw) : 0;
+  const subtotalRaw = value(formData, "subtotal");
+
+  if (subtotalRaw) {
+    const subtotal = moneyToCents(subtotalRaw);
+    if (!Number.isFinite(subtotal) || subtotal < 0) return null;
+    if (discountRaw && (!Number.isFinite(discountCents) || discountCents < 0)) return null;
+    const amount = subtotal - (discountCents || 0);
+    if (amount < 0) return null;
+    return { amount_cents: amount, subtotal_cents: subtotal, discount_cents: discountCents || 0 };
+  }
+
+  if (!Number.isFinite(paid) || paid < 0) return null;
+  if (discountRaw && (!Number.isFinite(discountCents) || discountCents < 0)) return null;
+  return {
+    amount_cents: paid,
+    subtotal_cents: discountCents ? paid + discountCents : null,
+    discount_cents: discountCents || 0,
+  };
+}
+
+function purchaseExtras(formData: FormData) {
+  const membershipId = value(formData, "membership_id");
+  return {
+    coupon_code: value(formData, "coupon_code") || null,
+    membership_id: membershipId || null,
+  };
+}
+
 export async function createPurchase(formData: FormData) {
-  const amountCents = moneyToCents(value(formData, "amount"));
+  const pricing = resolvePurchaseAmounts(formData);
   const quantity = Number(value(formData, "quantity"));
   const storeName = value(formData, "store_name");
   const purchasedOn = value(formData, "purchased_on");
   const channel = value(formData, "channel") as PurchaseChannel;
-  if (!Number.isFinite(amountCents) || amountCents < 0 || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect("/shopping/new?error=Confira%20os%20dados%20da%20compra.");
+  if (!pricing || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect("/shopping/new?error=Confira%20os%20dados%20da%20compra.");
+  const { amount_cents: amountCents, subtotal_cents: subtotalCents, discount_cents: discountCents } = pricing;
+  const extras = purchaseExtras(formData);
 
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
@@ -71,7 +105,24 @@ export async function createPurchase(formData: FormData) {
     redirect(`/shopping/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
 
-  const purchaseResult = await supabase.from("purchases").insert({ household_id: household.id, product_id: product.id, pet_id: petId, expense_id: expenseResult.data.id, store_name: storeName, channel, quantity, amount_cents: amountCents, purchased_at: `${purchasedOn}T12:00:00-03:00`, product_url: value(formData, "product_url") || null, notes: value(formData, "purchase_notes") || null }).select("id").single();
+  const purchaseResult = await supabase.from("purchases").insert({
+    household_id: household.id,
+    product_id: product.id,
+    pet_id: petId,
+    expense_id: expenseResult.data.id,
+    store_name: storeName,
+    channel,
+    quantity,
+    amount_cents: amountCents,
+    subtotal_cents: subtotalCents,
+    discount_cents: discountCents,
+    coupon_code: extras.coupon_code,
+    membership_id: extras.membership_id,
+    petlove_club: false,
+    purchased_at: `${purchasedOn}T12:00:00-03:00`,
+    product_url: value(formData, "product_url") || null,
+    notes: value(formData, "purchase_notes") || null,
+  }).select("id").single();
   if (purchaseResult.error) {
     await supabase.from("expenses").delete().eq("id", expenseResult.data.id).eq("household_id", household.id);
     redirect(`/shopping/new?error=${encodeURIComponent(purchaseResult.error.message)}`);
@@ -81,7 +132,7 @@ export async function createPurchase(formData: FormData) {
   const scores = ["quality_score", "acceptance_score", "cost_benefit_score"].map((name) => Number(value(formData, name)));
   const hasAnyScore = scores.some((score) => Number.isFinite(score) && score > 0);
   const hasAllScores = scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 5);
-  if (hasAnyScore && !hasAllScores) redirect("/shopping?saved=1&review=partial");
+  if (hasAnyScore && !hasAllScores) redirect(`/shopping?saved=1&review=partial&purchase=${purchaseResult.data.id}`);
   if (hasAllScores) {
     const reviewResult = await supabase.from("product_reviews").insert({ household_id: household.id, product_id: product.id, pet_id: petId, quality_score: scores[0], acceptance_score: scores[1], cost_benefit_score: scores[2], would_buy_again: formData.get("would_buy_again") === "on", notes: value(formData, "review_notes") || null, reviewed_at: `${purchasedOn}T12:00:00-03:00` }).select("id").single();
     if (reviewResult.data) await syncEntityPets(supabase, "review_pets", household.id, reviewResult.data.id, petIds);
@@ -89,7 +140,7 @@ export async function createPurchase(formData: FormData) {
 
   revalidatePath("/shopping");
   revalidatePath("/expenses");
-  redirect("/shopping?saved=1");
+  redirect(hasAllScores ? "/shopping?saved=1" : `/shopping?saved=1&review=pending&purchase=${purchaseResult.data.id}`);
 }
 
 async function authContext() {
@@ -102,12 +153,14 @@ async function authContext() {
 }
 
 export async function updatePurchase(purchaseId: string, formData: FormData) {
-  const amountCents = moneyToCents(value(formData, "amount"));
+  const pricing = resolvePurchaseAmounts(formData);
   const quantity = Number(value(formData, "quantity"));
   const storeName = value(formData, "store_name");
   const purchasedOn = value(formData, "purchased_on");
   const channel = value(formData, "channel") as PurchaseChannel;
-  if (!Number.isFinite(amountCents) || amountCents < 0 || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect(`/shopping/purchases/${purchaseId}/edit?error=Confira%20os%20dados%20da%20compra.`);
+  if (!pricing || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect(`/shopping/purchases/${purchaseId}/edit?error=Confira%20os%20dados%20da%20compra.`);
+  const { amount_cents: amountCents, subtotal_cents: subtotalCents, discount_cents: discountCents } = pricing;
+  const extras = purchaseExtras(formData);
 
   const { supabase, household } = await authContext();
   const existing = await supabase.from("purchases").select("expense_id, product_id").eq("id", purchaseId).eq("household_id", household.id).maybeSingle();
@@ -121,6 +174,11 @@ export async function updatePurchase(purchaseId: string, formData: FormData) {
     channel,
     quantity,
     amount_cents: amountCents,
+    subtotal_cents: subtotalCents,
+    discount_cents: discountCents,
+    coupon_code: extras.coupon_code,
+    membership_id: extras.membership_id,
+    petlove_club: false,
     purchased_at: `${purchasedOn}T12:00:00-03:00`,
     product_url: value(formData, "product_url") || null,
     notes: value(formData, "purchase_notes") || null,
@@ -227,4 +285,48 @@ export async function deleteProductReview(reviewId: string) {
   if (error) redirect(`/shopping?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/shopping");
   redirect("/shopping?deleted=1");
+}
+
+export async function createProductReview(purchaseId: string, formData: FormData) {
+  const scores = ["quality_score", "acceptance_score", "cost_benefit_score"].map((name) => Number(value(formData, name)));
+  if (!scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 5)) {
+    redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=Informe%20as%20tr%C3%AAs%20notas%20de%201%20a%205.`);
+  }
+
+  const { supabase, household } = await authContext();
+  const { data: purchaseRow, error: purchaseError } = await supabase
+    .from("purchases")
+    .select("*")
+    .eq("id", purchaseId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (purchaseError) redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(purchaseError.message)}`);
+  if (!purchaseRow) redirect("/shopping?error=Compra%20n%C3%A3o%20encontrada.");
+
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
+  const purchaseDay = String(purchaseRow.purchased_at).slice(0, 10);
+  const reviewResult = await supabase.from("product_reviews").insert({
+    household_id: household.id,
+    product_id: purchaseRow.product_id,
+    pet_id: petId,
+    quality_score: scores[0],
+    acceptance_score: scores[1],
+    cost_benefit_score: scores[2],
+    would_buy_again: formData.get("would_buy_again") === "on",
+    notes: value(formData, "review_notes") || null,
+    reviewed_at: `${purchaseDay}T12:00:00-03:00`,
+  }).select("id").single();
+  if (reviewResult.error) redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(reviewResult.error.message)}`);
+
+  try {
+    await validateEntityPets(supabase, household.id, petIds);
+    if (reviewResult.data) await syncEntityPets(supabase, "review_pets", household.id, reviewResult.data.id, petIds);
+  } catch (petError) {
+    if (reviewResult.data) await supabase.from("product_reviews").delete().eq("id", reviewResult.data.id).eq("household_id", household.id);
+    redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
+  }
+
+  revalidatePath("/shopping");
+  redirect("/shopping?saved=1&review=done");
 }

@@ -114,11 +114,27 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
 
       <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section>
-          <div className="mb-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
-            <h2 className="mt-1 text-xl font-bold">Linha do tempo</h2>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
+              <h2 className="mt-1 text-xl font-bold">Atividades recentes</h2>
+            </div>
+            {profileTimeline.length > 8 && (
+              <Link href={`/pets/${pet.id}/historico`} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]">
+                Ver histórico completo
+              </Link>
+            )}
           </div>
-          <TimelineList items={profileTimeline} editable={editable} returnTo={`/pets/${pet.id}`} filterMode="all" newRecordPetId={pet.id} showNewRecord={editable} />
+          <TimelineList
+            items={profileTimeline}
+            limit={8}
+            fullHistoryHref={`/pets/${pet.id}/historico`}
+            editable={editable}
+            returnTo={`/pets/${pet.id}`}
+            filterMode={neonatal ? "neonatal" : "adult"}
+            newRecordPetId={pet.id}
+            showNewRecord={editable}
+          />
         </section>
 
         <aside className="space-y-4">

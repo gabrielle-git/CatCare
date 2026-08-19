@@ -2,17 +2,18 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, BadgeCheck, Brain, Minus, PackageOpen, Pencil, Plus, ReceiptText, ShoppingBasket, Sparkles, Star, Store, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PetNameChips } from "@/components/pet-name-chips";
+import { listBenefitMemberships, membershipLabel } from "@/lib/benefit-memberships";
 import { listCommerce } from "@/lib/commerce";
 import { formatCurrency, formatShortDate, getPetLifeStage, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
-import { demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
+import { demoBenefitMemberships, demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
 import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductCategory, PurchaseChannel } from "@/types/database";
+import type { ProductCategory, ProductReview, Purchase, PurchaseChannel } from "@/types/database";
 import { deleteProduct, deletePurchase } from "./actions";
 
 const categoryLabels: Record<ProductCategory, string> = {
@@ -26,22 +27,42 @@ const tones: Record<ProductCategory, string> = {
 };
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) return { products: demoProducts, purchases: demoPurchases, reviews: demoProductReviews, pets: demoPets, configured: false, editable: false };
+  if (!hasSupabaseEnv()) {
+    return {
+      products: demoProducts,
+      purchases: demoPurchases,
+      reviews: demoProductReviews,
+      pets: demoPets,
+      memberships: demoBenefitMemberships,
+      configured: false,
+      editable: false,
+    };
+  }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { products: [], purchases: [], reviews: [], pets: [], configured: true, editable: false };
+  if (!data.user) return { products: [], purchases: [], reviews: [], pets: [], memberships: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
   const role = await getMyRole(supabase);
-  const [commerce, pets] = await Promise.all([listCommerce(supabase, household.id), listPets(supabase, household.id)]);
-  return { ...commerce, pets, configured: true, editable: canEdit(role) };
+  const [commerce, pets, memberships] = await Promise.all([
+    listCommerce(supabase, household.id),
+    listPets(supabase, household.id),
+    listBenefitMemberships(supabase, household.id),
+  ]);
+  return { ...commerce, pets, memberships, configured: true, editable: canEdit(role) };
 }
 
 function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
-export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string }> }) {
-  const [{ products, purchases, reviews, pets, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+function reviewForPurchase(purchase: Purchase, allReviews: ProductReview[]) {
+  const day = purchase.purchased_at.slice(0, 10);
+  return allReviews.find((review) => review.product_id === purchase.product_id && review.reviewed_at.slice(0, 10) === day) ?? null;
+}
+
+export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string }> }) {
+  const [{ products, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+  const membershipNames = new Map(memberships.map((item) => [item.id, membershipLabel(item)]));
   const now = new Date();
   const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
   const monthTotal = monthPurchases.reduce((sum, item) => sum + item.amount_cents, 0);
@@ -125,7 +146,14 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço e aceitação dos produtos. Cada compra registrada vira gasto automaticamente em Gastos da família.</p></div>{editable && <Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link>}</header>
     {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Estes produtos ilustram como suas próprias comparações aparecerão.</div>}
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Compra salva, gasto lançado e comparações atualizadas.</div>}
-    {flags.review === "partial" && <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">A compra foi salva; a avaliação ficou para depois porque faltou uma das três notas.</div>}
+    {flags.review === "done" && <div className="mt-3 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Avaliação salva — o comparador da família foi atualizado.</div>}
+    {(flags.review === "partial" || flags.review === "pending") && flags.purchase && (
+      <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">
+        {flags.review === "partial" ? "A compra foi salva, mas faltou uma das três notas." : "Compra salva sem avaliação."}{" "}
+        <Link href={`/shopping/reviews/new?purchase=${flags.purchase}`} className="font-bold underline">Avaliar agora</Link>
+      </div>
+    )}
+    {flags.review === "partial" && !flags.purchase && <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">A compra foi salva; a avaliação ficou para depois porque faltou uma das três notas.</div>}
 
     <section className="mt-6 grid gap-3 sm:grid-cols-3">
       <div className="cat-card p-5"><span className="grid size-9 place-items-center rounded-[14px] bg-[var(--lavender-soft)]"><ShoppingBasket size={17} /></span><p className="mt-4 text-xs font-semibold text-[var(--muted)]">Compras neste mês</p><p className="mt-1 text-2xl font-bold tracking-[-0.04em]">{formatCurrency(monthTotal)}</p></div>
@@ -149,7 +177,8 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2><p className="mt-1 text-xs text-[var(--muted)]">Cada compra com gasto vinculado aparece também em Gastos da família.</p></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);
-      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{productNames.get(purchase.product_id) || "Produto"}</p>{purchase.expense_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Em gastos</span>}</div><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>{purchase.expense_id && <Link href={`/expenses/${purchase.expense_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ReceiptText size={12} /> Ver gasto</Link>}<form action={remove}><ConfirmButton message="Apagar esta compra e o gasto vinculado?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
+      const linkedReview = reviewForPurchase(purchase, reviews);
+      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{productNames.get(purchase.product_id) || "Produto"}</p>{purchase.expense_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Em gastos</span>}{linkedReview && <span className="rounded-full bg-[var(--lavender-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--lavender-strong)]">Avaliada</span>}{purchase.membership_id && membershipNames.get(purchase.membership_id) && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">{membershipNames.get(purchase.membership_id)}</span>}{!purchase.membership_id && purchase.petlove_club && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">Clube Petlove</span>}{purchase.coupon_code && <span className="rounded-full bg-[var(--cream)] px-2 py-0.5 text-[9px] font-bold text-[var(--muted)]">{purchase.coupon_code}</span>}{purchase.discount_cents > 0 && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">−{formatCurrency(purchase.discount_cents)}</span>}</div><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>{!linkedReview && <Link href={`/shopping/reviews/new?purchase=${purchase.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Avaliar</Link>}{linkedReview && <Link href={`/shopping/reviews/${linkedReview.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Editar avaliação</Link>}{purchase.expense_id && <Link href={`/expenses/${purchase.expense_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ReceiptText size={12} /> Ver gasto</Link>}<form action={remove}><ConfirmButton message="Apagar esta compra e o gasto vinculado?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
     })}</div></section>
   </div>;
 }
