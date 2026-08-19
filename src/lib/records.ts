@@ -69,7 +69,7 @@ async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "househo
   ].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()).slice(0, limit);
 }
 
-export function listPetTimeline(supabase: SupabaseClient, petId: string, limit = 40) {
+export function listPetTimeline(supabase: SupabaseClient, petId: string, limit = 100) {
   return loadTimeline(supabase, "pet_id", petId, limit);
 }
 
