@@ -2,10 +2,10 @@ import Link from "next/link";
 import { Bot, ChevronRight, ImageIcon, ReceiptText, Settings, ShoppingBasket } from "lucide-react";
 
 const links = [
-  { label: "Gastos", detail: "Quanto a família investiu em cada gatinho", href: "/expenses", icon: ReceiptText, tone: "bg-[#fbead9]" },
+  { label: "Gastos", detail: "Quanto a família investiu em cada pet", href: "/expenses", icon: ReceiptText, tone: "bg-[#fbead9]" },
   { label: "Compras e avaliações", detail: "Preço, loja, qualidade e aceitação dos produtos", href: "/shopping", icon: ShoppingBasket, tone: "bg-[var(--mint-soft)]" },
   { label: "Memórias", detail: "Fotos, marcos e pequenos momentos", href: "/memories", icon: ImageIcon, tone: "bg-[var(--rose-soft)]" },
-  { label: "Assistente", detail: "Respostas baseadas somente no histórico dos gatos", href: "/assistant", icon: Bot, tone: "bg-[var(--lavender-soft)]" },
+  { label: "Assistente", detail: "Respostas baseadas somente no histórico dos pets", href: "/assistant", icon: Bot, tone: "bg-[var(--lavender-soft)]" },
   { label: "Configurações", detail: "Família, privacidade e seus dados", href: "/settings", icon: Settings, tone: "bg-[var(--mint-soft)]" },
 ];
 

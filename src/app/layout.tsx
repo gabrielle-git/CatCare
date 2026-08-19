@@ -11,7 +11,7 @@ const dmSans = localFont({
 
 export const metadata: Metadata = {
   title: "CatCare",
-  description: "Saúde, rotina e memórias dos seus gatos em um só lugar.",
+  description: "Saúde, rotina e memórias dos seus pets em um só lugar.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

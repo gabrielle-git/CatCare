@@ -24,7 +24,7 @@ export async function sendInviteEmail(input: InviteEmailInput) {
   const { error } = await resend.emails.send({
     from,
     to: [input.to],
-    subject: `Convite para cuidar dos gatos — ${input.householdName}`,
+    subject: `Convite para cuidar dos pets — ${input.householdName}`,
     html: `
       <div style="font-family: sans-serif; line-height: 1.5; color: #2a2230;">
         <p>Você foi convidada para entrar na família <strong>${input.householdName}</strong> no CatCare.</p>

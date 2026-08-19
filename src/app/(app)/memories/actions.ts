@@ -33,7 +33,7 @@ function readFields(formData: FormData) {
   const title = value(formData, "title");
   const occurredAt = value(formData, "occurred_at");
   const petIds = [...new Set(formData.getAll("pet_ids").map((entry) => String(entry).trim()).filter(Boolean))];
-  if (!memoryTypes.has(type) || !title || title.length > 120 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(occurredAt) || petIds.length === 0) throw new Error("Confira o tipo, título, data e escolha ao menos um gatinho.");
+  if (!memoryTypes.has(type) || !title || title.length > 120 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(occurredAt) || petIds.length === 0) throw new Error("Confira o tipo, título, data e escolha ao menos um pet.");
   const body = value(formData, "body");
   if (body.length > 2000) throw new Error("O texto da memória está muito longo.");
   return { type, title, body: body || null, occurred_at: `${occurredAt}:00-03:00`, petIds };
@@ -50,7 +50,7 @@ async function authContext() {
 
 async function validatePets(supabase: Awaited<ReturnType<typeof createClient>>, householdId: string, petIds: string[]) {
   const { data, error } = await supabase.from("pets").select("id").eq("household_id", householdId).in("id", petIds);
-  if (error || (data ?? []).length !== petIds.length) throw new Error("Um dos gatinhos selecionados não pertence a esta família.");
+  if (error || (data ?? []).length !== petIds.length) throw new Error("Um dos pets selecionados não pertence a esta família.");
 }
 
 async function uploadMemoryPhotos(supabase: Awaited<ReturnType<typeof createClient>>, householdId: string, memoryId: string, photos: ValidPhoto[]) {
@@ -76,7 +76,7 @@ export async function createMemory(formData: FormData) {
   catch (error) { redirect(`/memories/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Dados inválidos.")}`); }
   const { supabase, household } = await authContext();
   try { await validatePets(supabase, household.id, fields.petIds); }
-  catch (error) { redirect(`/memories/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Gatinho inválido.")}`); }
+  catch (error) { redirect(`/memories/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Pet inválido.")}`); }
 
   const memoryId = crypto.randomUUID();
   let mediaPaths: string[];
@@ -112,7 +112,7 @@ export async function updateMemory(memoryId: string, formData: FormData) {
   if (!existing || existing.archived_at) redirect("/memories");
   if (mediaReadError) redirect(`/memories/${memoryId}/edit?error=${encodeURIComponent(mediaReadError.message)}`);
   try { await validatePets(supabase, household.id, fields.petIds); }
-  catch (error) { redirect(`/memories/${memoryId}/edit?error=${encodeURIComponent(error instanceof Error ? error.message : "Gatinho inválido.")}`); }
+  catch (error) { redirect(`/memories/${memoryId}/edit?error=${encodeURIComponent(error instanceof Error ? error.message : "Pet inválido.")}`); }
 
   const requestedRemoval = new Set(formData.getAll("remove_media_ids").map(String));
   const currentMedia = existingMedia ?? [];

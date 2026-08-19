@@ -34,14 +34,14 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
   const type = value(formData, "record_type");
-  if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o gatinho e confira o registro.");
+  if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o pet e confira o registro.");
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) fail(recordId, source, type, "Informe uma data e hora válidas.");
 
   const { supabase, household } = await authContext();
   const { data: pet } = await supabase.from("pets").select("id").eq("id", petId).eq("household_id", household.id).is("archived_at", null).maybeSingle();
-  if (!pet) fail(recordId, source, type, "Gatinho não encontrado.");
+  if (!pet) fail(recordId, source, type, "Pet não encontrado.");
 
   const notes = value(formData, "notes") || null;
 

@@ -20,7 +20,7 @@ function average(values: number[]) {
 
 function recommendationReason(quality: number, acceptance: number, value: number, buyAgainRate: number) {
   const strengths: string[] = [];
-  if (acceptance >= 4) strengths.push("boa aceitação pelos gatos");
+  if (acceptance >= 4) strengths.push("boa aceitação pelos pets");
   if (quality >= 4) strengths.push("qualidade bem avaliada");
   if (value >= 4) strengths.push("bom custo-benefício");
   if (buyAgainRate >= 0.75) strengths.push("alta intenção de recompra");

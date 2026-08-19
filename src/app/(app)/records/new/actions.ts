@@ -27,7 +27,7 @@ function revalidateRecordPaths(petIds: string[]) {
 export async function createRecord(formData: FormData) {
   const petIds = parsePetIds(formData);
   const type = value(formData, "record_type");
-  if (petIds.length === 0 || !recordTypes.has(type)) fail(petIds, type, "Escolha ao menos um gatinho e o tipo de cuidado.");
+  if (petIds.length === 0 || !recordTypes.has(type)) fail(petIds, type, "Escolha ao menos um pet e o tipo de cuidado.");
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) fail(petIds, type, "Informe uma data e hora válidas.");
@@ -38,7 +38,7 @@ export async function createRecord(formData: FormData) {
   await assertCanEdit(supabase);
   const household = await ensureHousehold(supabase, auth.user.id);
   const { data: pets } = await supabase.from("pets").select("id, name").eq("household_id", household.id).in("id", petIds).is("archived_at", null);
-  if (!pets?.length || pets.length !== petIds.length) fail(petIds, type, "Gatinho não encontrado.");
+  if (!pets?.length || pets.length !== petIds.length) fail(petIds, type, "Pet não encontrado.");
 
   const notes = value(formData, "notes") || null;
   const reminderRaw = value(formData, "reminder_due_at");

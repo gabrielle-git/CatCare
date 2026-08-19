@@ -38,7 +38,7 @@ export default async function PetsPage({ searchParams }: { searchParams: Promise
 
       {!configured && <div className="mt-6 rounded-[20px] border border-[#d9cfee] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Dobby, Crystal e os dois bebês já usam os dados informados; fotos e registros de rotina continuam demonstrativos até conectar o Supabase.</div>}
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">A fase de vida é identificada automaticamente pela data de nascimento. A equivalência humana é aproximada e serve apenas como referência carinhosa.</p>
-      {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Gatinho arquivado. O histórico continua guardado.</div>}
+      {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Pet arquivado. O histórico continua guardado.</div>}
 
       {pets.length === 0 ? (
         <section className="cat-card mt-7 p-8 text-center">

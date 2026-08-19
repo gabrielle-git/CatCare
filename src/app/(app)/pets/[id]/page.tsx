@@ -45,7 +45,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
     recentKinds.has("weight") ? `A família acompanha seu peso, hoje em ${formatWeight(pet.current_weight_grams)}.` : null,
     recentKinds.has("surgery") && pet.neutered ? "A castração foi registrada no histórico com data aproximada." : null,
     recentKinds.has("medication") || recentKinds.has("vaccine") ? "Os cuidados de saúde estão sendo registrados com atenção." : null,
-    neonatal ? "Como ainda é bebê, sua rotina neonatal merece acompanhamento bem de perto." : null,
+    neonatal ? "Como ainda é filhote, sua rotina neonatal merece acompanhamento bem de perto." : null,
   ].filter(Boolean).join(" ");
   const saveDescription = updatePetDescription.bind(null, pet.id);
 

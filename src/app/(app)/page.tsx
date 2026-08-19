@@ -102,7 +102,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
           {babies.length > 0 && (
             <Link href="/neonatal" className="focus-ring flex items-center justify-between gap-4 rounded-[24px] border border-[#e3b6c4] bg-[var(--rose-soft)] p-5">
-              <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-[18px] bg-[var(--rose)]"><HeartPulse size={20} /></span><div><h2 className="font-bold">{babies.length === 1 ? "1 bebê em acompanhamento" : `${babies.length} bebês em acompanhamento`}</h2><p className="mt-1 text-xs text-[var(--muted)]">Mamada, peso e eliminações em um painel próprio.</p></div></div><ChevronRight size={19} className="shrink-0" />
+              <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-[18px] bg-[var(--rose)]"><HeartPulse size={20} /></span><div><h2 className="font-bold">{babies.length === 1 ? "1 filhote em acompanhamento" : `${babies.length} filhotes em acompanhamento`}</h2><p className="mt-1 text-xs text-[var(--muted)]">Mamada, peso e eliminações em um painel próprio.</p></div></div><ChevronRight size={19} className="shrink-0" />
             </Link>
           )}
 
@@ -120,7 +120,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <section className="cat-card p-5 md:p-6">
             <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p><h2 className="mt-1 text-xl font-bold">Últimos cuidados</h2></div>
             <div className="mt-4 space-y-2.5">
-              {timeline.length === 0 ? <p className="rounded-[18px] border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">Os registros recentes aparecerão aqui.</p> : timeline.map((item) => <Link key={`${item.kind}-${item.id}`} href={`/pets/${item.pet_id}`} className="focus-ring flex items-center justify-between gap-4 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold">{item.title} <span className="font-normal text-[var(--muted)]">• {petNames.get(item.pet_id) ?? "Gatinho"}</span></p><p className="mt-0.5 truncate text-xs text-[var(--muted)]">{item.detail || "Sem observações"}</p></div><time className="shrink-0 text-[10px] text-[var(--muted)]">{formatDateTime(item.occurred_at)}</time></Link>)}
+              {timeline.length === 0 ? <p className="rounded-[18px] border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">Os registros recentes aparecerão aqui.</p> : timeline.map((item) => <Link key={`${item.kind}-${item.id}`} href={`/pets/${item.pet_id}`} className="focus-ring flex items-center justify-between gap-4 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold">{item.title} <span className="font-normal text-[var(--muted)]">• {petNames.get(item.pet_id) ?? "Pet"}</span></p><p className="mt-0.5 truncate text-xs text-[var(--muted)]">{item.detail || "Sem observações"}</p></div><time className="shrink-0 text-[10px] text-[var(--muted)]">{formatDateTime(item.occurred_at)}</time></Link>)}
             </div>
           </section>
         </div>

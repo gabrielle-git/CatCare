@@ -58,7 +58,7 @@ export async function createExpense(formData: FormData) {
     await saveExpensePets(supabase, household.id, created.id, petIds);
   } catch (petError) {
     await supabase.from("expenses").delete().eq("id", created.id).eq("household_id", household.id);
-    redirect(`/expenses/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+    redirect(`/expenses/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
   revalidatePath("/expenses");
   revalidatePath("/");
@@ -89,7 +89,7 @@ export async function updateExpense(expenseId: string, formData: FormData) {
   try {
     await saveExpensePets(supabase, household.id, expenseId, petIds);
   } catch (petError) {
-    redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+    redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
 
   const linkedPurchase = await supabase.from("purchases").select("id").eq("expense_id", expenseId).eq("household_id", household.id).maybeSingle();

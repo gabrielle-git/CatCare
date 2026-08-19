@@ -36,7 +36,7 @@ export default async function EditPurchasePage({ params, searchParams }: { param
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       {purchase.expense_id && (
         <div className="mt-6 rounded-[20px] border border-[#cfe8d8] bg-[var(--mint-soft)] px-4 py-3 text-sm leading-relaxed">
-          Esta compra já entrou em <strong>Gastos da família</strong>. Valor, data e gatinhos ficam sincronizados com{" "}
+          Esta compra já entrou em <strong>Gastos da família</strong>. Valor, data e pets ficam sincronizados com{" "}
           <Link href={`/expenses/${purchase.expense_id}/edit`} className="font-bold text-[var(--success)] underline">o gasto vinculado</Link>.
         </div>
       )}
@@ -48,7 +48,7 @@ export default async function EditPurchasePage({ params, searchParams }: { param
           <label className="text-sm font-bold">Quantidade de pacotes<input required name="quantity" type="number" min="0.01" step="0.01" defaultValue={purchase.quantity} className="field mt-2" /></label>
           <label className="text-sm font-bold">Data<input required name="purchased_on" type="date" defaultValue={purchase.purchased_at.slice(0, 10)} className="field mt-2" /></label>
         </div>
-        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} required={false} legend="Para quem?" hint="Opcional — um, vários gatos ou nenhum (casa toda)." />
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} required={false} legend="Para quem?" hint="Opcional — um, vários pets ou nenhum (casa toda)." />
         <label className="block text-sm font-bold">Link do produto<input name="product_url" type="url" defaultValue={purchase.product_url ?? ""} className="field mt-2" /></label>
         <label className="block text-sm font-bold">Observações<textarea name="purchase_notes" rows={3} defaultValue={purchase.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white"><ShoppingBasket size={18} /> Salvar alterações</button>

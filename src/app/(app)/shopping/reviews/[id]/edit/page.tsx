@@ -42,7 +42,7 @@ export default async function EditReviewPage({ params, searchParams }: { params:
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-5 sm:grid-cols-3">{scoreFields.map((field) => <StarRating key={field.name} name={field.name} legend={field.legend} defaultValue={field.value} required />)}</div>
-        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={review.pet_ids ?? (review.pet_id ? [review.pet_id] : [])} required={false} legend="Quais gatos avaliaram?" hint="Opcional — quem experimentou o produto." />
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={review.pet_ids ?? (review.pet_id ? [review.pet_id] : [])} required={false} legend="Quais pets avaliaram?" hint="Opcional — quem experimentou o produto." />
         <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input type="checkbox" name="would_buy_again" defaultChecked={review.would_buy_again} className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
         <label className="block text-sm font-bold">Comentário<textarea name="review_notes" rows={3} defaultValue={review.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white">Salvar avaliação</button>

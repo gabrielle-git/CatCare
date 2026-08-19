@@ -29,7 +29,7 @@ export default async function NewReminderPage({ searchParams }: { searchParams: 
       <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Categoria<select disabled={!configured} name="category" className="field mt-2"><option value="vaccine">Vacina</option><option value="medication">Medicamento</option><option value="consultation">Consulta</option><option value="weight">Pesagem</option><option value="feeding">Alimentação / mamada</option><option value="hygiene">Higiene</option><option value="purchase">Compra</option><option value="other">Outro</option></select></label><label className="text-sm font-bold">Data e hora<input disabled={!configured} required name="due_at" type="datetime-local" className="field mt-2" /></label></div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={[]} disabled={!configured} required={false} legend="Gatinhos" hint="Opcional — deixe vazio para lembrete da família toda, ou escolha um ou mais gatinhos." />
+          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={[]} disabled={!configured} required={false} legend="Pets" hint="Opcional — deixe vazio para lembrete da família toda, ou escolha um ou mais pets." />
         </div>
         <label className="text-sm font-bold">Repetição<select disabled={!configured} name="recurrence" className="field mt-2"><option value="none">Não repetir</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option><option value="monthly">Todo mês</option></select></label>
       </div>

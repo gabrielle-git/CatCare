@@ -45,7 +45,7 @@ export default async function EditReminderPage({ params, searchParams }: { param
           <label className="text-sm font-bold">Data e hora<input required name="due_at" type="datetime-local" defaultValue={toLocalDateTimeInput(reminder.due_at)} className="field mt-2" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Gatinho" hint="Opcional — deixe vazio para lembrete da família toda." />
+          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Pet" hint="Opcional — deixe vazio para lembrete da família toda." />
           <label className="text-sm font-bold">Repetição<select name="recurrence" defaultValue={recurrenceValue(reminder.recurrence_rule)} className="field mt-2"><option value="none">Não repetir</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option><option value="monthly">Todo mês</option></select></label>
         </div>
         <label className="block text-sm font-bold">Detalhes<textarea name="notes" rows={3} defaultValue={reminder.notes ?? ""} className="field mt-2 resize-none" /></label>

@@ -10,7 +10,7 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
   return (
     <div className="space-y-5">
       <label className="block text-sm font-bold">
-        Nome do gatinho <span className="text-[var(--danger)]">*</span>
+        Nome do pet <span className="text-[var(--danger)]">*</span>
         <input disabled={disabled} required name="name" defaultValue={defaultValues?.name ?? ""} className="field mt-2" placeholder="Ex.: Dobby" />
       </label>
 
