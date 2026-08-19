@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Check, Clock3, Pencil, Plus, Repeat2, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatTime } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -34,7 +34,7 @@ function ReminderRows({ items, names, editable, late = false }: { items: Reminde
     return <article key={item.id} className={`flex items-center gap-3 rounded-[20px] border p-3.5 ${late ? "border-red-200 bg-red-50" : "border-[var(--border)] bg-white"}`}>
       <form action={complete}><button disabled={!editable} aria-label={`Marcar ${item.title} como concluído`} title={editable ? "Marcar como feito" : "Somente leitura"} className="focus-ring grid size-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] bg-white text-[var(--muted)] transition hover:border-[var(--mint)] hover:bg-[var(--mint-soft)] hover:text-[var(--success)]"><Check size={16} /></button></form>
       <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.title}</p>{item.recurrence_rule && <span className="inline-flex items-center gap-1 rounded-full bg-[var(--lavender-soft)] px-2 py-0.5 text-[9px] font-bold"><Repeat2 size={10} /> Repete</span>}</div><p className="mt-1 truncate text-[11px] text-[var(--muted)]">{categoryLabels[item.category] || "Cuidado"} • {names.get(item.pet_id ?? "") ?? "Família"}{item.notes ? ` • ${item.notes}` : ""}</p>{editable && <div className="mt-2 flex flex-wrap gap-2"><Link href={`/agenda/${item.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link><form action={remove}><ConfirmButton message="Apagar este lembrete permanentemente?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>
-      <time className={`shrink-0 text-right text-[11px] font-bold ${late ? "text-[var(--danger)]" : "text-[var(--muted)]"}`} dateTime={item.due_at}>{new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.due_at))}</time>
+      <time className={`shrink-0 text-right text-[11px] font-bold ${late ? "text-[var(--danger)]" : "text-[var(--muted)]"}`} dateTime={item.due_at}>{formatTime(item.due_at)}</time>
     </article>;
   })}</div>;
 }

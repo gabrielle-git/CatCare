@@ -1,5 +1,7 @@
 import type { Pet, PetLifeStage } from "@/types/database";
 
+export const APP_TIMEZONE = "America/Sao_Paulo";
+
 function dateOnly(value: string) {
   return new Date(`${value}T12:00:00`);
 }
@@ -80,8 +82,13 @@ export function parseWeightKg(raw: string) {
   return Math.round(kg * 1000);
 }
 
+export function formatTime(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: APP_TIMEZONE, hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: APP_TIMEZONE,
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -94,11 +101,15 @@ export function formatCurrency(amountCents: number) {
 }
 
 export function formatShortDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: APP_TIMEZONE, day: "2-digit", month: "short" }).format(new Date(value));
+}
+
+export function formatFullDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: APP_TIMEZONE, day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
 }
 
 export function formatLongDate(value = new Date()) {
-  const text = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(value);
+  const text = new Intl.DateTimeFormat("pt-BR", { timeZone: APP_TIMEZONE, weekday: "long", day: "2-digit", month: "long" }).format(value);
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

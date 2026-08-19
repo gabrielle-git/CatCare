@@ -36,8 +36,8 @@ Configure **uma vez** no projeto:
 | Item | Onde | Recomendação |
 |------|------|--------------|
 | Confirm email | Authentication → Providers → Email | **Ligar** em produção; cadastro mostra mensagem para confirmar antes de entrar |
-| Site URL | Authentication → URL Configuration | URL da Vercel (ex.: `https://cat-care-xi.vercel.app`) |
-| Redirect URLs | Idem | `https://…/auth/callback`, `http://localhost:3000/auth/callback` |
+| Site URL | Authentication → URL Configuration | **Tem que ser** `https://cat-care-xi.vercel.app` (não `cat-care-v1` nem outro deploy antigo) |
+| Redirect URLs | Idem | `https://cat-care-xi.vercel.app/auth/callback` e `http://localhost:3000/auth/callback` |
 | RLS | Table Editor → cada tabela | Políticas ativas (via migrations) |
 | Migrations | SQL Editor | Rodar `0001` … `0015` na ordem |
 
@@ -46,6 +46,21 @@ Configure **uma vez** no projeto:
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` nas env vars da Vercel.
 - `NEXT_PUBLIC_APP_URL` = URL pública do app (links de convite).
 - `RESEND_API_KEY` apenas no servidor; domínio verificado no Resend para sair do `onboarding@resend.dev`.
+
+## E-mail de confirmação (template)
+
+Em **Authentication → Email Templates → Confirm signup**, substitua o HTML padrão por:
+
+```html
+<h2>Confirme sua conta no CatCare</h2>
+<p>Olá! Para terminar o cadastro, toque no botão abaixo.</p>
+<p><a href="{{ .ConfirmationURL }}">Confirmar meu e-mail</a></p>
+<p>Se você não criou esta conta, ignore este e-mail.</p>
+```
+
+Assunto sugerido: `Confirme sua conta no CatCare`
+
+O remetente `noreply@mail.app.supabase.io` só muda quando o projeto usa um SMTP próprio (Resend/domínio).
 
 ## IA (futuro)
 

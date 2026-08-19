@@ -7,6 +7,14 @@ import { removeHouseholdMedia } from "@/lib/household-media";
 import { getMyRole, isOwner } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
+function publicError(message: string) {
+  const text = message.toLowerCase();
+  if (text.includes("storage") || text.includes("direct deletion")) {
+    return "Não foi possível apagar os arquivos da família. Feche este aviso e tente excluir de novo.";
+  }
+  return message;
+}
+
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
@@ -105,11 +113,11 @@ export async function deleteHousehold(householdId: string, formData: FormData) {
     await removeHouseholdMedia(supabase, householdId);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Não foi possível apagar as fotos da família.";
-    redirect(`/settings?error=${encodeURIComponent(message)}`);
+    redirect(`/settings?error=${encodeURIComponent(publicError(message))}`);
   }
 
   const { error } = await supabase.rpc("delete_household");
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?error=${encodeURIComponent(publicError(error.message))}`);
 
   revalidatePath("/", "layout");
   revalidatePath("/settings");
