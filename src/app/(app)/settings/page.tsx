@@ -35,7 +35,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const rows = [
     { label: "Família e membros", detail: `${data.members} ${data.members === 1 ? "pessoa com acesso" : "pessoas com acesso"}`, href: "/settings/members", icon: UsersRound, tone: "bg-[var(--rose-soft)]" },
     { label: "Privacidade e exportação", detail: signedIn ? "Baixe uma cópia JSON dos dados da família." : "A exportação fica disponível após entrar.", href: signedIn ? "/api/export" : "/login", icon: ShieldCheck, tone: "bg-[var(--mint-soft)]" },
-    { label: "Meus gatos", detail: `${data.activePets} ativos • ${data.archivedPets} arquivados`, href: "/pets", icon: Cat, tone: "bg-[var(--peach)]" },
+    { label: "Meus pets", detail: `${data.activePets} ativos • ${data.archivedPets} arquivados`, href: "/pets", icon: Cat, tone: "bg-[var(--peach)]" },
   ];
 
   const activeOwned = data.households.find((item) => item.is_active && isOwner(item.role));

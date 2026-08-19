@@ -21,7 +21,7 @@ const sections = [
     label: "Principal",
     items: [
       { href: "/", label: "Visão geral", icon: Home },
-      { href: "/pets", label: "Meus gatos", icon: Cat },
+      { href: "/pets", label: "Meus pets", icon: Cat },
       { href: "/records/new", label: "Registrar cuidado", icon: Plus },
       { href: "/assistant", label: "Assistente dos gatos", icon: Bot },
     ],

@@ -6,7 +6,7 @@ import { CalendarDays, Cat, Home, Menu, Plus } from "lucide-react";
 
 const items = [
   { href: "/", label: "Início", icon: Home },
-  { href: "/pets", label: "Gatos", icon: Cat },
+  { href: "/pets", label: "Pets", icon: Cat },
   { href: "/records/new", label: "Registrar", icon: Plus, primary: true },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/more", label: "Mais", icon: Menu },

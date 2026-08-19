@@ -26,7 +26,7 @@ export default async function EditPetPage({ params, searchParams }: { params: Pr
         <button type="submit" className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white">Salvar alterações</button>
       </form>
       <form action={archive} className="mt-4">
-        <ConfirmButton message={`Arquivar ${pet.name}? O perfil some das listas, mas todo o histórico fica guardado.`} className="focus-ring flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-5 py-3 text-sm font-bold text-[var(--muted)]"><Archive size={17} /> Arquivar gatinho</ConfirmButton>
+        <ConfirmButton message={`Arquivar ${pet.name}? O perfil some das listas, mas todo o histórico fica guardado.`} className="focus-ring flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-5 py-3 text-sm font-bold text-[var(--muted)]"><Archive size={17} /> Arquivar pet</ConfirmButton>
       </form>
     </div>
   );

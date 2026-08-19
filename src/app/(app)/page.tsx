@@ -107,9 +107,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           )}
 
           <section className="cat-card p-5 md:p-6">
-            <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Família</p><h2 className="mt-1 text-xl font-bold">Meus gatos</h2></div><Link href="/pets" className="focus-ring rounded-xl px-2 py-1 text-xs font-bold text-[var(--lavender-strong)]">Ver todos</Link></div>
+            <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Família</p><h2 className="mt-1 text-xl font-bold">Meus pets</h2></div><Link href="/pets" className="focus-ring rounded-xl px-2 py-1 text-xs font-bold text-[var(--lavender-strong)]">Ver todos</Link></div>
             {pets.length === 0 ? (
-              <div className="mt-4 rounded-[20px] border border-dashed border-[var(--border)] p-6 text-center"><p className="text-sm font-bold">Nenhum gatinho cadastrado.</p>{editable && <Link href="/pets/new" className="mt-3 inline-flex text-xs font-bold text-[var(--lavender-strong)]">Adicionar o primeiro</Link>}</div>
+              <div className="mt-4 rounded-[20px] border border-dashed border-[var(--border)] p-6 text-center"><p className="text-sm font-bold">Nenhum pet cadastrado.</p>{editable && <Link href="/pets/new" className="mt-3 inline-flex text-xs font-bold text-[var(--lavender-strong)]">Adicionar o primeiro</Link>}</div>
             ) : (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {pets.slice(0, 4).map((pet) => <Link key={pet.id} href={`/pets/${pet.id}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-[var(--border)] bg-white p-3.5 transition hover:-translate-y-0.5"><PetAvatar name={pet.name} photoUrl={pet.photo_url} size="sm" /><div className="min-w-0"><p className="truncate font-bold">{pet.name}</p><p className="mt-0.5 truncate text-xs text-[var(--muted)]">{formatWeight(pet.current_weight_grams)} • {formatPetAge(pet.birth_date, pet.birth_date_estimated) ?? "idade não informada"}</p>{formatHumanEquivalentAge(pet.birth_date) && <p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">{formatHumanEquivalentAge(pet.birth_date)}</p>}</div></Link>)}
@@ -134,7 +134,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <Link href="/agenda" className="focus-ring mt-4 flex items-center justify-center gap-2 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-xs font-bold text-[var(--success)]">Abrir agenda <ChevronRight size={15} /></Link>
           </section>
 
-          <section className="rounded-[24px] bg-[var(--cream)] p-5"><p className="flex items-center gap-2 text-sm font-bold"><Cat size={17} /> Visão da família</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl">{pets.length}</strong><span className="text-[10px] text-[var(--muted)]">gatos</span></div><div><strong className="block text-2xl">{timeline.length}</strong><span className="text-[10px] text-[var(--muted)]">recentes</span></div><div><strong className="block text-2xl">{reminders.length}</strong><span className="text-[10px] text-[var(--muted)]">pendentes</span></div></div></section>
+          <section className="rounded-[24px] bg-[var(--cream)] p-5"><p className="flex items-center gap-2 text-sm font-bold"><Cat size={17} /> Visão da família</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl">{pets.length}</strong><span className="text-[10px] text-[var(--muted)]">pets</span></div><div><strong className="block text-2xl">{timeline.length}</strong><span className="text-[10px] text-[var(--muted)]">recentes</span></div><div><strong className="block text-2xl">{reminders.length}</strong><span className="text-[10px] text-[var(--muted)]">pendentes</span></div></div></section>
         </aside>
       </div>
     </div>

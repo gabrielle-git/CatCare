@@ -57,7 +57,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-5 pb-8 pt-7 md:px-8 lg:px-10 lg:py-10">
-      <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus gatos</Link>
+      <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus pets</Link>
       {(flags.created || flags.updated || flags.saved) && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Tudo salvo direitinho.</div>}
 
       <section className="cat-card mt-5 overflow-hidden">
