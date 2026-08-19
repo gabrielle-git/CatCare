@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, Syringe } from "lucide-react";
 import { formatFullDate } from "@/lib/format";
+import { typedRecordHref, vaccineAlertHref } from "@/lib/record-links";
 import { formatWeeksAge, type ScheduledVaccine, type VaccineStatus } from "@/lib/vaccine-schedule";
 
 const statusConfig: Record<VaccineStatus, { label: string; className: string; icon: typeof Check }> = {
@@ -19,8 +20,7 @@ function VaccineRow({ vaccine, petId, editable }: { vaccine: ScheduledVaccine; p
   const config = statusConfig[vaccine.status];
   const Icon = config.icon;
   const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
-  const registerTitle = `${vaccine.name} — ${vaccine.doseLabel}`;
-  const registerHref = `/records/new?pet=${petId}&type=vaccine&record_title=${encodeURIComponent(registerTitle)}`;
+  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -96,7 +96,7 @@ export function VaccineScheduleCard({ schedule, petId, petName, editable }: { sc
         </div>
         {editable && (
           <Link
-            href={`/records/new?pet=${petId}&type=vaccine`}
+            href={typedRecordHref(petId, "vaccine")}
             className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--mint-soft)] px-2.5 py-2 text-[11px] font-bold text-[var(--success)]"
           >
             <Syringe size={13} /> Registrar

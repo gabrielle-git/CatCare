@@ -47,7 +47,7 @@ export type RecordFieldDefaults = {
 export function RecordFields({
   pets,
   initialPetId,
-  initialType = "weight",
+  initialType,
   initialTitle,
   disabled = false,
   mode = "create",
@@ -67,8 +67,10 @@ export function RecordFields({
     ? (defaultValues?.record_type ?? initialType) as QuickRecordType
     : "weight";
   const [type, setType] = useState<QuickRecordType>(validInitial);
-  const [title, setTitle] = useState(defaultValues?.title ?? initialTitle ?? "");
-  const lockTypeFromUrl = mode === "create" && Boolean(initialType && initialTitle);
+  const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
+  const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
+  const lockTypeFromUrl = mode === "create" && Boolean(initialType && options.some((option) => option.value === initialType));
+  const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const defaultPetIds = defaultValues?.pet_id
     ? [defaultValues.pet_id]
     : initialPetId && pets.some((pet) => pet.id === initialPetId)
@@ -85,8 +87,12 @@ export function RecordFields({
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
 
   useEffect(() => {
-    if (initialTitle) setTitle(initialTitle);
-  }, [initialTitle]);
+    if (initialTitle) {
+      setTitle(initialTitle);
+      return;
+    }
+    if (validInitial === "deworming") setTitle("Vermífugo");
+  }, [initialTitle, validInitial]);
 
   return (
     <>
@@ -143,7 +149,17 @@ export function RecordFields({
         {(activeType === "feeding" || activeType === "urine" || activeType === "stool") && (
           <label className="block text-sm font-bold">Como foi?<select disabled={disabled} name="quality" defaultValue={defaultValues?.quality ?? "normal"} className="field mt-2"><option value="normal">Normal</option><option value="good">Foi bem</option><option value="little">Pouquinho</option><option value="difficult">Com dificuldade</option><option value="attention">Precisa de atenção</option></select></label>
         )}
-        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "deworming" ? "Ex.: Vermífugo" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
+        {healthType && (
+          lockTitleFromUrl ? (
+            <div className="block sm:col-span-2">
+              <p className="text-sm font-bold">Título</p>
+              <input type="hidden" name="title" value={title} />
+              <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{title}</p>
+            </div>
+          ) : (
+            <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "deworming" ? "Ex.: Vermífugo" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>
+          )
+        )}
         {(activeType === "vaccine" || activeType === "deworming" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
       </section>
 

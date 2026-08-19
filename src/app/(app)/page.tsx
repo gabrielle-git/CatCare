@@ -10,7 +10,8 @@ import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/li
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import { buildVaccineSchedule, countOverdue, countDue } from "@/lib/vaccine-schedule";
+import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
+import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,8 @@ function greeting() {
   return "Boa noite";
 }
 
-type VaccineAlert = { petId: string; petName: string; overdue: number; due: number };
-type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean };
+type VaccineAlert = { petId: string; petName: string; overdue: number; due: number; registerHref: string | null };
+type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean; registerHref: string };
 
 async function loadDashboard() {
   const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
@@ -48,7 +49,9 @@ async function loadDashboard() {
       const schedule = buildVaccineSchedule(pet.birth_date, doses);
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
-      if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due });
+      const actionable = firstActionableVaccine(schedule);
+      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel) : null;
+      if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due, registerHref });
 
       const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
       if (isDewormingOverdue(dewormingSchedule) || isDewormingDue(dewormingSchedule)) {
@@ -57,6 +60,7 @@ async function loadDashboard() {
           petName: pet.name,
           overdue: isDewormingOverdue(dewormingSchedule),
           due: isDewormingDue(dewormingSchedule),
+          registerHref: dewormingAlertHref(pet.id),
         });
       }
     }
@@ -95,7 +99,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       {(vaccineAlerts.length > 0 || dewormingAlerts.length > 0) && (
         <section className="mt-5 space-y-2">
           {vaccineAlerts.map((alert) => (
-            <Link key={`vaccine-${alert.petId}`} href={`/pets/${alert.petId}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">
+            <Link
+              key={`vaccine-${alert.petId}`}
+              href={alert.registerHref ?? `/pets/${alert.petId}`}
+              className={`focus-ring flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-bold ${alert.overdue > 0 ? "border-red-200 bg-red-50 text-[var(--danger)]" : "border-amber-200 bg-amber-50 text-amber-700"}`}
+            >
               {alert.overdue > 0 ? <AlertTriangle size={17} /> : <Syringe size={17} />}
               <span>
                 {alert.overdue > 0
@@ -105,7 +113,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </Link>
           ))}
           {dewormingAlerts.map((alert) => (
-            <Link key={`deworming-${alert.petId}`} href={`/pets/${alert.petId}`} className={`focus-ring flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-bold ${alert.overdue ? "border-red-200 bg-red-50 text-[var(--danger)]" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+            <Link key={`deworming-${alert.petId}`} href={alert.registerHref} className={`focus-ring flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-bold ${alert.overdue ? "border-red-200 bg-red-50 text-[var(--danger)]" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
               {alert.overdue ? <AlertTriangle size={17} /> : <Pill size={17} />}
               <span>
                 {alert.overdue

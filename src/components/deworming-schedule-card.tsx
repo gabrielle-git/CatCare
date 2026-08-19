@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, Pill } from "lucide-react";
 import { formatFullDate } from "@/lib/format";
+import { dewormingAlertHref, typedRecordHref, vaccineAlertHref } from "@/lib/record-links";
 import { formatDueInDays, type DewormingStatus, type ScheduledDeworming } from "@/lib/deworming-schedule";
 
 const statusConfig: Record<DewormingStatus, { label: string; className: string; icon: typeof Check }> = {
@@ -18,7 +19,7 @@ function DewormingRow({ schedule, petId, editable }: { schedule: ScheduledDeworm
   const config = statusConfig[schedule.status === "upcoming" && schedule.appliedAt ? "done" : schedule.status];
   const Icon = config.icon;
   const actionable = schedule.status !== "done";
-  const registerHref = `/records/new?pet=${petId}&type=deworming&record_title=${encodeURIComponent("Vermífugo")}`;
+  const registerHref = dewormingAlertHref(petId);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -109,7 +110,7 @@ export function DewormingScheduleCard({
         </div>
         {editable && (
           <Link
-            href={`/records/new?pet=${petId}&type=deworming`}
+            href={typedRecordHref(petId, "deworming")}
             className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[#fbead9] px-2.5 py-2 text-[11px] font-bold"
           >
             <Pill size={13} /> Registrar

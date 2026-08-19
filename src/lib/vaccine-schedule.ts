@@ -134,6 +134,10 @@ export function countDue(schedule: ScheduledVaccine[]): number {
   return schedule.filter((v) => v.status === "due").length;
 }
 
+export function firstActionableVaccine(schedule: ScheduledVaccine[]) {
+  return schedule.find((v) => v.status === "overdue" || v.status === "due") ?? null;
+}
+
 export function formatWeeksAge(days: number): string {
   const weeks = Math.floor(days / 7);
   if (weeks < 8) return `${weeks} semana${weeks !== 1 ? "s" : ""}`;
