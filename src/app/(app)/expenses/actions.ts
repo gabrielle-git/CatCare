@@ -42,7 +42,7 @@ export async function createExpense(formData: FormData) {
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
-  const shared = formData.get("shared") === "on" || sharedFromPetIds(petIds);
+  const shared = sharedFromPetIds(petIds);
   const { data: created, error } = await supabase.from("expenses").insert({
     household_id: household.id,
     pet_id: petId,
@@ -75,7 +75,7 @@ export async function updateExpense(expenseId: string, formData: FormData) {
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
-  const shared = formData.get("shared") === "on" || sharedFromPetIds(petIds);
+  const shared = sharedFromPetIds(petIds);
   const { error } = await supabase.from("expenses").update({
     pet_id: petId,
     category: categoryValue,
