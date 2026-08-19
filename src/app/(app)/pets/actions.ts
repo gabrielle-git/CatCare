@@ -28,6 +28,9 @@ function readFields(formData: FormData) {
   const microchipNumber = value(formData, "microchip_number");
   const microchipDate = value(formData, "microchip_implanted_at");
   const microchipLocation = value(formData, "microchip_location");
+  const isNeutered = formData.get("neutered") === "on";
+  const neuteredAt = value(formData, "neutered_at");
+  const neuteredPlace = value(formData, "neutered_place");
   if (hasMicrochip && !microchipNumber) throw new Error("Informe o número do microchip.");
   return {
     name: value(formData, "name"),
@@ -36,7 +39,9 @@ function readFields(formData: FormData) {
     birth_date_estimated: formData.get("birth_date_estimated") === "on",
     breed: value(formData, "breed") || null,
     color: value(formData, "color") || null,
-    neutered: formData.get("neutered") === "on",
+    neutered: isNeutered,
+    neutered_at: isNeutered && neuteredAt ? neuteredAt : null,
+    neutered_place: isNeutered ? neuteredPlace || null : null,
     has_microchip: hasMicrochip,
     microchip_number: hasMicrochip ? microchipNumber : null,
     microchip_implanted_at: hasMicrochip && microchipDate ? microchipDate : null,

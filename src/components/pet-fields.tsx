@@ -1,7 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import type { Pet } from "@/types/database";
 import { MicrochipFields } from "@/components/microchip-fields";
 
 export function PetFields({ defaultValues, includeInitialWeight = false, disabled = false }: { defaultValues?: Partial<Pet>; includeInitialWeight?: boolean; disabled?: boolean }) {
+  const [isNeutered, setIsNeutered] = useState(defaultValues?.neutered ?? false);
+
   return (
     <div className="space-y-5">
       <label className="block text-sm font-bold">
@@ -49,9 +54,28 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
       )}
 
       <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold">
-        <input disabled={disabled} type="checkbox" name="neutered" defaultChecked={defaultValues?.neutered ?? false} className="size-4 accent-[var(--lavender)]" />
+        <input
+          disabled={disabled}
+          type="checkbox"
+          name="neutered"
+          checked={isNeutered}
+          onChange={(event) => setIsNeutered(event.target.checked)}
+          className="size-4 accent-[var(--lavender)]"
+        />
         Castrado(a)
       </label>
+      {isNeutered ? (
+        <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold">
+            Quando castrou?
+            <input disabled={disabled} type="date" name="neutered_at" defaultValue={defaultValues?.neutered_at ?? ""} className="field mt-2" />
+          </label>
+          <label className="block text-sm font-bold">
+            Onde castrou?
+            <input disabled={disabled} name="neutered_place" defaultValue={defaultValues?.neutered_place ?? ""} className="field mt-2" placeholder="Ex.: Clínica Vet Vida" />
+          </label>
+        </div>
+      ) : null}
 
       <MicrochipFields defaultValues={defaultValues} disabled={disabled} />
 
