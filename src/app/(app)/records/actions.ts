@@ -36,8 +36,7 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const type = value(formData, "record_type");
   if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o gatinho e confira o registro.");
 
-  const offset = numberValue(formData, "timezone_offset_minutes") ?? 0;
-  const occurredAt = parseLocalDateTime(value(formData, "occurred_at"), offset);
+  const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) fail(recordId, source, type, "Informe uma data e hora válidas.");
 
   const { supabase, household } = await authContext();

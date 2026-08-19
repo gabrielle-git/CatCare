@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
+import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
 import { toLocalDateTimeInput } from "@/lib/record-form";
 import type { QuickRecordType } from "@/components/record-fields-types";
@@ -80,7 +81,6 @@ export function RecordFields({
 
   return (
     <>
-      <input type="hidden" name="timezone_offset_minutes" value={new Date().getTimezoneOffset()} />
       <section>
         <p className="text-sm font-bold">1. {mode === "edit" ? "Gatinho" : "Quais gatinhos?"}</p>
         <div className="mt-2">
@@ -145,7 +145,7 @@ export function RecordFields({
 
       <label className="mt-5 block text-sm font-bold">Observações<textarea disabled={disabled} name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} className="field mt-2 resize-none" placeholder="Opcional — qualquer detalhe que ajude depois" /></label>
 
-      <button disabled={disabled || pets.length === 0} type="submit" className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">{submitLabel}</button>
+      <SubmitButton disabled={disabled || pets.length === 0} className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">{submitLabel}</SubmitButton>
     </>
   );
 }

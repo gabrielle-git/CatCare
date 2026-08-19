@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Cat, ChevronRight, Download, Home, LogOut, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { DeleteHouseholdForm } from "@/components/delete-household-form";
+import { FlashBanner } from "@/components/flash-banner";
 import { LeaveHouseholdForm } from "@/components/leave-household-form";
 import { ensureHousehold } from "@/lib/households";
 import { listMyHouseholds } from "@/lib/household-switch";
@@ -41,11 +42,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return <div className="mx-auto w-full max-w-[900px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Configurações</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Conta e dados</h1>    <p className="mt-2 text-sm text-[var(--muted)]">Acesso da família, privacidade e organização dos perfis.</p>
-    {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Nome atualizado.</div>}
-    {flags.switched && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Família ativa alterada. A home e os gatos agora refletem esta família.</div>}
-    {flags.left && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Você saiu da família.</div>}
-    {flags.deleted && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Família excluída, incluindo gatos, registros e arquivos.</div>}
-    {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+    {flags.saved && <FlashBanner href="/settings" tone="ok">Nome atualizado.</FlashBanner>}
+    {flags.switched && <FlashBanner href="/settings" tone="ok">Família ativa alterada. A home e os gatos agora refletem esta família.</FlashBanner>}
+    {flags.left && <FlashBanner href="/settings" tone="ok">Você saiu da família.</FlashBanner>}
+    {flags.deleted && <FlashBanner href="/settings" tone="ok">Família excluída, incluindo gatos, registros e arquivos.</FlashBanner>}
+    {flags.error && <FlashBanner href="/settings" tone="error">{flags.error}</FlashBanner>}
 
     {signedIn && data.households.length > 0 && (
       <section className="cat-card mt-6 overflow-hidden">
