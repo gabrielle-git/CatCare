@@ -30,6 +30,20 @@ function revalidateRecordPaths(petId: string) {
   revalidatePath(`/pets/${petId}`);
 }
 
+function redirectWithDeleted(returnTo: string, count = 1) {
+  const url = new URL(returnTo, "http://local");
+  url.searchParams.set("deleted", String(count));
+  redirect(`${url.pathname}${url.search}`);
+}
+
+type RecordRef = { id: string; source: RecordSource; petId: string };
+
+function tableForSource(source: RecordSource) {
+  if (source === "weight") return "weight_records";
+  if (source === "neonatal") return "neonatal_records";
+  return "health_records";
+}
+
 export async function updateRecord(recordId: string, source: RecordSource, formData: FormData) {
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
@@ -76,13 +90,47 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   redirect(`/pets/${petId}?updated=1`);
 }
 
-export async function deleteRecord(recordId: string, source: RecordSource, petId: string) {
+export async function deleteRecord(recordId: string, source: RecordSource, petId: string, formData: FormData) {
   if (!petId) redirect("/");
+  const returnTo = value(formData, "return_to") || `/pets/${petId}`;
   const { supabase, household } = await authContext();
-  const table = source === "weight" ? "weight_records" : source === "neonatal" ? "neonatal_records" : "health_records";
-  const { error } = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id);
-  if (error) redirect(`/pets/${petId}?error=${encodeURIComponent(error.message)}`);
+  const table = tableForSource(source);
+  const { data, error } = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id).select("id");
+  if (error) redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
+  if (!data?.length) redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${encodeURIComponent("Registro não encontrado ou sem permissão para apagar.")}`);
 
   revalidateRecordPaths(petId);
-  redirect(`/pets/${petId}?deleted=1`);
+  redirectWithDeleted(returnTo, 1);
+}
+
+export async function deleteRecords(formData: FormData) {
+  const returnTo = value(formData, "return_to") || "/";
+  const raw = value(formData, "records");
+  let records: RecordRef[] = [];
+  try {
+    const parsed = JSON.parse(raw) as RecordRef[];
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("empty");
+    records = parsed.filter((row) => row?.id && row?.source && row?.petId);
+  } catch {
+    redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${encodeURIComponent("Seleção inválida.")}`);
+  }
+
+  const { supabase, household } = await authContext();
+  const petIds = new Set<string>();
+  let deleted = 0;
+
+  for (const record of records) {
+    const table = tableForSource(record.source);
+    const { data, error } = await supabase.from(table).delete().eq("id", record.id).eq("household_id", household.id).select("id");
+    if (error) redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
+    if (data?.length) {
+      deleted += data.length;
+      petIds.add(record.petId);
+    }
+  }
+
+  if (deleted === 0) redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${encodeURIComponent("Nenhum registro foi apagado.")}`);
+
+  for (const petId of petIds) revalidateRecordPaths(petId);
+  redirectWithDeleted(returnTo, deleted);
 }

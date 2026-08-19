@@ -30,7 +30,7 @@ async function loadPetPage(id: string) {
   return { pet, timeline, weights, vaccineDoses, dewormingDoses, configured: true, editable: canEdit(role) };
 }
 
-export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string }> }) {
+export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string; deleted?: string; error?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
   const { pet, timeline, weights, vaccineDoses, dewormingDoses, configured, editable } = await loadPetPage(id);
@@ -63,6 +63,8 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
     <div className="mx-auto w-full max-w-[1040px] px-5 pb-8 pt-7 md:px-8 lg:px-10 lg:py-10">
       <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus pets</Link>
       {(flags.created || flags.updated || flags.saved) && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Tudo salvo direitinho.</div>}
+      {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+      {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}</div>}
 
       <section className="cat-card mt-5 overflow-hidden">
         <div className="bg-[linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))] p-5 md:p-7">
@@ -111,7 +113,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
             <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p><h2 className="mt-1 text-xl font-bold">Linha do tempo</h2></div>
             {editable && <Link href={`/records/new?pet=${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} /> Novo registro</Link>}
           </div>
-          <TimelineList items={timeline} editable={editable} />
+          <TimelineList items={timeline} editable={editable} returnTo={`/pets/${pet.id}`} filterMode="all" />
         </section>
 
         <aside className="space-y-4">

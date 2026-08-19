@@ -49,6 +49,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
         <h2 className="font-bold">Apagar registro</h2>
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Remove este cuidado do histórico permanentemente.</p>
         <form action={remove} className="mt-4">
+          <input type="hidden" name="return_to" value={`/pets/${record.pet_id}`} />
           <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]"><Trash2 size={15} /> Apagar registro</ConfirmButton>
         </form>
       </section>
