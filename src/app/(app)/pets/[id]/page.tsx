@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Bug, CalendarPlus, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
-import { DewormingScheduleCard } from "@/components/deworming-schedule-card";
+import { ArrowLeft, BadgeCheck, Bug, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
+import { PetMicrochipSummary } from "@/components/pet-microchip-summary";
+import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
 import { PetAvatar } from "@/components/pet-avatar";
 import { TimelineList } from "@/components/timeline-list";
-import { VaccineScheduleCard } from "@/components/vaccine-schedule-card";
 import { WeightChart } from "@/components/weight-chart";
-import { formatBirthDate, formatFullDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
+import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
 import { listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
@@ -117,41 +117,27 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
         <aside className="space-y-4">
           <div className="cat-card p-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--lavender-soft)]"><Cpu size={18} className="text-[var(--lavender-strong)]" /></span>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Identificação</p>
-                  <h2 className="mt-1 font-bold">Microchip</h2>
-                </div>
-              </div>
-              {editable ? <Link href={`/pets/${pet.id}/edit`} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</Link> : null}
-            </div>
-            {pet.has_microchip ? (
-              <dl className="mt-4 space-y-3 text-sm">
-                <div><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Número</dt><dd className="mt-1 font-mono text-sm font-bold tracking-wide">{pet.microchip_number}</dd></div>
-                {pet.microchip_implanted_at && <div><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Implantado em</dt><dd className="mt-1 font-semibold">{formatFullDate(`${pet.microchip_implanted_at}T12:00:00-03:00`)}</dd></div>}
-                {pet.microchip_location && <div><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Local</dt><dd className="mt-1 font-semibold">{pet.microchip_location}</dd></div>}
-              </dl>
-            ) : (
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Ainda não há microchip registrado para {pet.name}.</p>
-            )}
-          </div>
-          <VaccineScheduleCard schedule={vaccineSchedule} petId={pet.id} petName={pet.name} editable={editable} />
-          <DewormingScheduleCard schedule={dewormingSchedule} petId={pet.id} petName={pet.name} editable={editable} />
-          <div className="cat-card p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade e cuidados</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>
               {editable ? <Link href={`/pets/${pet.id}/edit#description`} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</Link> : null}
             </div>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{pet.notes || "Nenhuma descrição pessoal foi adicionada ainda."}</p>
             <details className="mt-4 rounded-2xl bg-[var(--cream)] p-3">
               <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl text-xs font-bold"><Sparkles size={15} className="text-[var(--lavender-strong)]" /> Sugerir pelo histórico</summary>
               <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">{suggestedDescription}</p>
-              <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Resumo automático feito com perfil e registros. A leitura das fotos poderá ser ativada quando conectarmos uma IA visual.</p>
+              <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Resumo automático feito com perfil e registros.</p>
               {editable ? <form action={saveDescription} className="mt-3"><input type="hidden" name="notes" value={suggestedDescription} /><button className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[var(--graphite)] px-3 py-2 text-[11px] font-bold text-white"><Sparkles size={13} /> Usar esta sugestão</button></form> : null}
             </details>
           </div>
-          {editable && <Link href={`/records/new?pet=${pet.id}&type=consultation`} className="focus-ring flex items-center gap-3 rounded-[22px] bg-[var(--mint-soft)] p-4 text-sm font-bold"><CalendarPlus size={19} /> Consulta ou retorno</Link>}
+
+          <PetPreventiveCareCard
+            vaccineSchedule={vaccineSchedule}
+            dewormingSchedule={dewormingSchedule}
+            petId={pet.id}
+            petName={pet.name}
+            editable={editable}
+          />
+
+          <PetMicrochipSummary pet={pet} editable={editable} />
         </aside>
       </div>
     </div>
