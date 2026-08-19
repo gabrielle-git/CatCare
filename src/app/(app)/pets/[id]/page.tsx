@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, BadgeCheck, CalendarPlus, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
 import { TimelineList } from "@/components/timeline-list";
+import { VaccineScheduleCard } from "@/components/vaccine-schedule-card";
 import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatFullDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
-import { listPetTimeline, listPetWeights } from "@/lib/records";
+import { listPetTimeline, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -16,20 +18,20 @@ import { updatePetDescription } from "../actions";
 async function loadPetPage(id: string) {
   if (!hasSupabaseEnv()) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], configured: false, editable: false };
+    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], configured: false, editable: false };
   }
   const supabase = await createClient();
   const role = await getMyRole(supabase);
   const pet = await getPet(supabase, id);
-  if (!pet) return { pet: null, timeline: [], weights: [], configured: true, editable: false };
-  const [timeline, weights] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id)]);
-  return { pet, timeline, weights, configured: true, editable: canEdit(role) };
+  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], configured: true, editable: false };
+  const [timeline, weights, vaccineDoses] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id), listPetVaccineDoses(supabase, id)]);
+  return { pet, timeline, weights, vaccineDoses, configured: true, editable: canEdit(role) };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, configured, editable } = await loadPetPage(id);
+  const { pet, timeline, weights, vaccineDoses, configured, editable } = await loadPetPage(id);
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
@@ -37,6 +39,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
   const age = formatPetAge(pet.birth_date, pet.birth_date_estimated);
   const humanAge = formatHumanEquivalentAge(pet.birth_date);
   const birthDate = formatBirthDate(pet.birth_date, pet.birth_date_estimated);
+  const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses);
   const suggestedDescription = [
     `${pet.name} ${age ? `tem ${age}` : "faz parte da família"}${pet.color ? ` e tem pelagem ${pet.color.toLocaleLowerCase("pt-BR")}` : ""}.`,
     recentKinds.has("weight") ? `A família acompanha seu peso, hoje em ${formatWeight(pet.current_weight_grams)}.` : null,
@@ -129,6 +132,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
               <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Ainda não há microchip registrado para {pet.name}.</p>
             )}
           </div>
+          <VaccineScheduleCard schedule={vaccineSchedule} petId={pet.id} petName={pet.name} editable={editable} />
           <div className="cat-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade e cuidados</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>

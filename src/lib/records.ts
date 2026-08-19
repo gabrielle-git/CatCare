@@ -83,6 +83,17 @@ export async function listPetWeights(supabase: SupabaseClient, petId: string, li
   return (data ?? []).map((row) => ({ date: row.measured_at as string, grams: row.weight_grams as number }));
 }
 
+export async function listPetVaccineDoses(supabase: SupabaseClient, petId: string) {
+  const { data, error } = await supabase
+    .from("health_records")
+    .select("title, occurred_at")
+    .eq("pet_id", petId)
+    .eq("type", "vaccine")
+    .order("occurred_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ vaccineTitle: row.title as string, occurredAt: row.occurred_at as string }));
+}
+
 export function listHouseholdTimeline(supabase: SupabaseClient, householdId: string, limit = 12) {
   return loadTimeline(supabase, "household_id", householdId, limit);
 }

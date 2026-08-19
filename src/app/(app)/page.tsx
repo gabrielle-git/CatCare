@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, Cat, ChevronRight, HeartPulse, Plus, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Cat, ChevronRight, HeartPulse, Plus, Sparkles, Syringe } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
 import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
+import { listHouseholdTimeline, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { buildVaccineSchedule, countOverdue, countDue } from "@/lib/vaccine-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,14 @@ function greeting() {
   return "Boa noite";
 }
 
+type VaccineAlert = { petId: string; petName: string; overdue: number; due: number };
+
 async function loadDashboard() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false, editable: false, error: null as string | null };
+  const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[] };
+  if (!hasSupabaseEnv()) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], reminders: [], configured: true, editable: false, error: null as string | null };
+  if (!data.user) return empty;
   try {
     const household = await ensureHousehold(supabase, data.user.id);
     const role = await getMyRole(supabase);
@@ -32,16 +36,24 @@ async function loadDashboard() {
       listHouseholdTimeline(supabase, household.id, 6),
       listUpcomingReminders(supabase, household.id, 4),
     ]);
-    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null };
+    const vaccineAlerts: VaccineAlert[] = [];
+    for (const pet of pets) {
+      const doses = await listPetVaccineDoses(supabase, pet.id);
+      const schedule = buildVaccineSchedule(pet.birth_date, doses);
+      const overdue = countOverdue(schedule);
+      const due = countDue(schedule);
+      if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due });
+    }
+    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null, vaccineAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
-    return { pets: [], timeline: [], reminders: [], configured: true, editable: false, error };
+    return { ...empty, error };
   }
 }
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string; joined?: string }> }) {
   const flags = await searchParams;
-  const { pets, timeline, reminders, configured, editable, error } = await loadDashboard();
+  const { pets, timeline, reminders, configured, editable, error, vaccineAlerts } = await loadDashboard();
   const petNames = new Map(pets.map((pet) => [pet.id, pet.name]));
   const babies = pets.filter(isNeonatalPet);
 
@@ -63,6 +75,21 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       {flags.error && <div className="cat-card mt-5 border-red-200 bg-red-50 p-4 text-sm text-red-800">{flags.error}</div>}
       {configured && !editable && <div className="cat-card mt-5 bg-[var(--cream)] p-4 text-sm"><strong>Modo visitante.</strong> Você pode ver tudo, mas não registrar nem editar nesta família.</div>}
       {flags.joined && <div className="cat-card mt-5 bg-[var(--mint-soft)] p-4 text-sm font-semibold text-[var(--success)]">Você entrou na família! Troque entre famílias em Configurações → Suas famílias.</div>}
+
+      {vaccineAlerts.length > 0 && (
+        <section className="mt-5 space-y-2">
+          {vaccineAlerts.map((alert) => (
+            <Link key={alert.petId} href={`/pets/${alert.petId}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">
+              {alert.overdue > 0 ? <AlertTriangle size={17} /> : <Syringe size={17} />}
+              <span>
+                {alert.overdue > 0
+                  ? `${alert.petName} tem ${alert.overdue} vacina${alert.overdue > 1 ? "s" : ""} atrasada${alert.overdue > 1 ? "s" : ""}`
+                  : `${alert.petName} tem ${alert.due} vacina${alert.due > 1 ? "s" : ""} para aplicar agora`}
+              </span>
+            </Link>
+          ))}
+        </section>
+      )}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
         <div className="space-y-5">
