@@ -51,17 +51,26 @@ export function TimelineList({
   editable = false,
   returnTo,
   filterMode = "all",
+  petNames,
 }: {
   items: TimelineItem[];
   emptyText?: string;
   editable?: boolean;
   returnTo?: string;
   filterMode?: "neonatal" | "all";
+  /** When set, shows "Mamada · Luna" style labels (for multi-pet lists like neonatal). */
+  petNames?: Record<string, string>;
 }) {
   const [filter, setFilter] = useState<string>("all");
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const filters = filterMode === "neonatal" ? neonatalFilters : fullFilters;
   const fallbackReturn = returnTo ?? "/";
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelected(new Set());
+  }
 
   const filtered = useMemo(
     () => (filter === "all" ? items : items.filter((item) => item.kind === filter)),
@@ -115,12 +124,34 @@ export function TimelineList({
         ))}
       </div>
 
-      {editable && filtered.length > 0 && (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] text-[var(--muted)]">
+          {filter === "all" ? `${items.length} registro${items.length === 1 ? "" : "s"}` : `${filtered.length} de ${items.length} registros`}
+        </p>
+        {editable && filtered.length > 0 && !selectionMode && (
+          <button
+            type="button"
+            onClick={() => setSelectionMode(true)}
+            className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+          >
+            Selecionar
+          </button>
+        )}
+      </div>
+
+      {editable && selectionMode && filtered.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/50 px-3.5 py-2.5">
           <label className="flex cursor-pointer items-center gap-2 text-xs font-bold">
             <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="size-4 accent-[var(--lavender)]" />
-            Selecionar visíveis ({filtered.length})
+            Selecionar tudo ({filtered.length})
           </label>
+          <button
+            type="button"
+            onClick={exitSelectionMode}
+            className="focus-ring rounded-full px-2.5 py-1 text-[11px] font-bold text-[var(--muted)]"
+          >
+            Cancelar
+          </button>
           {selectedItems.length > 0 && (
             <form action={deleteRecords} className="ml-auto">
               <input type="hidden" name="return_to" value={fallbackReturn} />
@@ -142,10 +173,6 @@ export function TimelineList({
         </div>
       )}
 
-      <p className="text-[11px] text-[var(--muted)]">
-        {filter === "all" ? `${items.length} registro${items.length === 1 ? "" : "s"}` : `${filtered.length} de ${items.length} registros`}
-      </p>
-
       {filtered.length === 0 ? (
         <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">Nenhum registro neste filtro.</div>
       ) : (
@@ -155,9 +182,11 @@ export function TimelineList({
             const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}`;
             const remove = deleteRecord.bind(null, item.id, item.source, item.pet_id);
             const checked = selected.has(item.id);
+            const petLabel = petNames?.[item.pet_id];
+            const heading = petLabel ? `${item.title} · ${petLabel}` : item.title;
             return (
               <li key={`${item.source}-${item.kind}-${item.id}`} className={`flex gap-3 rounded-[20px] border bg-white p-3.5 ${checked ? "border-[var(--lavender)] ring-1 ring-[var(--lavender-soft)]" : "border-[var(--border)]"}`}>
-                {editable && (
+                {editable && selectionMode && (
                   <label className="flex shrink-0 items-start pt-2">
                     <input type="checkbox" checked={checked} onChange={() => toggle(item.id)} className="size-4 accent-[var(--lavender)]" aria-label={`Selecionar ${item.title}`} />
                   </label>
@@ -165,7 +194,7 @@ export function TimelineList({
                 <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${toneClasses[item.tone]}`}><Icon size={18} /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="font-bold">{item.title}</p>
+                    <p className="font-bold">{heading}</p>
                     <time className="shrink-0 text-[11px] text-[var(--muted)]" dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time>
                   </div>
                   {item.detail && <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</p>}
