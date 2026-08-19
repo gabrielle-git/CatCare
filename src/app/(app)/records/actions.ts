@@ -34,14 +34,14 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
   const type = value(formData, "record_type");
-  if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o gatinho e confira o registro.");
+  if (!petId || !quickRecordTypes.has(type)) fail(recordId, source, type, "Escolha o pet e confira o registro.");
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) fail(recordId, source, type, "Informe uma data e hora válidas.");
 
   const { supabase, household } = await authContext();
   const { data: pet } = await supabase.from("pets").select("id").eq("id", petId).eq("household_id", household.id).is("archived_at", null).maybeSingle();
-  if (!pet) fail(recordId, source, type, "Gatinho não encontrado.");
+  if (!pet) fail(recordId, source, type, "Pet não encontrado.");
 
   const notes = value(formData, "notes") || null;
 
@@ -62,8 +62,8 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     }).eq("id", recordId).eq("household_id", household.id);
     if (error) fail(recordId, source, type, error.message);
   } else {
-    const healthType: HealthRecordType = type === "vaccine" || type === "medication" || type === "consultation" ? type : "other";
-    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
+    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
     const title = value(formData, "title") || defaults[healthType];
     const { error } = await supabase.from("health_records").update({
       pet_id: petId, type: healthType, title, occurred_at: occurredAt,

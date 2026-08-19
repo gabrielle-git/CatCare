@@ -46,7 +46,7 @@ export function DeleteHouseholdForm({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p id={titleId} className="text-lg font-bold">Excluir esta família?</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Isso apaga gatos, registros, memórias, gastos e fotos. Não dá para desfazer.</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Isso apaga pets, registros, memórias, gastos e fotos. Não dá para desfazer.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-[var(--muted)]" aria-label="Fechar">
                 <X size={16} />

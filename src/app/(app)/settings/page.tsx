@@ -13,7 +13,7 @@ import { deleteHousehold, leaveHousehold, logout, switchHousehold, updateDisplay
 export const dynamic = "force-dynamic";
 
 async function loadSettings() {
-  if (!hasSupabaseEnv()) return { configured: false, email: null, displayName: "Família dos gatos", householdName: "Nossa família", members: 1, activePets: 4, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
+  if (!hasSupabaseEnv()) return { configured: false, email: null, displayName: "Família de pets", householdName: "Nossa família", members: 1, activePets: 4, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { configured: true, email: null, displayName: null, householdName: null, members: 0, activePets: 0, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
@@ -35,7 +35,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const rows = [
     { label: "Família e membros", detail: `${data.members} ${data.members === 1 ? "pessoa com acesso" : "pessoas com acesso"}`, href: "/settings/members", icon: UsersRound, tone: "bg-[var(--rose-soft)]" },
     { label: "Privacidade e exportação", detail: signedIn ? "Baixe uma cópia JSON dos dados da família." : "A exportação fica disponível após entrar.", href: signedIn ? "/api/export" : "/login", icon: ShieldCheck, tone: "bg-[var(--mint-soft)]" },
-    { label: "Meus gatos", detail: `${data.activePets} ativos • ${data.archivedPets} arquivados`, href: "/pets", icon: Cat, tone: "bg-[var(--peach)]" },
+    { label: "Meus pets", detail: `${data.activePets} ativos • ${data.archivedPets} arquivados`, href: "/pets", icon: Cat, tone: "bg-[var(--peach)]" },
   ];
 
   const activeOwned = data.households.find((item) => item.is_active && isOwner(item.role));
@@ -43,9 +43,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return <div className="mx-auto w-full max-w-[900px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Configurações</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Conta e dados</h1>    <p className="mt-2 text-sm text-[var(--muted)]">Acesso da família, privacidade e organização dos perfis.</p>
     {flags.saved && <FlashBanner href="/settings" tone="ok">Nome atualizado.</FlashBanner>}
-    {flags.switched && <FlashBanner href="/settings" tone="ok">Família ativa alterada. A home e os gatos agora refletem esta família.</FlashBanner>}
+    {flags.switched && <FlashBanner href="/settings" tone="ok">Família ativa alterada. A home e os pets agora refletem esta família.</FlashBanner>}
     {flags.left && <FlashBanner href="/settings" tone="ok">Você saiu da família.</FlashBanner>}
-    {flags.deleted && <FlashBanner href="/settings" tone="ok">Família excluída, incluindo gatos, registros e arquivos.</FlashBanner>}
+    {flags.deleted && <FlashBanner href="/settings" tone="ok">Família excluída, incluindo pets, registros e arquivos.</FlashBanner>}
     {flags.error && <FlashBanner href="/settings" tone="error">{flags.error}</FlashBanner>}
 
     {signedIn && data.households.length > 0 && (
@@ -97,7 +97,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <button type="submit" className="focus-ring shrink-0 rounded-2xl bg-[var(--lavender-soft)] px-4 py-3 text-xs font-bold text-[var(--lavender-strong)]">Salvar nome</button>
         </form>
       )}
-      <div className="border-t border-[var(--border)] px-5 py-4 text-xs text-[var(--muted)]"><strong className="text-[var(--foreground)]">{data.householdName || "Sua família"}</strong> • Os dados pertencem à família e não a um único gatinho.</div>
+      <div className="border-t border-[var(--border)] px-5 py-4 text-xs text-[var(--muted)]"><strong className="text-[var(--foreground)]">{data.householdName || "Sua família"}</strong> • Os dados pertencem à família e não a um único pet.</div>
     </section>
 
     <div className="mt-5 space-y-3">{rows.map(({ label, detail, href, icon: Icon, tone }) => {
@@ -115,7 +115,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {signedIn && activeOwned && (
       <section className="mt-6 rounded-[22px] border border-red-100 bg-white p-5">
         <h2 className="text-sm font-bold">Zona de perigo</h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">Excluir <strong className="text-[var(--foreground)]">{activeOwned.name}</strong> apaga gatos, registros, memórias e fotos. Irreversível.</p>
+        <p className="mt-1 text-xs text-[var(--muted)]">Excluir <strong className="text-[var(--foreground)]">{activeOwned.name}</strong> apaga pets, registros, memórias e fotos. Irreversível.</p>
         <div className="mt-4">
           <DeleteHouseholdForm householdName={activeOwned.name} action={deleteHousehold.bind(null, activeOwned.household_id)} />
         </div>

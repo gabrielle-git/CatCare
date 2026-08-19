@@ -7,6 +7,7 @@ import type { HealthRecord, NeonatalRecord, Reminder, TimelineItem, TimelineTone
 
 const healthLabels: Record<HealthRecord["type"], string> = {
   vaccine: "Vacina",
+  deworming: "Vermífugo",
   consultation: "Consulta veterinária",
   exam: "Exame",
   medication: "Medicamento",
@@ -26,7 +27,7 @@ const neonatalLabels: Record<NeonatalRecord["type"], string> = {
 };
 
 function toneForHealth(type: HealthRecord["type"]): TimelineTone {
-  if (type === "vaccine" || type === "medication") return "mint";
+  if (type === "vaccine" || type === "deworming" || type === "medication") return "mint";
   if (type === "consultation" || type === "exam") return "lavender";
   return "peach";
 }
@@ -81,6 +82,28 @@ export async function listPetWeights(supabase: SupabaseClient, petId: string, li
     .limit(limit);
   if (error) throw error;
   return (data ?? []).map((row) => ({ date: row.measured_at as string, grams: row.weight_grams as number }));
+}
+
+export async function listPetVaccineDoses(supabase: SupabaseClient, petId: string) {
+  const { data, error } = await supabase
+    .from("health_records")
+    .select("title, occurred_at")
+    .eq("pet_id", petId)
+    .eq("type", "vaccine")
+    .order("occurred_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ vaccineTitle: row.title as string, occurredAt: row.occurred_at as string }));
+}
+
+export async function listPetDewormingDoses(supabase: SupabaseClient, petId: string) {
+  const { data, error } = await supabase
+    .from("health_records")
+    .select("title, occurred_at")
+    .eq("pet_id", petId)
+    .eq("type", "deworming")
+    .order("occurred_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ title: row.title as string, occurredAt: row.occurred_at as string }));
 }
 
 export function listHouseholdTimeline(supabase: SupabaseClient, householdId: string, limit = 12) {

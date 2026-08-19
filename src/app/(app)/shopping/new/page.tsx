@@ -22,7 +22,7 @@ async function loadForm() {
 
 const scoreFields = [
   { name: "quality_score", legend: "Qualidade" },
-  { name: "acceptance_score", legend: "Aceitação dos gatos" },
+  { name: "acceptance_score", legend: "Aceitação dos pets" },
   { name: "cost_benefit_score", legend: "Custo-benefício" },
 ] as const;
 
@@ -43,14 +43,14 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
 
       <section className="cat-card p-5 md:p-7"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">2. Compra</p><h2 className="mt-1 text-xl font-bold">Preço e onde encontrou</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Loja ou vendedor<input disabled={!configured} required name="store_name" className="field mt-2" placeholder="Ex.: Cobasi" /></label><label className="text-sm font-bold">Canal<select disabled={!configured} required name="channel" className="field mt-2"><option value="physical_store">Loja física</option><option value="online_store">Loja online</option><option value="marketplace">Marketplace</option><option value="delivery">Aplicativo / delivery</option><option value="veterinary">Clínica veterinária</option><option value="other">Outro</option></select></label><label className="text-sm font-bold">Valor total (R$)<input disabled={!configured} required name="amount" type="number" min="0" step="0.01" inputMode="decimal" className="field mt-2" placeholder="0,00" /></label><label className="text-sm font-bold">Quantidade de pacotes<input disabled={!configured} required name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" className="field mt-2" /></label><label className="text-sm font-bold">Data<input disabled={!configured} required name="purchased_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="field mt-2" /></label></div>
-        <div className="mt-4"><PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={[]} disabled={!configured} required={false} legend="Para quem?" hint="Opcional — um, vários gatos ou nenhum (casa toda)." /></div>
+        <div className="mt-4"><PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={[]} disabled={!configured} required={false} legend="Para quem?" hint="Opcional — um, vários pets ou nenhum (casa toda)." /></div>
         <label className="mt-4 block text-sm font-bold">Link do produto<input disabled={!configured} name="product_url" type="url" className="field mt-2" placeholder="https://... (opcional)" /></label>
       </section>
 
       <section className="cat-card p-5 md:p-7"><div className="flex items-center gap-2"><Star size={18} className="text-[var(--lavender-strong)]" /><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">3. Avaliação opcional</p><h2 className="mt-1 text-xl font-bold">Valeu a pena?</h2></div></div><p className="mt-2 text-xs text-[var(--muted)]">Preencha as três notas quando já tiver uma opinião; senão, avalie depois.</p>
         <div className="mt-5 grid gap-5 sm:grid-cols-3">{scoreFields.map((field) => <StarRating key={field.name} name={field.name} legend={field.legend} allowEmpty disabled={!configured} />)}</div>
         <label className="mt-4 flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input disabled={!configured} type="checkbox" name="would_buy_again" className="size-4 accent-[var(--lavender)]" /> Eu compraria novamente</label>
-        <label className="mt-4 block text-sm font-bold">Comentário da avaliação<textarea disabled={!configured} name="review_notes" rows={3} className="field mt-2 resize-none" placeholder="Rendimento, cheiro, textura, reação dos gatos..." /></label>
+        <label className="mt-4 block text-sm font-bold">Comentário da avaliação<textarea disabled={!configured} name="review_notes" rows={3} className="field mt-2 resize-none" placeholder="Rendimento, cheiro, textura, reação dos pets..." /></label>
       </section>
       <button disabled={!configured} className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white"><ShoppingBasket size={18} /> Salvar compra e atualizar comparações</button>
     </form>

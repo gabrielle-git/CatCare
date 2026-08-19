@@ -44,7 +44,7 @@ export function LeaveHouseholdForm({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p id={titleId} className="text-lg font-bold">Sair de {householdName}?</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Você deixa de ver os gatos e os registros desta família. Para voltar, alguém precisa convidar você de novo.</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Você deixa de ver os pets e os registros desta família. Para voltar, alguém precisa convidar você de novo.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-[var(--muted)]" aria-label="Fechar">
                 <X size={16} />

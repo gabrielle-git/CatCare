@@ -34,15 +34,14 @@ export default async function EditExpensePage({ params, searchParams }: { params
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       {expense.purchase_id && (
         <div className="mt-6 rounded-[20px] border border-[#cfe8d8] bg-[var(--mint-soft)] px-4 py-3 text-sm leading-relaxed">
-          Este gasto veio de uma <strong>compra registrada</strong>. Valor, data e gatinhos ficam sincronizados com{" "}
+          Este gasto veio de uma <strong>compra registrada</strong>. Valor, data e pets ficam sincronizados com{" "}
           <Link href={`/shopping/purchases/${expense.purchase_id}/edit`} className="font-bold text-[var(--success)] underline">Compras e avaliações</Link>.
         </div>
       )}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Descrição<input required name="description" defaultValue={expense.description} className="field mt-2" /></label><label className="text-sm font-bold">Valor total (R$)<input required name="amount" type="number" min="0" step="0.01" defaultValue={amount} className="field mt-2" /></label></div>
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Categoria<select required name="category" defaultValue={expense.category} className="field mt-2"><option value="veterinary">Veterinário</option><option value="food">Alimentação</option><option value="medication">Medicamentos</option><option value="hygiene">Higiene</option><option value="accessory">Acessórios</option><option value="transport">Transporte</option><option value="other">Outros</option></select></label><label className="text-sm font-bold">Data<input required name="occurred_on" type="date" defaultValue={date} className="field mt-2" /></label></div>
-        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={expense.pet_ids ?? (expense.pet_id ? [expense.pet_id] : [])} required={false} legend="Gatinhos relacionados" hint="Opcional — escolha um ou mais gatinhos." />
-        <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold"><input type="checkbox" name="shared" defaultChecked={expense.shared} className="size-4 accent-[var(--lavender)]" /> Este gasto é compartilhado entre os gatos</label>
+        <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={expense.pet_ids ?? (expense.pet_id ? [expense.pet_id] : [])} required={false} legend="Pets relacionados" hint="Opcional — escolha um ou mais pets." />
         <label className="block text-sm font-bold">Observações<textarea name="notes" rows={3} defaultValue={expense.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white"><ReceiptText size={17} /> Salvar alterações</button>
       </form>

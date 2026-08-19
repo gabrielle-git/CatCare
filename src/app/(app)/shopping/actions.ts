@@ -68,7 +68,7 @@ export async function createPurchase(formData: FormData) {
     await syncEntityPets(supabase, "expense_pets", household.id, expenseResult.data.id, petIds);
   } catch (petError) {
     await supabase.from("expenses").delete().eq("id", expenseResult.data.id).eq("household_id", household.id);
-    redirect(`/shopping/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+    redirect(`/shopping/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
 
   const purchaseResult = await supabase.from("purchases").insert({ household_id: household.id, product_id: product.id, pet_id: petId, expense_id: expenseResult.data.id, store_name: storeName, channel, quantity, amount_cents: amountCents, purchased_at: `${purchasedOn}T12:00:00-03:00`, product_url: value(formData, "product_url") || null, notes: value(formData, "purchase_notes") || null }).select("id").single();
@@ -131,7 +131,7 @@ export async function updatePurchase(purchaseId: string, formData: FormData) {
     await validateEntityPets(supabase, household.id, petIds);
     await syncEntityPets(supabase, "purchase_pets", household.id, purchaseId, petIds);
   } catch (petError) {
-    redirect(`/shopping/purchases/${purchaseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+    redirect(`/shopping/purchases/${purchaseId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
 
   if (existing.data.expense_id) {
@@ -215,7 +215,7 @@ export async function updateProductReview(reviewId: string, formData: FormData) 
     await validateEntityPets(supabase, household.id, petIds);
     await syncEntityPets(supabase, "review_pets", household.id, reviewId, petIds);
   } catch (petError) {
-    redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os gatinhos.")}`);
+    redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
   revalidatePath("/shopping");
   redirect("/shopping?updated=1");

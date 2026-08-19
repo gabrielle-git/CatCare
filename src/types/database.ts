@@ -1,6 +1,6 @@
 export type PetSex = "male" | "female" | "unknown";
 export type HouseholdRole = "owner" | "caregiver" | "viewer";
-export type HealthRecordType = "vaccine" | "consultation" | "exam" | "medication" | "disease" | "allergy" | "surgery" | "other";
+export type HealthRecordType = "vaccine" | "consultation" | "exam" | "medication" | "disease" | "allergy" | "surgery" | "deworming" | "other";
 export type NeonatalRecordType = "feeding" | "weight" | "urine" | "stool" | "temperature" | "observation";
 export type ReminderStatus = "pending" | "done" | "snoozed" | "cancelled";
 export type ExpenseCategory = "veterinary" | "food" | "medication" | "hygiene" | "accessory" | "transport" | "other";
@@ -29,6 +29,8 @@ export type Pet = {
   photo_path: string | null;
   current_weight_grams: number | null;
   neutered: boolean;
+  neutered_at: string | null;
+  neutered_place: string | null;
   has_microchip: boolean;
   microchip_number: string | null;
   microchip_implanted_at: string | null;

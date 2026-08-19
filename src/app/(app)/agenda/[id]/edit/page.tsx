@@ -41,11 +41,11 @@ export default async function EditReminderPage({ params, searchParams }: { param
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <label className="block text-sm font-bold">O que precisa ser feito?<input required name="title" defaultValue={reminder.title} className="field mt-2" /></label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold">Categoria<select name="category" defaultValue={reminder.category} className="field mt-2"><option value="vaccine">Vacina</option><option value="medication">Medicamento</option><option value="consultation">Consulta</option><option value="weight">Pesagem</option><option value="feeding">Alimentação / mamada</option><option value="hygiene">Higiene</option><option value="purchase">Compra</option><option value="other">Outro</option></select></label>
+          <label className="text-sm font-bold">Categoria<select name="category" defaultValue={reminder.category} className="field mt-2"><option value="vaccine">Vacina</option><option value="deworming">Vermífugo</option><option value="medication">Medicamento</option><option value="consultation">Consulta</option><option value="weight">Pesagem</option><option value="feeding">Alimentação / mamada</option><option value="hygiene">Higiene</option><option value="purchase">Compra</option><option value="other">Outro</option></select></label>
           <label className="text-sm font-bold">Data e hora<input required name="due_at" type="datetime-local" defaultValue={toLocalDateTimeInput(reminder.due_at)} className="field mt-2" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Gatinho" hint="Opcional — deixe vazio para lembrete da família toda." />
+          <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Pet" hint="Opcional — deixe vazio para lembrete da família toda." />
           <label className="text-sm font-bold">Repetição<select name="recurrence" defaultValue={recurrenceValue(reminder.recurrence_rule)} className="field mt-2"><option value="none">Não repetir</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option><option value="monthly">Todo mês</option></select></label>
         </div>
         <label className="block text-sm font-bold">Detalhes<textarea name="notes" rows={3} defaultValue={reminder.notes ?? ""} className="field mt-2 resize-none" /></label>

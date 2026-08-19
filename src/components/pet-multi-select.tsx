@@ -11,7 +11,7 @@ export function PetMultiSelect({
   disabled = false,
   required = true,
   multiple = true,
-  legend = "Quais gatinhos?",
+  legend = "Quais pets?",
   hint = "Pode escolher mais de um.",
   onSelectionChange,
 }: {
@@ -35,19 +35,17 @@ export function PetMultiSelect({
 
   function toggle(id: string) {
     if (disabled) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (!multiple) {
-        next.clear();
-        next.add(id);
-      } else if (next.has(id)) {
-        if (next.size > 1 || !required) next.delete(id);
-      } else {
-        next.add(id);
-      }
-      onSelectionChange?.([...next]);
-      return next;
-    });
+    const next = new Set(selected);
+    if (!multiple) {
+      next.clear();
+      next.add(id);
+    } else if (next.has(id)) {
+      if (next.size > 1 || !required) next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelected(next);
+    onSelectionChange?.([...next]);
   }
 
   return (
@@ -58,7 +56,7 @@ export function PetMultiSelect({
         </legend>
       ) : null}
       {multiple && hint ? <p className="mt-1 text-xs text-[var(--muted)]">{hint}</p> : null}
-      {!multiple ? <p className="mt-1 text-xs text-[var(--muted)]">Este registro está ligado a um gatinho.</p> : null}
+      {!multiple ? <p className="mt-1 text-xs text-[var(--muted)]">Este registro está ligado a um pet.</p> : null}
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {pets.map((pet) => (
           <label
@@ -75,7 +73,7 @@ export function PetMultiSelect({
               className="size-4 accent-[var(--lavender)]"
             />
             {pet.name}
-            {pet.neonatal ? " • bebê" : ""}
+            {pet.neonatal ? " • filhote" : ""}
           </label>
         ))}
       </div>

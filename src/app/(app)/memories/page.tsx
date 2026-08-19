@@ -57,7 +57,7 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
     <section className="mt-6 grid gap-3 sm:grid-cols-3">
       <div className="cat-card p-4"><ImageIcon size={18} className="text-[var(--lavender-strong)]" /><p className="mt-3 text-2xl font-bold">{memories.length}</p><p className="text-xs text-[var(--muted)]">lembranças nesta visão</p></div>
       <div className="cat-card p-4"><Sparkles size={18} className="text-[#9a536c]" /><p className="mt-3 text-2xl font-bold">{milestoneCount}</p><p className="text-xs text-[var(--muted)]">primeiras vezes e marcos</p></div>
-      <div className="cat-card p-4"><Users size={18} className="text-[var(--success)]" /><p className="mt-3 text-2xl font-bold">{sharedCount}</p><p className="text-xs text-[var(--muted)]">momentos com mais de um gato</p></div>
+      <div className="cat-card p-4"><Users size={18} className="text-[var(--success)]" /><p className="mt-3 text-2xl font-bold">{sharedCount}</p><p className="text-xs text-[var(--muted)]">momentos com mais de um pet</p></div>
     </section>
 
     <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

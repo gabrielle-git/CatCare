@@ -9,10 +9,10 @@ export default async function NewPetPage({ searchParams }: { searchParams: Promi
   const configured = hasSupabaseEnv();
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus gatos</Link>
+      <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus pets</Link>
       <header className="mt-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Novo membro</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Adicionar gatinho</h1>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Adicionar pet</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">Só o essencial agora. Você pode completar e editar depois.</p>
       </header>
 
@@ -21,7 +21,7 @@ export default async function NewPetPage({ searchParams }: { searchParams: Promi
 
       <form action={createPet} className="cat-card mt-6 p-5 md:p-7">
         <PetFields includeInitialWeight disabled={!configured} />
-        <button disabled={!configured} type="submit" className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">Salvar gatinho</button>
+        <button disabled={!configured} type="submit" className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">Salvar pet</button>
       </form>
     </div>
   );

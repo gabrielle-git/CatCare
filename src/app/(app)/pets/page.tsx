@@ -28,22 +28,22 @@ export default async function PetsPage({ searchParams }: { searchParams: Promise
       <header className="flex items-end justify-between gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Nossa família</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Meus gatos</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Cada gatinho com sua história, rotina e cuidados.</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Meus pets</h1>
+          <p className="mt-2 text-sm text-[var(--muted)]">Cada pet com sua história, rotina e cuidados.</p>
         </div>
         {editable && <Link href="/pets/new" className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">
-          <Plus size={18} /> <span className="hidden sm:inline">Adicionar gato</span><span className="sm:hidden">Adicionar</span>
+          <Plus size={18} /> <span className="hidden sm:inline">Adicionar pet</span><span className="sm:hidden">Adicionar</span>
         </Link>}
       </header>
 
       {!configured && <div className="mt-6 rounded-[20px] border border-[#d9cfee] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Dobby, Crystal e os dois bebês já usam os dados informados; fotos e registros de rotina continuam demonstrativos até conectar o Supabase.</div>}
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">A fase de vida é identificada automaticamente pela data de nascimento. A equivalência humana é aproximada e serve apenas como referência carinhosa.</p>
-      {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Gatinho arquivado. O histórico continua guardado.</div>}
+      {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Pet arquivado. O histórico continua guardado.</div>}
 
       {pets.length === 0 ? (
         <section className="cat-card mt-7 p-8 text-center">
           <div className="mx-auto grid size-14 place-items-center rounded-[22px] bg-[var(--lavender-soft)]"><Plus size={22} /></div>
-          <h2 className="mt-4 text-lg font-bold">Vamos cadastrar o primeiro gatinho?</h2>
+          <h2 className="mt-4 text-lg font-bold">Vamos cadastrar o primeiro pet?</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">A partir do perfil, você poderá registrar peso, vacinas, medicamentos e cuidados diários.</p>
         </section>
       ) : (

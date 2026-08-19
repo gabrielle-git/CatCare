@@ -21,9 +21,9 @@ const sections = [
     label: "Principal",
     items: [
       { href: "/", label: "Visão geral", icon: Home },
-      { href: "/pets", label: "Meus gatos", icon: Cat },
+      { href: "/pets", label: "Meus pets", icon: Cat },
       { href: "/records/new", label: "Registrar cuidado", icon: Plus },
-      { href: "/assistant", label: "Assistente dos gatos", icon: Bot },
+      { href: "/assistant", label: "Assistente de pets", icon: Bot },
     ],
   },
   {
@@ -54,7 +54,7 @@ export function DesktopSidebar() {
         </span>
         <span>
           <strong className="block text-xl tracking-[-0.04em]">CatCare</strong>
-          <span className="text-[11px] text-[var(--muted)]">Nossa família felina</span>
+          <span className="text-[11px] text-[var(--muted)]">Nossa família de pets</span>
         </span>
       </Link>
 

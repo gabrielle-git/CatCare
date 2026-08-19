@@ -8,7 +8,7 @@ import { parsePetIds, resolveOptionalPetId } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
 
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
-const categories = new Set(["vaccine", "medication", "consultation", "weight", "feeding", "hygiene", "purchase", "other"]);
+const categories = new Set(["vaccine", "deworming", "medication", "consultation", "weight", "feeding", "hygiene", "purchase", "other"]);
 
 async function authContext() {
   const supabase = await createClient();

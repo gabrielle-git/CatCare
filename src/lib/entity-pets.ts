@@ -13,7 +13,7 @@ export async function validateEntityPets(supabase: SupabaseClient, householdId: 
   if (petIds.length === 0) return;
   const { data, error } = await supabase.from("pets").select("id").eq("household_id", householdId).in("id", petIds);
   if (error) throw error;
-  if ((data ?? []).length !== petIds.length) throw new Error("Um dos gatinhos selecionados não pertence a esta família.");
+  if ((data ?? []).length !== petIds.length) throw new Error("Um dos pets selecionados não pertence a esta família.");
 }
 
 export async function syncEntityPets(

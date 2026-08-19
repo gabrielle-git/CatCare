@@ -10,7 +10,7 @@ import { numberValue, parseLocalDateTime, value } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
-const recordTypes = new Set(["weight", "feeding", "urine", "stool", "temperature", "vaccine", "medication", "consultation", "observation"]);
+const recordTypes = new Set(["weight", "feeding", "urine", "stool", "temperature", "vaccine", "deworming", "medication", "consultation", "observation"]);
 
 function fail(petIds: string[], type: string, message: string): never {
   const pet = petIds[0] ?? "";
@@ -27,7 +27,7 @@ function revalidateRecordPaths(petIds: string[]) {
 export async function createRecord(formData: FormData) {
   const petIds = parsePetIds(formData);
   const type = value(formData, "record_type");
-  if (petIds.length === 0 || !recordTypes.has(type)) fail(petIds, type, "Escolha ao menos um gatinho e o tipo de cuidado.");
+  if (petIds.length === 0 || !recordTypes.has(type)) fail(petIds, type, "Escolha ao menos um pet e o tipo de cuidado.");
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) fail(petIds, type, "Informe uma data e hora válidas.");
@@ -38,12 +38,12 @@ export async function createRecord(formData: FormData) {
   await assertCanEdit(supabase);
   const household = await ensureHousehold(supabase, auth.user.id);
   const { data: pets } = await supabase.from("pets").select("id, name").eq("household_id", household.id).in("id", petIds).is("archived_at", null);
-  if (!pets?.length || pets.length !== petIds.length) fail(petIds, type, "Gatinho não encontrado.");
+  if (!pets?.length || pets.length !== petIds.length) fail(petIds, type, "Pet não encontrado.");
 
   const notes = value(formData, "notes") || null;
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
-  const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", medication: "Medicamento de", consultation: "Retorno de" };
+  const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
 
   if (type === "weight") {
     const grams = parseWeightKg(value(formData, "weight_kg"));
@@ -66,8 +66,8 @@ export async function createRecord(formData: FormData) {
     const failed = results.find((result) => result.error);
     if (failed?.error) fail(petIds, type, failed.error.message);
   } else {
-    const healthType: HealthRecordType = type === "vaccine" || type === "medication" || type === "consultation" ? type : "other";
-    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
+    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
     const title = value(formData, "title") || defaults[healthType];
     const clinicOrVet = value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {

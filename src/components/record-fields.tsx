@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
@@ -20,6 +20,7 @@ const options: RecordOption[] = [
   { value: "stool", label: "Cocô", shortLabel: "Cocô", icon: Droplets, neonatal: true },
   { value: "temperature", label: "Temperatura", shortLabel: "Temp.", icon: Thermometer, neonatal: true },
   { value: "vaccine", label: "Vacina", shortLabel: "Vacina", icon: Syringe },
+  { value: "deworming", label: "Vermífugo", shortLabel: "Vermíf.", icon: Bug },
   { value: "medication", label: "Medicamento", shortLabel: "Remédio", icon: Pill },
   { value: "consultation", label: "Consulta", shortLabel: "Consulta", icon: Stethoscope },
   { value: "observation", label: "Observação", shortLabel: "Nota", icon: ClipboardPlus },
@@ -46,7 +47,8 @@ export type RecordFieldDefaults = {
 export function RecordFields({
   pets,
   initialPetId,
-  initialType = "weight",
+  initialType,
+  initialTitle,
   disabled = false,
   mode = "create",
   defaultValues,
@@ -55,6 +57,7 @@ export function RecordFields({
   pets: PetOption[];
   initialPetId?: string;
   initialType?: string;
+  initialTitle?: string;
   disabled?: boolean;
   mode?: "create" | "edit";
   defaultValues?: RecordFieldDefaults;
@@ -64,6 +67,10 @@ export function RecordFields({
     ? (defaultValues?.record_type ?? initialType) as QuickRecordType
     : "weight";
   const [type, setType] = useState<QuickRecordType>(validInitial);
+  const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
+  const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
+  const lockTypeFromUrl = mode === "create" && Boolean(initialType && options.some((option) => option.value === initialType));
+  const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const defaultPetIds = defaultValues?.pet_id
     ? [defaultValues.pet_id]
     : initialPetId && pets.some((pet) => pet.id === initialPetId)
@@ -74,15 +81,23 @@ export function RecordFields({
   const [selectedPetIds, setSelectedPetIds] = useState<string[]>(defaultPetIds);
   const selectedPets = useMemo(() => pets.filter((pet) => selectedPetIds.includes(pet.id)), [pets, selectedPetIds]);
   const neonatalBlocked = selectedPets.length > 0 && selectedPets.some((pet) => !pet.neonatal);
-  const healthType = type === "vaccine" || type === "medication" || type === "consultation" || type === "observation";
-  const lockedType = mode === "edit";
+  const lockedType = mode === "edit" || lockTypeFromUrl;
   const activeType = lockedType ? validInitial : type;
+  const healthType = activeType === "vaccine" || activeType === "deworming" || activeType === "medication" || activeType === "consultation" || activeType === "observation";
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
+
+  useEffect(() => {
+    if (initialTitle) {
+      setTitle(initialTitle);
+      return;
+    }
+    if (validInitial === "deworming") setTitle("Vermífugo");
+  }, [initialTitle, validInitial]);
 
   return (
     <>
       <section>
-        <p className="text-sm font-bold">1. {mode === "edit" ? "Gatinho" : "Quais gatinhos?"}</p>
+        <p className="text-sm font-bold">1. {mode === "edit" ? "Pet" : "Quais pets?"}</p>
         <div className="mt-2">
           <PetMultiSelect
             pets={pets}
@@ -91,12 +106,12 @@ export function RecordFields({
             multiple={mode === "create"}
             required
             legend=""
-            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada gatinho selecionado." : undefined}
+            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada pet selecionado." : undefined}
             onSelectionChange={setSelectedPetIds}
           />
         </div>
         {mode === "create" && activeType === "weight" && selectedPetIds.length > 1 && (
-          <p className="mt-2 text-xs text-[var(--muted)]">Cada gatinho receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
+          <p className="mt-2 text-xs text-[var(--muted)]">Cada pet receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
         )}
       </section>
 
@@ -116,7 +131,7 @@ export function RecordFields({
                   type="button"
                   disabled={disabled || Boolean(unavailable)}
                   onClick={() => setType(value)}
-                  title={unavailable ? "Disponível para gatinhos com até 8 semanas" : undefined}
+                  title={unavailable ? "Disponível para filhotes com até 8 semanas" : undefined}
                   className={`focus-ring flex min-h-20 flex-col items-center justify-center gap-2 rounded-[18px] border px-2 text-xs font-bold transition ${active ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]" : "border-[var(--border)] bg-white text-[var(--muted)]"}`}
                 >
                   <Icon size={19} /> {shortLabel}
@@ -134,13 +149,23 @@ export function RecordFields({
         {(activeType === "feeding" || activeType === "urine" || activeType === "stool") && (
           <label className="block text-sm font-bold">Como foi?<select disabled={disabled} name="quality" defaultValue={defaultValues?.quality ?? "normal"} className="field mt-2"><option value="normal">Normal</option><option value="good">Foi bem</option><option value="little">Pouquinho</option><option value="difficult">Com dificuldade</option><option value="attention">Precisa de atenção</option></select></label>
         )}
-        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" defaultValue={defaultValues?.title ?? ""} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
-        {(activeType === "vaccine" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
+        {healthType && (
+          lockTitleFromUrl ? (
+            <div className="block sm:col-span-2">
+              <p className="text-sm font-bold">Título</p>
+              <input type="hidden" name="title" value={title} />
+              <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{title}</p>
+            </div>
+          ) : (
+            <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "deworming" ? "Ex.: Vermífugo" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>
+          )
+        )}
+        {(activeType === "vaccine" || activeType === "deworming" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
       </section>
 
       <section className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-bold">Quando?<input disabled={disabled} required type="datetime-local" name="occurred_at" defaultValue={occurredDefault} className="field mt-2" /></label>
-        {mode === "create" && (activeType === "vaccine" || activeType === "medication" || activeType === "consultation") && <label className="block text-sm font-bold">Lembrar novamente em<input disabled={disabled} type="datetime-local" name="reminder_due_at" className="field mt-2" /></label>}
+        {mode === "create" && (activeType === "vaccine" || activeType === "deworming" || activeType === "medication" || activeType === "consultation") && <label className="block text-sm font-bold">Lembrar novamente em<input disabled={disabled} type="datetime-local" name="reminder_due_at" className="field mt-2" /></label>}
       </section>
 
       <label className="mt-5 block text-sm font-bold">Observações<textarea disabled={disabled} name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} className="field mt-2 resize-none" placeholder="Opcional — qualquer detalhe que ajude depois" /></label>
