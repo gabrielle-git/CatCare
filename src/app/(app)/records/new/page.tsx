@@ -20,9 +20,10 @@ async function loadPetOptions() {
   return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
-export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
+export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
   if (hasSupabaseEnv()) await requireEditPage("/");
   const query = await searchParams;
+  const initialTitle = query.record_title ?? query.suggested_title ?? query.suggestedTitle ?? query.title;
   const { pets, configured, editable } = await loadPetOptions();
   const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
 
@@ -32,7 +33,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       <header className="mt-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Um toque para registrar</p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">O que aconteceu?</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">Peso, saúde e cuidados ficam juntos na linha do tempo do gatinho.</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">Peso, saúde e cuidados ficam juntos na linha do tempo do pet.</p>
       </header>
 
       {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Explore o formulário; conecte o Supabase para salvar.</div>}
@@ -41,7 +42,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       {configured && pets.length === 0 ? (
         <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
       ) : (
-        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={query.title ?? query.suggested_title ?? query.suggestedTitle} disabled={!configured} /></form>
+        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields key={`${query.pet ?? ""}-${query.type ?? ""}-${initialTitle ?? ""}`} pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={initialTitle} disabled={!configured} /></form>
       )}
     </div>
   );

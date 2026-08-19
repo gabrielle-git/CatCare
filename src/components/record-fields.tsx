@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
@@ -67,6 +67,7 @@ export function RecordFields({
     : "weight";
   const [type, setType] = useState<QuickRecordType>(validInitial);
   const [title, setTitle] = useState(defaultValues?.title ?? initialTitle ?? "");
+  const lockTypeFromUrl = mode === "create" && Boolean(initialType && initialTitle);
   const defaultPetIds = defaultValues?.pet_id
     ? [defaultValues.pet_id]
     : initialPetId && pets.some((pet) => pet.id === initialPetId)
@@ -77,15 +78,19 @@ export function RecordFields({
   const [selectedPetIds, setSelectedPetIds] = useState<string[]>(defaultPetIds);
   const selectedPets = useMemo(() => pets.filter((pet) => selectedPetIds.includes(pet.id)), [pets, selectedPetIds]);
   const neonatalBlocked = selectedPets.length > 0 && selectedPets.some((pet) => !pet.neonatal);
-  const healthType = type === "vaccine" || type === "medication" || type === "consultation" || type === "observation";
-  const lockedType = mode === "edit";
+  const lockedType = mode === "edit" || lockTypeFromUrl;
   const activeType = lockedType ? validInitial : type;
+  const healthType = activeType === "vaccine" || activeType === "medication" || activeType === "consultation" || activeType === "observation";
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
+
+  useEffect(() => {
+    if (initialTitle) setTitle(initialTitle);
+  }, [initialTitle]);
 
   return (
     <>
       <section>
-        <p className="text-sm font-bold">1. {mode === "edit" ? "Gatinho" : "Quais gatinhos?"}</p>
+        <p className="text-sm font-bold">1. {mode === "edit" ? "Pet" : "Quais pets?"}</p>
         <div className="mt-2">
           <PetMultiSelect
             pets={pets}
@@ -94,12 +99,12 @@ export function RecordFields({
             multiple={mode === "create"}
             required
             legend=""
-            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada gatinho selecionado." : undefined}
+            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada pet selecionado." : undefined}
             onSelectionChange={setSelectedPetIds}
           />
         </div>
         {mode === "create" && activeType === "weight" && selectedPetIds.length > 1 && (
-          <p className="mt-2 text-xs text-[var(--muted)]">Cada gatinho receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
+          <p className="mt-2 text-xs text-[var(--muted)]">Cada pet receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
         )}
       </section>
 
@@ -119,7 +124,7 @@ export function RecordFields({
                   type="button"
                   disabled={disabled || Boolean(unavailable)}
                   onClick={() => setType(value)}
-                  title={unavailable ? "Disponível para gatinhos com até 8 semanas" : undefined}
+                  title={unavailable ? "Disponível para filhotes com até 8 semanas" : undefined}
                   className={`focus-ring flex min-h-20 flex-col items-center justify-center gap-2 rounded-[18px] border px-2 text-xs font-bold transition ${active ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]" : "border-[var(--border)] bg-white text-[var(--muted)]"}`}
                 >
                   <Icon size={19} /> {shortLabel}
