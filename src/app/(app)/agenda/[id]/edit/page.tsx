@@ -41,7 +41,7 @@ export default async function EditReminderPage({ params, searchParams }: { param
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <label className="block text-sm font-bold">O que precisa ser feito?<input required name="title" defaultValue={reminder.title} className="field mt-2" /></label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold">Categoria<select name="category" defaultValue={reminder.category} className="field mt-2"><option value="vaccine">Vacina</option><option value="medication">Medicamento</option><option value="consultation">Consulta</option><option value="weight">Pesagem</option><option value="feeding">Alimentação / mamada</option><option value="hygiene">Higiene</option><option value="purchase">Compra</option><option value="other">Outro</option></select></label>
+          <label className="text-sm font-bold">Categoria<select name="category" defaultValue={reminder.category} className="field mt-2"><option value="vaccine">Vacina</option><option value="deworming">Vermífugo</option><option value="medication">Medicamento</option><option value="consultation">Consulta</option><option value="weight">Pesagem</option><option value="feeding">Alimentação / mamada</option><option value="hygiene">Higiene</option><option value="purchase">Compra</option><option value="other">Outro</option></select></label>
           <label className="text-sm font-bold">Data e hora<input required name="due_at" type="datetime-local" defaultValue={toLocalDateTimeInput(reminder.due_at)} className="field mt-2" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

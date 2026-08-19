@@ -10,7 +10,7 @@ import { numberValue, parseLocalDateTime, value } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
-const recordTypes = new Set(["weight", "feeding", "urine", "stool", "temperature", "vaccine", "medication", "consultation", "observation"]);
+const recordTypes = new Set(["weight", "feeding", "urine", "stool", "temperature", "vaccine", "deworming", "medication", "consultation", "observation"]);
 
 function fail(petIds: string[], type: string, message: string): never {
   const pet = petIds[0] ?? "";
@@ -43,7 +43,7 @@ export async function createRecord(formData: FormData) {
   const notes = value(formData, "notes") || null;
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
-  const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", medication: "Medicamento de", consultation: "Retorno de" };
+  const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
 
   if (type === "weight") {
     const grams = parseWeightKg(value(formData, "weight_kg"));
@@ -66,8 +66,8 @@ export async function createRecord(formData: FormData) {
     const failed = results.find((result) => result.error);
     if (failed?.error) fail(petIds, type, failed.error.message);
   } else {
-    const healthType: HealthRecordType = type === "vaccine" || type === "medication" || type === "consultation" ? type : "other";
-    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
+    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
     const title = value(formData, "title") || defaults[healthType];
     const clinicOrVet = value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {

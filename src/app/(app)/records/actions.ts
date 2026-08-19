@@ -62,8 +62,8 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     }).eq("id", recordId).eq("household_id", household.id);
     if (error) fail(recordId, source, type, error.message);
   } else {
-    const healthType: HealthRecordType = type === "vaccine" || type === "medication" || type === "consultation" ? type : "other";
-    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
+    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
     const title = value(formData, "title") || defaults[healthType];
     const { error } = await supabase.from("health_records").update({
       pet_id: petId, type: healthType, title, occurred_at: occurredAt,

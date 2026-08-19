@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, CalendarPlus, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bug, CalendarPlus, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
+import { DewormingScheduleCard } from "@/components/deworming-schedule-card";
 import { PetAvatar } from "@/components/pet-avatar";
 import { TimelineList } from "@/components/timeline-list";
 import { VaccineScheduleCard } from "@/components/vaccine-schedule-card";
@@ -8,7 +9,8 @@ import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatFullDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
-import { listPetTimeline, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
 import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
@@ -18,20 +20,20 @@ import { updatePetDescription } from "../actions";
 async function loadPetPage(id: string) {
   if (!hasSupabaseEnv()) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], configured: false, editable: false };
+    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: false, editable: false };
   }
   const supabase = await createClient();
   const role = await getMyRole(supabase);
   const pet = await getPet(supabase, id);
-  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], configured: true, editable: false };
-  const [timeline, weights, vaccineDoses] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id), listPetVaccineDoses(supabase, id)]);
-  return { pet, timeline, weights, vaccineDoses, configured: true, editable: canEdit(role) };
+  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: true, editable: false };
+  const [timeline, weights, vaccineDoses, dewormingDoses] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id), listPetVaccineDoses(supabase, id), listPetDewormingDoses(supabase, id)]);
+  return { pet, timeline, weights, vaccineDoses, dewormingDoses, configured: true, editable: canEdit(role) };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, vaccineDoses, configured, editable } = await loadPetPage(id);
+  const { pet, timeline, weights, vaccineDoses, dewormingDoses, configured, editable } = await loadPetPage(id);
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
@@ -40,11 +42,12 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
   const humanAge = formatHumanEquivalentAge(pet.birth_date);
   const birthDate = formatBirthDate(pet.birth_date, pet.birth_date_estimated);
   const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses);
+  const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
   const suggestedDescription = [
     `${pet.name} ${age ? `tem ${age}` : "faz parte da família"}${pet.color ? ` e tem pelagem ${pet.color.toLocaleLowerCase("pt-BR")}` : ""}.`,
     recentKinds.has("weight") ? `A família acompanha seu peso, hoje em ${formatWeight(pet.current_weight_grams)}.` : null,
     recentKinds.has("surgery") && pet.neutered ? "A castração foi registrada no histórico com data aproximada." : null,
-    recentKinds.has("medication") || recentKinds.has("vaccine") ? "Os cuidados de saúde estão sendo registrados com atenção." : null,
+    recentKinds.has("medication") || recentKinds.has("vaccine") || recentKinds.has("deworming") ? "Os cuidados de saúde estão sendo registrados com atenção." : null,
     neonatal ? "Como ainda é filhote, sua rotina neonatal merece acompanhamento bem de perto." : null,
   ].filter(Boolean).join(" ");
   const saveDescription = updatePetDescription.bind(null, pet.id);
@@ -52,7 +55,8 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
   const actions = [
     { type: "weight", label: "Peso", icon: Scale, tone: "bg-[var(--lavender-soft)]" },
     { type: "vaccine", label: "Vacina", icon: Syringe, tone: "bg-[var(--mint-soft)]" },
-    { type: "medication", label: "Remédio", icon: Pill, tone: "bg-[#fbead9]" },
+    { type: "deworming", label: "Vermífugo", icon: Bug, tone: "bg-[#fbead9]" },
+    { type: "medication", label: "Remédio", icon: Pill, tone: "bg-[var(--cream)]" },
   ];
 
   return (
@@ -83,7 +87,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
         </div>
 
         {editable && (
-          <div className="grid grid-cols-3 gap-2 p-4 md:gap-3 md:p-5">
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4 md:gap-3 md:p-5">
             {actions.map(({ type, label, icon: Icon, tone }) => (
               <Link key={type} href={`/records/new?pet=${pet.id}&type=${type}`} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
             ))}
@@ -133,6 +137,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
             )}
           </div>
           <VaccineScheduleCard schedule={vaccineSchedule} petId={pet.id} petName={pet.name} editable={editable} />
+          <DewormingScheduleCard schedule={dewormingSchedule} petId={pet.id} petName={pet.name} editable={editable} />
           <div className="cat-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade e cuidados</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>

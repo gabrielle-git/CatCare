@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Reminder } from "@/types/database";
 import { completeReminder, deleteReminder } from "./actions";
 
-const categoryLabels: Record<string, string> = { vaccine: "Vacina", medication: "Medicamento", consultation: "Consulta", weight: "Pesagem", feeding: "Alimentação", hygiene: "Higiene", purchase: "Compra", other: "Outro" };
+const categoryLabels: Record<string, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta", weight: "Pesagem", feeding: "Alimentação", hygiene: "Higiene", purchase: "Compra", other: "Outro" };
 
 async function loadAgenda() {
   const now = Date.now();

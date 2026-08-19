@@ -3,13 +3,13 @@ import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
 export const quickRecordTypes = new Set([
   "weight", "feeding", "urine", "stool", "temperature",
-  "vaccine", "medication", "consultation", "observation",
+  "vaccine", "deworming", "medication", "consultation", "observation",
 ]);
 
 export type RecordSource = "weight" | "health" | "neonatal";
 
 const neonatalKinds = new Set<NeonatalRecordType>(["feeding", "weight", "urine", "stool", "temperature", "observation"]);
-const healthKinds = new Set<HealthRecordType>(["vaccine", "medication", "consultation", "exam", "disease", "allergy", "surgery", "other"]);
+const healthKinds = new Set<HealthRecordType>(["vaccine", "deworming", "medication", "consultation", "exam", "disease", "allergy", "surgery", "other"]);
 
 export function resolveRecordSource(kind: string): RecordSource | null {
   if (kind === "weight") return "weight";

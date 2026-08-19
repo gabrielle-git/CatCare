@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
@@ -20,6 +20,7 @@ const options: RecordOption[] = [
   { value: "stool", label: "Cocô", shortLabel: "Cocô", icon: Droplets, neonatal: true },
   { value: "temperature", label: "Temperatura", shortLabel: "Temp.", icon: Thermometer, neonatal: true },
   { value: "vaccine", label: "Vacina", shortLabel: "Vacina", icon: Syringe },
+  { value: "deworming", label: "Vermífugo", shortLabel: "Vermíf.", icon: Bug },
   { value: "medication", label: "Medicamento", shortLabel: "Remédio", icon: Pill },
   { value: "consultation", label: "Consulta", shortLabel: "Consulta", icon: Stethoscope },
   { value: "observation", label: "Observação", shortLabel: "Nota", icon: ClipboardPlus },
@@ -80,7 +81,7 @@ export function RecordFields({
   const neonatalBlocked = selectedPets.length > 0 && selectedPets.some((pet) => !pet.neonatal);
   const lockedType = mode === "edit" || lockTypeFromUrl;
   const activeType = lockedType ? validInitial : type;
-  const healthType = activeType === "vaccine" || activeType === "medication" || activeType === "consultation" || activeType === "observation";
+  const healthType = activeType === "vaccine" || activeType === "deworming" || activeType === "medication" || activeType === "consultation" || activeType === "observation";
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
 
   useEffect(() => {
@@ -142,13 +143,13 @@ export function RecordFields({
         {(activeType === "feeding" || activeType === "urine" || activeType === "stool") && (
           <label className="block text-sm font-bold">Como foi?<select disabled={disabled} name="quality" defaultValue={defaultValues?.quality ?? "normal"} className="field mt-2"><option value="normal">Normal</option><option value="good">Foi bem</option><option value="little">Pouquinho</option><option value="difficult">Com dificuldade</option><option value="attention">Precisa de atenção</option></select></label>
         )}
-        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
-        {(activeType === "vaccine" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
+        {healthType && <label className="block text-sm font-bold sm:col-span-2">Título<input disabled={disabled} name="title" value={title} onChange={(event) => setTitle(event.target.value)} className="field mt-2" placeholder={activeType === "vaccine" ? "Ex.: V4 — primeira dose" : activeType === "deworming" ? "Ex.: Vermífugo" : activeType === "medication" ? "Ex.: Antipulgas" : activeType === "consultation" ? "Ex.: Retorno com a Dra. Ana" : "O que você percebeu?"} /></label>}
+        {(activeType === "vaccine" || activeType === "deworming" || activeType === "consultation") && <label className="block text-sm font-bold sm:col-span-2">Clínica ou veterinário<input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" /></label>}
       </section>
 
       <section className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-bold">Quando?<input disabled={disabled} required type="datetime-local" name="occurred_at" defaultValue={occurredDefault} className="field mt-2" /></label>
-        {mode === "create" && (activeType === "vaccine" || activeType === "medication" || activeType === "consultation") && <label className="block text-sm font-bold">Lembrar novamente em<input disabled={disabled} type="datetime-local" name="reminder_due_at" className="field mt-2" /></label>}
+        {mode === "create" && (activeType === "vaccine" || activeType === "deworming" || activeType === "medication" || activeType === "consultation") && <label className="block text-sm font-bold">Lembrar novamente em<input disabled={disabled} type="datetime-local" name="reminder_due_at" className="field mt-2" /></label>}
       </section>
 
       <label className="mt-5 block text-sm font-bold">Observações<textarea disabled={disabled} name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} className="field mt-2 resize-none" placeholder="Opcional — qualquer detalhe que ajude depois" /></label>

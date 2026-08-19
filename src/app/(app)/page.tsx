@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CalendarClock, Cat, ChevronRight, HeartPulse, Plus, Sparkles, Syringe } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Cat, ChevronRight, HeartPulse, Pill, Plus, Sparkles, Syringe } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
 import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdTimeline, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
+import { listHouseholdTimeline, listPetDewormingDoses, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
+import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -21,9 +22,10 @@ function greeting() {
 }
 
 type VaccineAlert = { petId: string; petName: string; overdue: number; due: number };
+type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean };
 
 async function loadDashboard() {
-  const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[] };
+  const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
   if (!hasSupabaseEnv()) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
@@ -37,14 +39,28 @@ async function loadDashboard() {
       listUpcomingReminders(supabase, household.id, 4),
     ]);
     const vaccineAlerts: VaccineAlert[] = [];
+    const dewormingAlerts: DewormingAlert[] = [];
     for (const pet of pets) {
-      const doses = await listPetVaccineDoses(supabase, pet.id);
+      const [doses, dewormingDoses] = await Promise.all([
+        listPetVaccineDoses(supabase, pet.id),
+        listPetDewormingDoses(supabase, pet.id),
+      ]);
       const schedule = buildVaccineSchedule(pet.birth_date, doses);
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
       if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due });
+
+      const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
+      if (isDewormingOverdue(dewormingSchedule) || isDewormingDue(dewormingSchedule)) {
+        dewormingAlerts.push({
+          petId: pet.id,
+          petName: pet.name,
+          overdue: isDewormingOverdue(dewormingSchedule),
+          due: isDewormingDue(dewormingSchedule),
+        });
+      }
     }
-    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null, vaccineAlerts };
+    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null, vaccineAlerts, dewormingAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
     return { ...empty, error };
@@ -53,7 +69,7 @@ async function loadDashboard() {
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string; joined?: string }> }) {
   const flags = await searchParams;
-  const { pets, timeline, reminders, configured, editable, error, vaccineAlerts } = await loadDashboard();
+  const { pets, timeline, reminders, configured, editable, error, vaccineAlerts, dewormingAlerts } = await loadDashboard();
   const petNames = new Map(pets.map((pet) => [pet.id, pet.name]));
   const babies = pets.filter(isNeonatalPet);
 
@@ -76,15 +92,25 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       {configured && !editable && <div className="cat-card mt-5 bg-[var(--cream)] p-4 text-sm"><strong>Modo visitante.</strong> Você pode ver tudo, mas não registrar nem editar nesta família.</div>}
       {flags.joined && <div className="cat-card mt-5 bg-[var(--mint-soft)] p-4 text-sm font-semibold text-[var(--success)]">Você entrou na família! Troque entre famílias em Configurações → Suas famílias.</div>}
 
-      {vaccineAlerts.length > 0 && (
+      {(vaccineAlerts.length > 0 || dewormingAlerts.length > 0) && (
         <section className="mt-5 space-y-2">
           {vaccineAlerts.map((alert) => (
-            <Link key={alert.petId} href={`/pets/${alert.petId}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">
+            <Link key={`vaccine-${alert.petId}`} href={`/pets/${alert.petId}`} className="focus-ring flex items-center gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-[var(--danger)]">
               {alert.overdue > 0 ? <AlertTriangle size={17} /> : <Syringe size={17} />}
               <span>
                 {alert.overdue > 0
                   ? `${alert.petName} tem ${alert.overdue} vacina${alert.overdue > 1 ? "s" : ""} atrasada${alert.overdue > 1 ? "s" : ""}`
                   : `${alert.petName} tem ${alert.due} vacina${alert.due > 1 ? "s" : ""} para aplicar agora`}
+              </span>
+            </Link>
+          ))}
+          {dewormingAlerts.map((alert) => (
+            <Link key={`deworming-${alert.petId}`} href={`/pets/${alert.petId}`} className={`focus-ring flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-bold ${alert.overdue ? "border-red-200 bg-red-50 text-[var(--danger)]" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+              {alert.overdue ? <AlertTriangle size={17} /> : <Pill size={17} />}
+              <span>
+                {alert.overdue
+                  ? `${alert.petName} está com o vermífugo atrasado`
+                  : `Hora de aplicar o vermífugo de ${alert.petName}`}
               </span>
             </Link>
           ))}

@@ -1,1 +1,1 @@
-export type QuickRecordType = "weight" | "feeding" | "urine" | "stool" | "temperature" | "vaccine" | "medication" | "consultation" | "observation";
+export type QuickRecordType = "weight" | "feeding" | "urine" | "stool" | "temperature" | "vaccine" | "deworming" | "medication" | "consultation" | "observation";
