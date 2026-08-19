@@ -1,4 +1,5 @@
 import type { Pet } from "@/types/database";
+import { MicrochipFields } from "@/components/microchip-fields";
 
 export function PetFields({ defaultValues, includeInitialWeight = false, disabled = false }: { defaultValues?: Partial<Pet>; includeInitialWeight?: boolean; disabled?: boolean }) {
   return (
@@ -51,6 +52,8 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
         <input disabled={disabled} type="checkbox" name="neutered" defaultChecked={defaultValues?.neutered ?? false} className="size-4 accent-[var(--lavender)]" />
         Castrado(a)
       </label>
+
+      <MicrochipFields defaultValues={defaultValues} disabled={disabled} />
 
       <label id="description" className="block scroll-mt-6 text-sm font-bold">
         Descrição e observações

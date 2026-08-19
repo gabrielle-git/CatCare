@@ -24,6 +24,11 @@ function readFields(formData: FormData) {
   const sexValue = value(formData, "sex");
   const sex: PetSex = sexValue === "male" || sexValue === "female" ? sexValue : "unknown";
   const birthDate = value(formData, "birth_date");
+  const hasMicrochip = formData.get("has_microchip") === "on";
+  const microchipNumber = value(formData, "microchip_number");
+  const microchipDate = value(formData, "microchip_implanted_at");
+  const microchipLocation = value(formData, "microchip_location");
+  if (hasMicrochip && !microchipNumber) throw new Error("Informe o número do microchip.");
   return {
     name: value(formData, "name"),
     sex,
@@ -32,6 +37,10 @@ function readFields(formData: FormData) {
     breed: value(formData, "breed") || null,
     color: value(formData, "color") || null,
     neutered: formData.get("neutered") === "on",
+    has_microchip: hasMicrochip,
+    microchip_number: hasMicrochip ? microchipNumber : null,
+    microchip_implanted_at: hasMicrochip && microchipDate ? microchipDate : null,
+    microchip_location: hasMicrochip ? microchipLocation || null : null,
     notes: value(formData, "notes") || null,
   };
 }
@@ -62,7 +71,11 @@ async function uploadPhoto(supabase: Awaited<ReturnType<typeof createClient>>, h
 }
 
 export async function createPet(formData: FormData) {
-  const fields = readFields(formData);
+  let fields;
+  try { fields = readFields(formData); } catch (error) {
+    const message = error instanceof Error ? error.message : "Dados inválidos.";
+    redirect(`/pets/new?error=${encodeURIComponent(message)}`);
+  }
   if (!fields.name) redirect("/pets/new?error=Nome%20%C3%A9%20obrigat%C3%B3rio.");
 
   let photo: ReturnType<typeof readPhoto>;
@@ -99,7 +112,11 @@ export async function createPet(formData: FormData) {
 }
 
 export async function updatePet(petId: string, formData: FormData) {
-  const fields = readFields(formData);
+  let fields;
+  try { fields = readFields(formData); } catch (error) {
+    const message = error instanceof Error ? error.message : "Dados inválidos.";
+    redirect(`/pets/${petId}/edit?error=${encodeURIComponent(message)}`);
+  }
   if (!fields.name) redirect(`/pets/${petId}/edit?error=Nome%20%C3%A9%20obrigat%C3%B3rio.`);
 
   let photo: ReturnType<typeof readPhoto>;
