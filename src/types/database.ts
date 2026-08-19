@@ -29,6 +29,10 @@ export type Pet = {
   photo_path: string | null;
   current_weight_grams: number | null;
   neutered: boolean;
+  has_microchip: boolean;
+  microchip_number: string | null;
+  microchip_implanted_at: string | null;
+  microchip_location: string | null;
   notes: string | null;
   archived_at: string | null;
   created_at: string;
