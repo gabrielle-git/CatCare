@@ -110,6 +110,37 @@ export function listHouseholdTimeline(supabase: SupabaseClient, householdId: str
   return loadTimeline(supabase, "household_id", householdId, limit);
 }
 
+export async function listHouseholdNeonatalRecords(supabase: SupabaseClient, householdId: string, limit = 500) {
+  const { data, error } = await supabase
+    .from("neonatal_records")
+    .select("*")
+    .eq("household_id", householdId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as NeonatalRecord[];
+}
+
+export async function listPetNeonatalRecords(supabase: SupabaseClient, petId: string, limit = 200) {
+  const { data, error } = await supabase
+    .from("neonatal_records")
+    .select("*")
+    .eq("pet_id", petId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as NeonatalRecord[];
+}
+
+export async function listPetNeonatalTimeline(supabase: SupabaseClient, petId: string, limit = 200) {
+  const records = await listPetNeonatalRecords(supabase, petId, limit);
+  return records.map(mapNeonatal);
+}
+
+export function isNeonatalTimelineItem(item: TimelineItem) {
+  return item.source === "neonatal";
+}
+
 export async function listUpcomingReminders(supabase: SupabaseClient, householdId: string, limit = 8): Promise<Reminder[]> {
   const { data, error } = await supabase
     .from("reminders")

@@ -5,8 +5,10 @@ import { TimelineList } from "@/components/timeline-list";
 import { formatHumanEquivalentAge, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoTimeline } from "@/lib/mock-data";
+import { computeTodayNeonatalStats, formatNeonatalDailyStats } from "@/lib/neonatal-stats";
 import { listPets } from "@/lib/pets";
-import { listHouseholdTimeline } from "@/lib/records";
+import { preselectRecordHref } from "@/lib/record-links";
+import { listHouseholdNeonatalRecords, listHouseholdTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -14,37 +16,105 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 async function loadNeonatal() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, configured: false, editable: false };
+  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, neonatalRecords: [], configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], configured: true, editable: false };
+  if (!data.user) return { pets: [], timeline: [], neonatalRecords: [], configured: true, editable: false };
   const role = await getMyRole(supabase);
   const household = await ensureHousehold(supabase, data.user.id);
-  const [pets, timeline] = await Promise.all([listPets(supabase, household.id), listHouseholdTimeline(supabase, household.id, 120)]);
-  return { pets, timeline, configured: true, editable: canEdit(role) };
+  const [pets, timeline, neonatalRecords] = await Promise.all([
+    listPets(supabase, household.id),
+    listHouseholdTimeline(supabase, household.id, 120),
+    listHouseholdNeonatalRecords(supabase, household.id, 500),
+  ]);
+  return { pets, timeline, neonatalRecords, configured: true, editable: canEdit(role) };
 }
 
-export default async function NeonatalPage({ searchParams }: { searchParams: Promise<{ deleted?: string; error?: string }> }) {
+export default async function NeonatalPage({ searchParams }: { searchParams: Promise<{ deleted?: string; saved?: string; error?: string }> }) {
   const flags = await searchParams;
-  const { pets, timeline, configured, editable } = await loadNeonatal();
+  const { pets, timeline, neonatalRecords, configured, editable } = await loadNeonatal();
   const babies = pets.filter(isNeonatalPet);
   const hasEstimatedBirthDates = babies.some((pet) => pet.birth_date_estimated);
   const babyIds = new Set(babies.map((pet) => pet.id));
   const petNames = Object.fromEntries(babies.map((pet) => [pet.id, pet.name]));
   const recent = timeline.filter((item) => babyIds.has(item.pet_id) && ["feeding", "urine", "stool", "temperature", "weight"].includes(item.kind));
+  const todayStats = computeTodayNeonatalStats(neonatalRecords, babies.map((pet) => pet.id));
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <header><p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]"><HeartPulse size={15} /> Cuidado intensivo, interface tranquila</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Modo neonatal</h1><p className="mt-2 text-sm text-[var(--muted)]">Registre o essencial sem poluir a rotina dos pets maiores.</p></header>
+      <header>
+        <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]"><HeartPulse size={15} /> Cuidado intensivo, interface tranquila</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Modo neonatal</h1>
+        <p className="mt-2 text-sm text-[var(--muted)]">Registre o essencial sem poluir a rotina dos pets maiores.</p>
+      </header>
+
       <div className="mt-5 rounded-[20px] border border-[#e3b6c4] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Identificação automática:</strong> todo filhote com menos de 8 semanas entra neste painel pela data de nascimento e sai dele quando conclui essa fase.</div>
       {!configured && <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Os nomes provisórios já estão aplicados; os registros de mamada e higiene abaixo ainda são exemplos.</div>}
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+      {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.saved) === 1 ? "1 registro salvo." : `${flags.saved} registros salvos.`}</div>}
       {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}</div>}
       {hasEstimatedBirthDates && <div className="mt-3 rounded-[20px] border border-[#e3b6c4] bg-white px-4 py-3 text-sm"><strong>Data pendente:</strong> a idade dos filhotes está marcada como estimada. Quando você informar o nascimento correto, o acompanhamento neonatal será recalculado automaticamente.</div>}
-      {babies.length === 0 ? <section className="cat-card mt-7 p-8 text-center"><HeartPulse className="mx-auto text-[var(--rose)]" size={30} /><h2 className="mt-3 text-lg font-bold">Nenhum filhote em acompanhamento</h2><p className="mt-2 text-sm text-[var(--muted)]">Filhotes com até 8 semanas aparecem aqui automaticamente.</p></section> : (
-        <div className="mt-7 grid gap-4 sm:grid-cols-2">{babies.map((pet) => <section key={pet.id} className="cat-card overflow-hidden"><div className="flex items-center gap-4 bg-[var(--rose-soft)] p-5"><PetAvatar name={pet.name} photoUrl={pet.photo_url} /><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold">{pet.name}</h2><span className="rounded-full bg-white/75 px-2 py-1 text-[9px] font-bold text-[#9a536c]">Neonatal automático</span></div><p className="mt-1 text-xs text-[var(--muted)]">{formatPetAge(pet.birth_date, pet.birth_date_estimated)} de vida • {formatWeight(pet.current_weight_grams)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{formatHumanEquivalentAge(pet.birth_date)}</p></div></div>{editable ? <div className="grid grid-cols-2 gap-2 p-4"><Link href={`/records/new?pet=${pet.id}&type=feeding`} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--rose-soft)] px-3 py-3 text-xs font-bold"><Milk size={17} /> Mamada</Link><Link href={`/records/new?pet=${pet.id}&type=weight`} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--lavender-soft)] px-3 py-3 text-xs font-bold"><Scale size={17} /> Peso</Link><Link href={`/records/new?pet=${pet.id}&type=urine`} className="focus-ring rounded-[18px] border border-[var(--border)] px-3 py-3 text-center text-xs font-bold">Xixi</Link><Link href={`/pets/${pet.id}`} className="focus-ring flex items-center justify-center gap-1 rounded-[18px] border border-[var(--border)] px-3 py-3 text-xs font-bold">Histórico <Plus size={14} /></Link></div> : <div className="p-4 text-center text-xs text-[var(--muted)]">Somente leitura nesta família.</div>}</section>)}</div>
+
+      {babies.length === 0 ? (
+        <section className="cat-card mt-7 p-8 text-center">
+          <HeartPulse className="mx-auto text-[var(--rose)]" size={30} />
+          <h2 className="mt-3 text-lg font-bold">Nenhum filhote em acompanhamento</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">Filhotes com até 8 semanas aparecem aqui automaticamente.</p>
+        </section>
+      ) : (
+        <div className="mt-7 grid gap-4 sm:grid-cols-2">
+          {babies.map((pet) => {
+            const stats = todayStats.get(pet.id);
+            return (
+              <section key={pet.id} className="cat-card overflow-hidden">
+                <div className="flex items-center gap-4 bg-[var(--rose-soft)] p-5">
+                  <PetAvatar name={pet.name} photoUrl={pet.photo_url} />
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-bold">{pet.name}</h2>
+                      <span className="rounded-full bg-white/75 px-2 py-1 text-[9px] font-bold text-[#9a536c]">Neonatal automático</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{formatPetAge(pet.birth_date, pet.birth_date_estimated)} de vida • {formatWeight(pet.current_weight_grams)}</p>
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">{formatHumanEquivalentAge(pet.birth_date)}</p>
+                    {stats && (
+                      <p className="mt-2 rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-bold text-[#9a536c]">
+                        Hoje: {formatNeonatalDailyStats(stats)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {editable ? (
+                  <div className="grid grid-cols-2 gap-2 p-4">
+                    <Link href={preselectRecordHref({ pet: pet.id, type: "feeding", returnTo: "/neonatal", neonatal: true })} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--rose-soft)] px-3 py-3 text-xs font-bold"><Milk size={17} /> Mamada</Link>
+                    <Link href={preselectRecordHref({ pet: pet.id, type: "weight", returnTo: "/neonatal", neonatal: true })} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--lavender-soft)] px-3 py-3 text-xs font-bold"><Scale size={17} /> Peso</Link>
+                    <Link href={preselectRecordHref({ pet: pet.id, type: "urine", returnTo: "/neonatal", neonatal: true })} className="focus-ring rounded-[18px] border border-[var(--border)] px-3 py-3 text-center text-xs font-bold">Xixi</Link>
+                    <Link href={preselectRecordHref({ pet: pet.id, type: "stool", returnTo: "/neonatal", neonatal: true })} className="focus-ring rounded-[18px] border border-[var(--border)] px-3 py-3 text-center text-xs font-bold">Cocô</Link>
+                    <Link href={preselectRecordHref({ pet: pet.id, returnTo: "/neonatal", neonatal: true })} className="focus-ring col-span-2 flex items-center justify-center gap-1 rounded-[18px] border border-[var(--border)] px-3 py-3 text-xs font-bold"><Plus size={14} /> Novo cuidado</Link>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-xs text-[var(--muted)]">Somente leitura nesta família.</div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       )}
-      <section className="mt-8"><div className="mb-3"><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]">Últimas atividades</p><h2 className="mt-1 text-xl font-bold">Cuidados dos filhotes</h2></div><TimelineList items={recent} emptyText="Os registros neonatais aparecerão aqui." editable={editable} returnTo="/neonatal" filterMode="neonatal" petNames={petNames} /></section>
+
+      <section className="mt-8">
+        <div className="mb-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]">Últimas atividades</p>
+          <h2 className="mt-1 text-xl font-bold">Cuidados dos filhotes</h2>
+        </div>
+        <TimelineList
+          items={recent}
+          emptyText="Os registros neonatais aparecerão aqui."
+          editable={editable}
+          returnTo="/neonatal"
+          filterMode="neonatal"
+          petNames={petNames}
+          showNewRecord={editable}
+        />
+      </section>
     </div>
   );
 }

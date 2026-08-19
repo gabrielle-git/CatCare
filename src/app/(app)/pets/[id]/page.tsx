@@ -9,7 +9,8 @@ import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
-import { listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { isNeonatalTimelineItem, listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
 import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
 import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
@@ -37,7 +38,9 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
-  const recentKinds = new Set(timeline.slice(0, 6).map((item) => item.kind));
+  const hasNeonatalHistory = !neonatal && timeline.some(isNeonatalTimelineItem);
+  const profileTimeline = neonatal ? timeline : timeline.filter((item) => !isNeonatalTimelineItem(item));
+  const recentKinds = new Set(profileTimeline.slice(0, 6).map((item) => item.kind));
   const age = formatPetAge(pet.birth_date, pet.birth_date_estimated);
   const humanAge = formatHumanEquivalentAge(pet.birth_date);
   const birthDate = formatBirthDate(pet.birth_date, pet.birth_date_estimated);
@@ -51,6 +54,8 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
     neonatal ? "Como ainda é filhote, sua rotina neonatal merece acompanhamento bem de perto." : null,
   ].filter(Boolean).join(" ");
   const saveDescription = updatePetDescription.bind(null, pet.id);
+
+  const petReturnTo = `/pets/${pet.id}`;
 
   const actions = [
     { type: "weight", label: "Peso", icon: Scale, tone: "bg-[var(--lavender-soft)]" },
@@ -91,14 +96,14 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
         {editable && (
           <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4 md:gap-3 md:p-5">
             {actions.map(({ type, label, icon: Icon, tone }) => (
-              <Link key={type} href={`/records/new?pet=${pet.id}&type=${type}`} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
+              <Link key={type} href={typedRecordHref(pet.id, type, petReturnTo)} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
             ))}
           </div>
         )}
       </section>
 
       {neonatal && editable && (
-        <Link href={`/records/new?pet=${pet.id}&type=feeding`} className="focus-ring mt-4 flex items-center justify-between rounded-[22px] bg-[var(--rose)] p-4 font-bold">
+        <Link href={preselectRecordHref({ pet: pet.id, returnTo: petReturnTo })} className="focus-ring mt-4 flex items-center justify-between rounded-[22px] bg-[var(--rose)] p-4 font-bold text-white">
           <span className="flex items-center gap-2"><HeartPulse size={19} /> Registrar cuidado neonatal</span><Plus size={18} />
         </Link>
       )}
@@ -109,11 +114,11 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
 
       <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p><h2 className="mt-1 text-xl font-bold">Linha do tempo</h2></div>
-            {editable && <Link href={`/records/new?pet=${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} /> Novo registro</Link>}
+          <div className="mb-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
+            <h2 className="mt-1 text-xl font-bold">Linha do tempo</h2>
           </div>
-          <TimelineList items={timeline} editable={editable} returnTo={`/pets/${pet.id}`} filterMode="all" />
+          <TimelineList items={profileTimeline} editable={editable} returnTo={`/pets/${pet.id}`} filterMode="all" newRecordPetId={pet.id} showNewRecord={editable} />
         </section>
 
         <aside className="space-y-4">
@@ -142,6 +147,19 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
           <PetMicrochipSummary pet={pet} editable={editable} />
         </aside>
       </div>
+
+      {hasNeonatalHistory && (
+        <section className="mt-8">
+          <Link href={`/pets/${pet.id}/neonatal-history`} className="focus-ring cat-card flex items-center justify-between gap-4 p-5">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]">Arquivo neonatal</p>
+              <h2 className="mt-1 text-lg font-bold">Ver histórico neonatal</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Mamadas, xixi e cocô registrados quando {pet.name} ainda era filhote.</p>
+            </div>
+            <HeartPulse className="shrink-0 text-[var(--rose)]" size={24} />
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

@@ -56,3 +56,21 @@ export function toLocalDateTimeInput(iso: string) {
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
+
+export const neonatalCareTypes = new Set(["feeding", "urine", "stool", "temperature"]);
+
+export function isNeonatalCareType(type: string) {
+  return neonatalCareTypes.has(type);
+}
+
+export function safeReturnPath(raw: string | null | undefined, fallback: string) {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
+  return raw;
+}
+
+export function redirectPathWithParam(path: string, key: string, value: string) {
+  const safe = safeReturnPath(path, "/");
+  const url = new URL(safe, "http://local");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}`;
+}

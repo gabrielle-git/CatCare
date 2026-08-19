@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
+import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Plus, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
 import { deleteRecord, deleteRecords } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatDateTime } from "@/lib/format";
+import { preselectRecordHref } from "@/lib/record-links";
 import type { TimelineItem } from "@/types/database";
 
 const toneClasses = {
@@ -52,6 +53,8 @@ export function TimelineList({
   returnTo,
   filterMode = "all",
   petNames,
+  newRecordPetId,
+  showNewRecord = false,
 }: {
   items: TimelineItem[];
   emptyText?: string;
@@ -60,12 +63,21 @@ export function TimelineList({
   filterMode?: "neonatal" | "all";
   /** When set, shows "Mamada · Luna" style labels (for multi-pet lists like neonatal). */
   petNames?: Record<string, string>;
+  /** Pre-fills pet on "Novo registro" (e.g. pet profile). */
+  newRecordPetId?: string;
+  showNewRecord?: boolean;
 }) {
   const [filter, setFilter] = useState<string>("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const filters = filterMode === "neonatal" ? neonatalFilters : fullFilters;
   const fallbackReturn = returnTo ?? "/";
+  const newRecordHref = preselectRecordHref({
+    pet: newRecordPetId,
+    type: filter !== "all" ? filter : undefined,
+    returnTo: filterMode === "neonatal" ? (returnTo ?? "/neonatal") : fallbackReturn,
+    neonatal: filterMode === "neonatal",
+  });
 
   function exitSelectionMode() {
     setSelectionMode(false);
@@ -128,15 +140,22 @@ export function TimelineList({
         <p className="text-[11px] text-[var(--muted)]">
           {filter === "all" ? `${items.length} registro${items.length === 1 ? "" : "s"}` : `${filtered.length} de ${items.length} registros`}
         </p>
-        {editable && filtered.length > 0 && !selectionMode && (
-          <button
-            type="button"
-            onClick={() => setSelectionMode(true)}
-            className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
-          >
-            Selecionar
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {editable && showNewRecord && !selectionMode && (
+            <Link href={newRecordHref} className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white">
+              <Plus size={13} /> Novo registro
+            </Link>
+          )}
+          {editable && filtered.length > 0 && !selectionMode && (
+            <button
+              type="button"
+              onClick={() => setSelectionMode(true)}
+              className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+            >
+              Selecionar
+            </button>
+          )}
+        </div>
       </div>
 
       {editable && selectionMode && filtered.length > 0 && (
@@ -179,7 +198,7 @@ export function TimelineList({
         <ol className="space-y-3">
           {filtered.map((item) => {
             const Icon = iconFor(item.kind);
-            const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}`;
+            const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}&return_to=${encodeURIComponent(fallbackReturn)}`;
             const remove = deleteRecord.bind(null, item.id, item.source, item.pet_id);
             const checked = selected.has(item.id);
             const petLabel = petNames?.[item.pet_id];
