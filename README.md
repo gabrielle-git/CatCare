@@ -16,7 +16,7 @@ Abra [http://localhost:3100](http://localhost:3100). Sem `.env.local`, o app abr
 ## Conectar o Supabase
 
 1. Crie um projeto no Supabase.
-2. Execute, nesta ordem, as migrations da pasta `supabase/migrations` no SQL Editor: `0001_initial.sql`, `0002_commerce.sql`, `0003_memories.sql`, `0004_memory_gallery.sql`, `0005_household_bootstrap.sql` e `0006_entity_pets.sql`.
+2. Execute, nesta ordem, **todas** as migrations da pasta `supabase/migrations` no SQL Editor — de `0001_initial.sql` até `0026_benefit_memberships_multi_other.sql` (inclui família/convites, vacinas/vermífugo, planos de saúde, guias e clubes).
 3. Copie `.env.example` para `.env.local`.
 4. Preencha:
 
@@ -29,24 +29,26 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 
 Com o Supabase configurado, o app exige login e passa a salvar os dados reais protegidos por RLS.
 
+Detalhes de produção e checklist: veja [`SECURITY.md`](SECURITY.md).
+
 ## O que já funciona
 
 - layout responsivo com navegação inferior no celular e sidebar no desktop;
-- cadastro, edição, foto e arquivamento de vários gatos;
-- pesagens com histórico e sincronização automática do peso atual;
-- registro rápido de vacina, medicamento, consulta e observação;
-- modo neonatal para mamada, xixi, cocô e temperatura;
-- linha do tempo por gato;
+- cadastro, edição, foto e arquivamento de vários pets;
+- pesagens com histórico, gráfico e sincronização automática do peso atual;
+- registro rápido (até 2 tipos por vez), vacina, vermífugo, medicamento, consulta e observação;
+- modo neonatal para mamada, xixi, cocô e temperatura, com resumo do dia;
+- calendários preventivos de vacina e vermífugo com alertas;
+- linha do tempo com filtros e exclusão em lote;
+- plano de saúde por pet, tabelas de coparticipação, templates compartilhados e clubes/assinaturas;
 - criação, repetição e conclusão de lembretes;
-- Home com gatos, atividade recente, agenda e destaque neonatal;
-- gastos mensais, divisão compartilhada/individual e categorias;
-- compras com loja, canal, quantidade, histórico de preço e lançamento automático no gasto;
-- avaliações separadas de qualidade, aceitação e custo-benefício;
-- configurações com conta, família e exportação privada em JSON;
+- Home com pets, atividade recente, agenda e destaque neonatal;
+- gastos mensais e categorias; compras com cupom/desconto e lançamento automático no gasto;
+- avaliações de qualidade, aceitação e custo-benefício;
+- configurações com conta, multi-família, papéis, convites e exportação privada em JSON;
 - assistente local com respostas baseadas apenas nos dados registrados;
-- descrição editável do gatinho e resumo sugerido pelo perfil e histórico;
 - idade cronológica, equivalência humana aproximada e fase de vida automática;
-- álbum de memórias com até oito fotos, vários gatos, edição, exclusão recuperável, restauração e exclusão definitiva;
+- álbum de memórias com até oito fotos, vários pets, edição, exclusão recuperável e definitiva;
 - recomendações de alimento e areia baseadas nas avaliações da própria família;
 - perfis `viewer` somente leitura e bucket privado com limite de arquivo.
 
@@ -60,11 +62,9 @@ npm run build
 
 ## Próximos cortes
 
-- gráficos de evolução do peso;
 - manifesto PWA, ícones e notificações;
-- diário e galeria de memórias;
-- convites de cuidadores por e-mail;
-- integração opcional com IA visual para fotos, sempre com consentimento antes do envio.
+- integração opcional com IA visual para fotos, sempre com consentimento antes do envio;
+- completar exportação JSON com planos de saúde, guias e clubes.
 
 ## Design
 

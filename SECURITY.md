@@ -8,6 +8,7 @@ Este documento descreve as decisões de segurança do app e o que configurar no 
 - **Autorização:** Row Level Security (RLS) em todas as tabelas de dados; cada linha pertence a uma `household_id`.
 - **Papéis:** `owner` (dono), `caregiver` (cuidador), `viewer` (visitante). Escrita sensível exige `owner` ou `caregiver` via Server Actions (`assertCanEdit`).
 - **Família ativa:** `profiles.active_household_id` define qual família a sessão enxerga; RPCs usam `my_household_id()`.
+- **Fail closed:** `getMyRole` retorna `null` (sem privilégio) se a RPC falhar — nunca assume `owner` por padrão.
 
 ## Dados e storage
 
@@ -39,7 +40,7 @@ Configure **uma vez** no projeto:
 | Site URL | Authentication → URL Configuration | **Tem que ser** `https://cat-care-xi.vercel.app` (não `cat-care-v1` nem outro deploy antigo) |
 | Redirect URLs | Idem | `https://cat-care-xi.vercel.app/auth/callback` e `http://localhost:3000/auth/callback` |
 | RLS | Table Editor → cada tabela | Políticas ativas (via migrations) |
-| Migrations | SQL Editor | Rodar `0001` … `0015` na ordem |
+| Migrations | SQL Editor | Rodar `0001` … `0026` na ordem (`supabase/migrations`) |
 
 ## Checklist Vercel / Resend
 
