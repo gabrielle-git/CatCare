@@ -20,16 +20,25 @@ async function loadPetOptions() {
   return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
-export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
+export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; lock_type?: string; return_to?: string; context?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
   if (hasSupabaseEnv()) await requireEditPage("/");
   const query = await searchParams;
   const initialTitle = query.record_title ?? query.suggested_title ?? query.suggestedTitle ?? query.title;
+  const neonatalContext = query.context === "neonatal";
+  const returnTo = query.return_to ?? (neonatalContext ? "/neonatal" : undefined);
+  const backHref = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+    ? returnTo
+    : query.pet
+      ? `/pets/${query.pet}`
+      : neonatalContext
+        ? "/neonatal"
+        : "/";
   const { pets, configured, editable } = await loadPetOptions();
   const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
 
   return (
     <div className="mx-auto w-full max-w-[860px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <Link href={query.pet ? `/pets/${query.pet}` : "/"} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</Link>
+      <Link href={backHref} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</Link>
       <header className="mt-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Um toque para registrar</p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">O que aconteceu?</h1>
@@ -42,7 +51,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       {configured && pets.length === 0 ? (
         <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
       ) : (
-        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields key={`${query.pet ?? ""}-${query.type ?? ""}-${initialTitle ?? ""}`} pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={initialTitle} disabled={!configured} /></form>
+        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields key={`${query.pet ?? ""}-${query.type ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`} pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={initialTitle} initialLockType={query.lock_type} returnTo={returnTo} neonatalContext={neonatalContext} disabled={!configured} /></form>
       )}
     </div>
   );

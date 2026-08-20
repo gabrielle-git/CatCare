@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Bot, ChevronRight, ImageIcon, ReceiptText, Settings, ShoppingBasket } from "lucide-react";
+import { Bot, ChevronRight, HeartHandshake, ImageIcon, ReceiptText, Settings, ShoppingBasket } from "lucide-react";
 
 const links = [
+  { label: "Plano de saúde", detail: "Coparticipação e operadora de cada pet", href: "/health-plan", icon: HeartHandshake, tone: "bg-[var(--lavender-soft)]" },
   { label: "Gastos", detail: "Quanto a família investiu em cada pet", href: "/expenses", icon: ReceiptText, tone: "bg-[#fbead9]" },
   { label: "Compras e avaliações", detail: "Preço, loja, qualidade e aceitação dos produtos", href: "/shopping", icon: ShoppingBasket, tone: "bg-[var(--mint-soft)]" },
   { label: "Memórias", detail: "Fotos, marcos e pequenos momentos", href: "/memories", icon: ImageIcon, tone: "bg-[var(--rose-soft)]" },

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
+import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Plus, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
 import { deleteRecord, deleteRecords } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatDateTime } from "@/lib/format";
+import { preselectRecordHref } from "@/lib/record-links";
 import type { TimelineItem } from "@/types/database";
 
 const toneClasses = {
@@ -22,6 +23,16 @@ const neonatalFilters = [
   { value: "stool", label: "Cocô" },
   { value: "temperature", label: "Temp." },
   { value: "weight", label: "Peso" },
+] as const;
+
+const adultFilters = [
+  { value: "all", label: "Todos" },
+  { value: "weight", label: "Peso" },
+  { value: "vaccine", label: "Vacina" },
+  { value: "deworming", label: "Vermífugo" },
+  { value: "medication", label: "Remédio" },
+  { value: "consultation", label: "Consulta" },
+  { value: "observation", label: "Nota" },
 ] as const;
 
 const fullFilters = [
@@ -52,20 +63,38 @@ export function TimelineList({
   returnTo,
   filterMode = "all",
   petNames,
+  newRecordPetId,
+  showNewRecord = false,
+  limit,
+  fullHistoryHref,
 }: {
   items: TimelineItem[];
   emptyText?: string;
   editable?: boolean;
   returnTo?: string;
-  filterMode?: "neonatal" | "all";
+  filterMode?: "neonatal" | "all" | "adult";
   /** When set, shows "Mamada · Luna" style labels (for multi-pet lists like neonatal). */
   petNames?: Record<string, string>;
+  /** Pre-fills pet on "Novo registro" (e.g. pet profile). */
+  newRecordPetId?: string;
+  showNewRecord?: boolean;
+  /** Caps how many items are shown; use with fullHistoryHref for a compact preview. */
+  limit?: number;
+  fullHistoryHref?: string;
 }) {
+  const totalCount = items.length;
+  const visibleItems = limit ? items.slice(0, limit) : items;
   const [filter, setFilter] = useState<string>("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const filters = filterMode === "neonatal" ? neonatalFilters : fullFilters;
+  const filters = filterMode === "neonatal" ? neonatalFilters : filterMode === "adult" ? adultFilters : fullFilters;
   const fallbackReturn = returnTo ?? "/";
+  const newRecordHref = preselectRecordHref({
+    pet: newRecordPetId,
+    type: filter !== "all" ? filter : undefined,
+    returnTo: filterMode === "neonatal" ? (returnTo ?? "/neonatal") : fallbackReturn,
+    neonatal: filterMode === "neonatal",
+  });
 
   function exitSelectionMode() {
     setSelectionMode(false);
@@ -73,8 +102,8 @@ export function TimelineList({
   }
 
   const filtered = useMemo(
-    () => (filter === "all" ? items : items.filter((item) => item.kind === filter)),
-    [items, filter],
+    () => (filter === "all" ? visibleItems : visibleItems.filter((item) => item.kind === filter)),
+    [visibleItems, filter],
   );
 
   const selectedItems = filtered.filter((item) => selected.has(item.id));
@@ -105,7 +134,7 @@ export function TimelineList({
     });
   }
 
-  if (items.length === 0) {
+  if (totalCount === 0) {
     return <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">{emptyText}</div>;
   }
 
@@ -126,17 +155,28 @@ export function TimelineList({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] text-[var(--muted)]">
-          {filter === "all" ? `${items.length} registro${items.length === 1 ? "" : "s"}` : `${filtered.length} de ${items.length} registros`}
+          {filter === "all"
+            ? limit && totalCount > limit
+              ? `${visibleItems.length} de ${totalCount} registros recentes`
+              : `${totalCount} registro${totalCount === 1 ? "" : "s"}`
+            : `${filtered.length} de ${visibleItems.length} registros`}
         </p>
-        {editable && filtered.length > 0 && !selectionMode && (
-          <button
-            type="button"
-            onClick={() => setSelectionMode(true)}
-            className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
-          >
-            Selecionar
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {editable && showNewRecord && !selectionMode && (
+            <Link href={newRecordHref} className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white">
+              <Plus size={13} /> Novo registro
+            </Link>
+          )}
+          {editable && filtered.length > 0 && !selectionMode && (
+            <button
+              type="button"
+              onClick={() => setSelectionMode(true)}
+              className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+            >
+              Selecionar
+            </button>
+          )}
+        </div>
       </div>
 
       {editable && selectionMode && filtered.length > 0 && (
@@ -179,7 +219,7 @@ export function TimelineList({
         <ol className="space-y-3">
           {filtered.map((item) => {
             const Icon = iconFor(item.kind);
-            const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}`;
+            const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}&return_to=${encodeURIComponent(fallbackReturn)}`;
             const remove = deleteRecord.bind(null, item.id, item.source, item.pet_id);
             const checked = selected.has(item.id);
             const petLabel = petNames?.[item.pet_id];
@@ -212,6 +252,14 @@ export function TimelineList({
             );
           })}
         </ol>
+      )}
+
+      {fullHistoryHref && totalCount > visibleItems.length && (
+        <div className="pt-1 text-center">
+          <Link href={fullHistoryHref} className="focus-ring inline-flex rounded-full border border-[var(--border)] bg-white px-4 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+            Ver histórico completo ({totalCount} registros)
+          </Link>
+        </div>
       )}
     </div>
   );

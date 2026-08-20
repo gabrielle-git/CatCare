@@ -6,7 +6,7 @@ import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds } from "@/lib/pet-form";
-import { numberValue, parseLocalDateTime, quickRecordTypes, value, type RecordSource } from "@/lib/record-form";
+import { numberValue, parseLocalDateTime, quickRecordTypes, redirectPathWithParam, safeReturnPath, value, type RecordSource } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
@@ -87,7 +87,8 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   }
 
   revalidateRecordPaths(petId);
-  redirect(`/pets/${petId}?updated=1`);
+  const returnTo = safeReturnPath(value(formData, "return_to"), `/pets/${petId}`);
+  redirect(redirectPathWithParam(returnTo, "updated", "1"));
 }
 
 export async function deleteRecord(recordId: string, source: RecordSource, petId: string, formData: FormData) {

@@ -40,7 +40,7 @@ export function PetMultiSelect({
       next.clear();
       next.add(id);
     } else if (next.has(id)) {
-      if (next.size > 1 || !required) next.delete(id);
+      next.delete(id);
     } else {
       next.add(id);
     }

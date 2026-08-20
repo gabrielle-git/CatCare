@@ -5,7 +5,7 @@ import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, 
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
-import { toLocalDateTimeInput } from "@/lib/record-form";
+import { isNeonatalCareType, toLocalDateTimeInput } from "@/lib/record-form";
 import type { QuickRecordType } from "@/components/record-fields-types";
 
 export type { QuickRecordType } from "@/components/record-fields-types";
@@ -31,6 +31,27 @@ function currentLocalDateTime() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
+function neonatalPetPool(pets: PetOption[]) {
+  return pets.filter((pet) => pet.neonatal);
+}
+
+function resolvePetSelection(
+  pets: PetOption[],
+  candidateIds: string[],
+  restrictToNeonatal: boolean,
+  preferredId?: string,
+  autoPick = true,
+) {
+  const pool = restrictToNeonatal ? neonatalPetPool(pets) : pets;
+  const poolIds = new Set(pool.map((pet) => pet.id));
+  const kept = candidateIds.filter((id) => poolIds.has(id));
+  if (kept.length > 0) return kept;
+  if (preferredId && poolIds.has(preferredId)) return [preferredId];
+  if (!autoPick) return [];
+  if (pool[0]?.id) return [pool[0].id];
+  return [];
+}
+
 export type RecordFieldDefaults = {
   pet_id: string;
   record_type: QuickRecordType;
@@ -49,6 +70,9 @@ export function RecordFields({
   initialPetId,
   initialType,
   initialTitle,
+  initialLockType,
+  returnTo,
+  neonatalContext = false,
   disabled = false,
   mode = "create",
   defaultValues,
@@ -58,33 +82,70 @@ export function RecordFields({
   initialPetId?: string;
   initialType?: string;
   initialTitle?: string;
+  initialLockType?: string;
+  returnTo?: string;
+  neonatalContext?: boolean;
   disabled?: boolean;
   mode?: "create" | "edit";
   defaultValues?: RecordFieldDefaults;
   submitLabel?: string;
 }) {
+  const neonatalPets = useMemo(() => neonatalPetPool(pets), [pets]);
+  const defaultPet = initialPetId && pets.some((pet) => pet.id === initialPetId)
+    ? pets.find((pet) => pet.id === initialPetId)
+    : neonatalContext
+      ? neonatalPets[0]
+      : pets[0];
+
+  const fallbackType: QuickRecordType = neonatalContext && !initialType && !defaultValues?.record_type
+    ? "feeding"
+    : defaultPet?.neonatal
+      ? "feeding"
+      : "weight";
+
   const validInitial = options.some((option) => option.value === (defaultValues?.record_type ?? initialType))
     ? (defaultValues?.record_type ?? initialType) as QuickRecordType
-    : "weight";
+    : fallbackType;
+
   const [type, setType] = useState<QuickRecordType>(validInitial);
   const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
   const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
-  const lockTypeFromUrl = mode === "create" && Boolean(initialType && options.some((option) => option.value === initialType));
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
-  const defaultPetIds = defaultValues?.pet_id
+  const lockTypeFromUrl = mode === "create" && (initialLockType === "1" || initialLockType === "true" || lockTitleFromUrl);
+  const lockedType = mode === "edit" || lockTypeFromUrl;
+  const activeType = lockedType ? validInitial : type;
+
+  const restrictToNeonatal = neonatalContext || isNeonatalCareType(activeType);
+  const hasExplicitPet = Boolean(initialPetId || defaultValues?.pet_id);
+
+  const basePetIds = defaultValues?.pet_id
     ? [defaultValues.pet_id]
     : initialPetId && pets.some((pet) => pet.id === initialPetId)
       ? [initialPetId]
-      : pets[0]?.id
-        ? [pets[0].id]
-        : [];
-  const [selectedPetIds, setSelectedPetIds] = useState<string[]>(defaultPetIds);
-  const selectedPets = useMemo(() => pets.filter((pet) => selectedPetIds.includes(pet.id)), [pets, selectedPetIds]);
-  const neonatalBlocked = selectedPets.length > 0 && selectedPets.some((pet) => !pet.neonatal);
-  const lockedType = mode === "edit" || lockTypeFromUrl;
-  const activeType = lockedType ? validInitial : type;
+      : [];
+
+  const [selectedPetIds, setSelectedPetIds] = useState<string[]>(() =>
+    resolvePetSelection(pets, basePetIds, restrictToNeonatal, initialPetId, hasExplicitPet),
+  );
+
+  const visiblePets = useMemo(() => {
+    if (mode === "edit" && defaultValues?.pet_id) {
+      return pets.filter((pet) => pet.id === defaultValues.pet_id);
+    }
+    if (neonatalContext || isNeonatalCareType(activeType)) {
+      return neonatalPets;
+    }
+    return pets;
+  }, [activeType, defaultValues?.pet_id, mode, neonatalContext, neonatalPets, pets]);
+
+  const visibleSelectedIds = useMemo(
+    () => selectedPetIds.filter((id) => visiblePets.some((pet) => pet.id === id)),
+    [selectedPetIds, visiblePets],
+  );
+
   const healthType = activeType === "vaccine" || activeType === "deworming" || activeType === "medication" || activeType === "consultation" || activeType === "observation";
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
+  const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
 
   useEffect(() => {
     if (initialTitle) {
@@ -94,23 +155,52 @@ export function RecordFields({
     if (validInitial === "deworming") setTitle("Vermífugo");
   }, [initialTitle, validInitial]);
 
+  useEffect(() => {
+    if (mode !== "create" || lockedType) return;
+    setSelectedPetIds((prev) => resolvePetSelection(
+      pets,
+      prev,
+      neonatalContext || isNeonatalCareType(activeType),
+      initialPetId,
+      Boolean(initialPetId),
+    ));
+  }, [activeType, initialPetId, lockedType, mode, neonatalContext, pets]);
+
+  const petHint = mode === "create"
+    ? neonatalContext
+      ? "Modo neonatal — só filhotes com até 8 semanas aparecem aqui."
+      : restrictToNeonatal
+        ? "Só filhotes em fase neonatal aparecem para este tipo de cuidado."
+        : "Pode escolher mais de um — o registro será criado para cada pet selecionado."
+    : undefined;
+
   return (
     <>
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
+      {neonatalContext ? <input type="hidden" name="context" value="neonatal" /> : null}
+
       <section>
         <p className="text-sm font-bold">1. {mode === "edit" ? "Pet" : "Quais pets?"}</p>
         <div className="mt-2">
-          <PetMultiSelect
-            pets={pets}
-            defaultSelectedIds={defaultPetIds}
-            disabled={disabled || pets.length === 0}
-            multiple={mode === "create"}
-            required
-            legend=""
-            hint={mode === "create" ? "Pode escolher mais de um — o registro será criado para cada pet selecionado." : undefined}
-            onSelectionChange={setSelectedPetIds}
-          />
+          {noNeonatalPets ? (
+            <p className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-4 text-sm text-[var(--muted)]">
+              Nenhum filhote com até 8 semanas no momento.
+            </p>
+          ) : (
+            <PetMultiSelect
+              key={`${visiblePets.map((pet) => pet.id).join(",")}-${visibleSelectedIds.join(",")}`}
+              pets={visiblePets}
+              defaultSelectedIds={visibleSelectedIds}
+              disabled={disabled || visiblePets.length === 0}
+              multiple={mode === "create"}
+              required
+              legend=""
+              hint={petHint}
+              onSelectionChange={setSelectedPetIds}
+            />
+          )}
         </div>
-        {mode === "create" && activeType === "weight" && selectedPetIds.length > 1 && (
+        {mode === "create" && activeType === "weight" && visibleSelectedIds.length > 1 && (
           <p className="mt-2 text-xs text-[var(--muted)]">Cada pet receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
         )}
       </section>
@@ -122,16 +212,14 @@ export function RecordFields({
           <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{options.find((option) => option.value === activeType)?.label ?? activeType}</p>
         ) : (
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {options.map(({ value, shortLabel, icon: Icon, neonatal }) => {
-              const unavailable = neonatal && neonatalBlocked;
+            {options.map(({ value, shortLabel, icon: Icon }) => {
               const active = type === value;
               return (
                 <button
                   key={value}
                   type="button"
-                  disabled={disabled || Boolean(unavailable)}
+                  disabled={disabled}
                   onClick={() => setType(value)}
-                  title={unavailable ? "Disponível para filhotes com até 8 semanas" : undefined}
                   className={`focus-ring flex min-h-20 flex-col items-center justify-center gap-2 rounded-[18px] border px-2 text-xs font-bold transition ${active ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]" : "border-[var(--border)] bg-white text-[var(--muted)]"}`}
                 >
                   <Icon size={19} /> {shortLabel}
@@ -170,7 +258,7 @@ export function RecordFields({
 
       <label className="mt-5 block text-sm font-bold">Observações<textarea disabled={disabled} name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} className="field mt-2 resize-none" placeholder="Opcional — qualquer detalhe que ajude depois" /></label>
 
-      <SubmitButton disabled={disabled || pets.length === 0} className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">{submitLabel}</SubmitButton>
+      <SubmitButton disabled={disabled || visiblePets.length === 0 || visibleSelectedIds.length === 0} className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">{submitLabel}</SubmitButton>
     </>
   );
 }

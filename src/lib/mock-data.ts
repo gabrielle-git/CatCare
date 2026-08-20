@@ -1,5 +1,8 @@
 import { formatWeight } from "@/lib/format";
-import type { Expense, MemoryWithMediaUrl, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
+import { DEFAULT_PETLOVE_LEVE_COVERAGE } from "@/lib/health-plan-templates";
+import { PETLOVE_LEVE_PROCEDURE_GROUPS, PETLOVE_LEVE_REFERENCE } from "@/lib/petlove-health-reference";
+import type { BenefitMembership, Expense, HealthPlanGuideWithServices, HealthPlanWithCopays, MemoryWithMediaUrl, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
+import type { HealthPlanGuideService } from "@/types/database";
 
 export const demoPets: PetWithPhotoUrl[] = [
   {
@@ -138,11 +141,105 @@ export const demoProducts: Product[] = [
   { id: "prod-3", household_id: demoPets[0].household_id, name: "Areia biodegradável", brand: "Viva Verde", category: "litter", package_size: "4 kg", notes: "Forma torrões firmes e espalha pouco.", created_at: "2026-07-10T12:00:00.000Z", updated_at: "2026-08-05T12:00:00.000Z" },
 ];
 
+export const demoBenefitMemberships: BenefitMembership[] = [
+  {
+    id: "membership-petlove",
+    household_id: demoPets[0].household_id,
+    kind: "petlove_club",
+    custom_name: null,
+    active: true,
+    monthly_fee_cents: 990,
+    renews_at: "2026-09-12",
+    notes: null,
+    created_at: "2026-01-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+  },
+];
+
 export const demoPurchases: Purchase[] = [
-  { id: "buy-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [demoPets[0].id, demoPets[1].id], expense_id: "exp-2", store_name: "Petz", channel: "online_store", quantity: 1, amount_cents: 8990, purchased_at: "2026-08-14T14:00:00-03:00", product_url: null, notes: "Cupom de 10%", created_at: "2026-08-14T14:00:00-03:00" },
-  { id: "buy-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], expense_id: "exp-3", store_name: "Cobasi", channel: "physical_store", quantity: 6, amount_cents: 3954, purchased_at: "2026-08-12T17:00:00-03:00", product_url: null, notes: null, created_at: "2026-08-12T17:00:00-03:00" },
-  { id: "buy-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, pet_ids: [], expense_id: "exp-4", store_name: "Amazon", channel: "marketplace", quantity: 2, amount_cents: 8390, purchased_at: "2026-08-05T09:00:00-03:00", product_url: null, notes: "Compra recorrente", created_at: "2026-08-05T09:00:00-03:00" },
-  { id: "buy-4", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [], expense_id: null, store_name: "Cobasi", channel: "physical_store", quantity: 1, amount_cents: 9490, purchased_at: "2026-07-18T11:00:00-03:00", product_url: null, notes: null, created_at: "2026-07-18T11:00:00-03:00" },
+  { id: "buy-1", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [demoPets[0].id, demoPets[1].id], expense_id: "exp-2", store_name: "Petz", channel: "online_store", quantity: 1, amount_cents: 8990, subtotal_cents: 9990, discount_cents: 1000, coupon_code: "PET10", petlove_club: false, membership_id: null, purchased_at: "2026-08-14T14:00:00-03:00", product_url: null, notes: null, created_at: "2026-08-14T14:00:00-03:00" },
+  { id: "buy-2", household_id: demoPets[0].household_id, product_id: "prod-2", pet_id: demoPets[0].id, pet_ids: [demoPets[0].id], expense_id: "exp-3", store_name: "Petlove", channel: "online_store", quantity: 6, amount_cents: 3954, subtotal_cents: null, discount_cents: 0, coupon_code: null, petlove_club: false, membership_id: "membership-petlove", purchased_at: "2026-08-12T17:00:00-03:00", product_url: null, notes: null, created_at: "2026-08-12T17:00:00-03:00" },
+  { id: "buy-3", household_id: demoPets[0].household_id, product_id: "prod-3", pet_id: null, pet_ids: [], expense_id: "exp-4", store_name: "Amazon", channel: "marketplace", quantity: 2, amount_cents: 8390, subtotal_cents: null, discount_cents: 0, coupon_code: null, petlove_club: false, membership_id: null, purchased_at: "2026-08-05T09:00:00-03:00", product_url: null, notes: "Compra recorrente", created_at: "2026-08-05T09:00:00-03:00" },
+  { id: "buy-4", household_id: demoPets[0].household_id, product_id: "prod-1", pet_id: null, pet_ids: [], expense_id: null, store_name: "Cobasi", channel: "physical_store", quantity: 1, amount_cents: 9490, subtotal_cents: null, discount_cents: 0, coupon_code: null, petlove_club: false, membership_id: null, purchased_at: "2026-07-18T11:00:00-03:00", product_url: null, notes: null, created_at: "2026-07-18T11:00:00-03:00" },
+];
+
+const demoGuideId = "guide-petlove-leve";
+const demoGuideServices: HealthPlanGuideService[] = PETLOVE_LEVE_PROCEDURE_GROUPS.flatMap((group, groupIndex) =>
+  group.procedures.map((proc, procIndex) => ({
+    id: `svc-${group.id}-${procIndex}`,
+    guide_id: demoGuideId,
+    group_key: group.id,
+    group_title: group.title,
+    name: proc.name,
+    copay_cents: proc.copayCents,
+    annual_limit: proc.annualLimit,
+    waiting_days: proc.waitingDays,
+    notes: proc.notes ?? null,
+    sort_order: groupIndex * 10 + procIndex,
+    created_at: "2026-08-01T12:00:00.000Z",
+  })),
+);
+
+export const demoHealthPlanGuides: HealthPlanGuideWithServices[] = [
+  {
+    id: demoGuideId,
+    household_id: demoPets[0].household_id,
+    slug: "petlove-leve",
+    title: "Serviços e coparticipação Petlove Leve",
+    provider: "petlove",
+    base_monthly_fee_cents: 1790,
+    official_url: PETLOVE_LEVE_REFERENCE.officialUrl,
+    notes: PETLOVE_LEVE_REFERENCE.regionNote,
+    payment_notes: null,
+    waiting_notes: null,
+    show_multi_pet_discount: true,
+    created_at: "2026-08-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+    services: demoGuideServices,
+  },
+];
+
+export const demoHealthPlans: HealthPlanWithCopays[] = [
+  {
+    id: "plan-dobby",
+    household_id: demoPets[0].household_id,
+    pet_id: demoPets[0].id,
+    provider: "petlove",
+    plan_name: "Petlove Leve",
+    monthly_fee_cents: 1790,
+    started_at: "2026-06-01",
+    active: true,
+    notes: null,
+    coverage_summary: DEFAULT_PETLOVE_LEVE_COVERAGE,
+    template_id: "template-petlove-leve",
+    promo_coupon_code: "PROMO-CARENCIA",
+    zero_waiting_consultation: true,
+    zero_waiting_vaccine: true,
+    promo_notes: "Cupom na contratação — carência zero em consultas e vacinas.",
+    created_at: "2026-06-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+    copay_rules: [],
+  },
+  {
+    id: "plan-crystal",
+    household_id: demoPets[1].household_id,
+    pet_id: demoPets[1].id,
+    provider: "petlove",
+    plan_name: "Petlove Leve",
+    monthly_fee_cents: 1611,
+    started_at: "2026-06-01",
+    active: true,
+    notes: "2º pet — 10% de desconto na mensalidade.",
+    coverage_summary: DEFAULT_PETLOVE_LEVE_COVERAGE,
+    template_id: "template-petlove-leve",
+    promo_coupon_code: "PROMO-CARENCIA",
+    zero_waiting_consultation: true,
+    zero_waiting_vaccine: true,
+    promo_notes: "Mesmo cupom da contratação em lote.",
+    created_at: "2026-06-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+    copay_rules: [],
+  },
 ];
 
 export const demoProductReviews: ProductReview[] = [
