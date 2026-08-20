@@ -24,12 +24,21 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
     listHealthPlanTemplates(supabase, household.id),
     listHealthPlans(supabase, household.id),
   ]);
-  const defaultPet = flags.pet && pets.some((pet) => pet.id === flags.pet) ? flags.pet : pets[0]?.id ?? "";
+  const petsWithPlan = new Set(plans.map((plan) => plan.pet_id));
+  const petsWithoutPlan = pets.filter((pet) => !petsWithPlan.has(pet.id));
+  const requestedPet = flags.pet && pets.some((pet) => pet.id === flags.pet) ? flags.pet : "";
+  const defaultPet = requestedPet && !petsWithPlan.has(requestedPet)
+    ? requestedPet
+    : petsWithoutPlan[0]?.id ?? pets[0]?.id ?? "";
   const existingPlans = plans.map((plan) => ({
     provider: plan.provider,
     plan_name: plan.plan_name,
     active: plan.active,
     pet_id: plan.pet_id,
+    pet_name: pets.find((pet) => pet.id === plan.pet_id)?.name,
+    template_id: plan.template_id,
+    started_at: plan.started_at,
+    created_at: plan.created_at,
   }));
 
   return (
@@ -57,6 +66,7 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
             defaultPetId={defaultPet}
             currentPetId={defaultPet}
             existingPlans={existingPlans}
+            mode="create"
           />
         </section>
 
