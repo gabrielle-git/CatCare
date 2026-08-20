@@ -20,12 +20,17 @@ async function loadPetOptions() {
   return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
-export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; lock_type?: string; return_to?: string; context?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
+export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; types?: string; lock_type?: string; return_to?: string; context?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
   if (hasSupabaseEnv()) await requireEditPage("/");
   const query = await searchParams;
   const initialTitle = query.record_title ?? query.suggested_title ?? query.suggestedTitle ?? query.title;
   const neonatalContext = query.context === "neonatal";
   const returnTo = query.return_to ?? (neonatalContext ? "/neonatal" : undefined);
+  const initialTypes = query.types
+    ? query.types.split(",").map((item) => item.trim()).filter(Boolean)
+    : query.type
+      ? [query.type]
+      : undefined;
   const backHref = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
     ? returnTo
     : query.pet
@@ -51,7 +56,20 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       {configured && pets.length === 0 ? (
         <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
       ) : (
-        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7"><RecordFields key={`${query.pet ?? ""}-${query.type ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`} pets={options} initialPetId={query.pet} initialType={query.type} initialTitle={initialTitle} initialLockType={query.lock_type} returnTo={returnTo} neonatalContext={neonatalContext} disabled={!configured} /></form>
+        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7">
+          <RecordFields
+            key={`${query.pet ?? ""}-${query.type ?? ""}-${query.types ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`}
+            pets={options}
+            initialPetId={query.pet}
+            initialType={query.type}
+            initialTypes={initialTypes}
+            initialTitle={initialTitle}
+            initialLockType={query.lock_type}
+            returnTo={returnTo}
+            neonatalContext={neonatalContext}
+            disabled={!configured}
+          />
+        </form>
       )}
     </div>
   );

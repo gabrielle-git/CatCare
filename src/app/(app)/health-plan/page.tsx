@@ -7,7 +7,7 @@ import { HealthPlanPromoBadges } from "@/components/health-plan-promo-fields";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { listBenefitMemberships, splitMemberships } from "@/lib/benefit-memberships";
 import { HEALTH_PLAN_PROVIDER_LABELS, listHealthPlans } from "@/lib/health-plan";
-import { formatCoverageForDisplay } from "@/lib/health-plan-templates";
+import { formatCoverageForDisplay, mapPetlovePlanPositions, petlovePositionBadge, type ExistingHealthPlanRef } from "@/lib/health-plan-templates";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoHealthPlans, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -41,6 +41,17 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
   const { petlove: petloveMembership, others: otherMemberships } = splitMemberships(memberships);
   const planByPet = new Map(plans.map((plan) => [plan.pet_id, plan]));
   const activePlans = plans.filter((plan) => plan.active);
+  const existingPlanRefs: ExistingHealthPlanRef[] = plans.map((plan) => ({
+    provider: plan.provider,
+    plan_name: plan.plan_name,
+    active: plan.active,
+    pet_id: plan.pet_id,
+    pet_name: pets.find((pet) => pet.id === plan.pet_id)?.name,
+    template_id: plan.template_id,
+    started_at: plan.started_at,
+    created_at: plan.created_at,
+  }));
+  const petlovePositions = mapPetlovePlanPositions(existingPlanRefs);
 
   return (
     <div className="mx-auto w-full max-w-[960px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -120,6 +131,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
         <div className="mt-4 space-y-5">
           {pets.map((pet) => {
             const plan = planByPet.get(pet.id);
+            const petloveRank = plan?.provider === "petlove" && plan.active ? petlovePositions.get(pet.id) : undefined;
             return (
               <section key={pet.id} className="cat-card overflow-hidden">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] bg-[linear-gradient(135deg,var(--lavender-soft),#fff)] p-5 md:p-6">
@@ -136,6 +148,11 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
                           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
                             {plan.monthly_fee_cents != null && (
                               <span className="rounded-full bg-white/80 px-2.5 py-1">{formatCurrency(plan.monthly_fee_cents)}/mês</span>
+                            )}
+                            {petloveRank && (
+                              <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[var(--lavender-strong)]">
+                                {petlovePositionBadge(petloveRank.position)}
+                              </span>
                             )}
                             {plan.started_at && (
                               <span className="rounded-full bg-white/80 px-2.5 py-1 text-[var(--muted)]">Desde {formatShortDate(plan.started_at)}</span>

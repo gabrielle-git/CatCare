@@ -32,6 +32,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
   const save = updateHealthPlan.bind(null, id);
   const remove = deleteHealthPlan.bind(null, id);
   const monthlyFee = plan.monthly_fee_cents != null ? (plan.monthly_fee_cents / 100).toFixed(2) : "";
+  const petName = pets.find((pet) => pet.id === plan.pet_id)?.name;
   const existingPlans = plans.map((item) => ({
     provider: item.provider,
     plan_name: item.plan_name,
@@ -52,7 +53,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
       <div className="mt-4 flex items-center gap-3">
         <Shield size={22} className="text-[var(--lavender-strong)]" />
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Editar plano</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Editar plano{petName ? ` · ${petName}` : ""}</p>
           <h1 className="text-3xl font-bold tracking-[-0.04em]">{plan.plan_name}</h1>
         </div>
       </div>

@@ -130,8 +130,8 @@ export function HealthPlanFormFields({
   }, [mode, monthlyFeeTouched, position, provider]);
 
   const displayCoverage = formatCoverageForDisplay(coverage);
-  const discountHint = petDiscountHint(position, provider, others, mode);
-  const suggestedFeeCents = provider === "petlove" ? petloveFeeForPosition(position) : null;
+  const discountHint = mode === "create" ? petDiscountHint(position, provider, others, mode) : null;
+  const suggestedFeeCents = mode === "create" && provider === "petlove" ? petloveFeeForPosition(position) : null;
   const selectedAlreadyHasPlan = mode === "create" && petsWithPlan.has(petId);
 
   return (

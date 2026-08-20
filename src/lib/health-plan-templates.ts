@@ -208,3 +208,32 @@ export function petDiscountHint(
   if (discount === 0) return `${already} Este ${verb} o ${ordinal} pet — mensalidade cheia.`;
   return `${already} Este ${verb} o ${ordinal} pet — ${discount}% de desconto na mensalidade (Petlove).`;
 }
+
+export function petlovePositionBadge(position: number) {
+  const discount = petloveDiscountPercent(position);
+  if (discount === 0) return `${position}º pet · mensalidade cheia`;
+  return `${position}º pet · ${discount}% off`;
+}
+
+/** Posição de cada pet ativo no mesmo plano Petlove (por id do pet). */
+export function mapPetlovePlanPositions(existingPlans: ExistingHealthPlanRef[]) {
+  const result = new Map<string, { position: number; discountPercent: number; suggestedFeeCents: number }>();
+
+  for (const plan of existingPlans) {
+    if (!plan.active || plan.provider !== "petlove") continue;
+    if (result.has(plan.pet_id)) continue;
+
+    const group = activeSamePlanGroup(existingPlans, plan.provider, plan.plan_name, plan.template_id);
+    const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
+    ordered.forEach((item, index) => {
+      const position = index + 1;
+      result.set(item.pet_id, {
+        position,
+        discountPercent: petloveDiscountPercent(position),
+        suggestedFeeCents: petloveFeeForPosition(position),
+      });
+    });
+  }
+
+  return result;
+}

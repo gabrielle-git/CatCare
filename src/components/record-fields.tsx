@@ -97,6 +97,7 @@ export function RecordFields({
   pets,
   initialPetId,
   initialType,
+  initialTypes,
   initialTitle,
   initialLockType,
   returnTo,
@@ -109,6 +110,7 @@ export function RecordFields({
   pets: PetOption[];
   initialPetId?: string;
   initialType?: string;
+  initialTypes?: string[];
   initialTitle?: string;
   initialLockType?: string;
   returnTo?: string;
@@ -125,17 +127,31 @@ export function RecordFields({
       ? neonatalPets[0]
       : pets[0];
 
-  const fallbackType: QuickRecordType = neonatalContext && !initialType && !defaultValues?.record_type
+  const parsedInitialTypes = useMemo(() => {
+    const fromList = (initialTypes ?? [])
+      .flatMap((item) => item.split(","))
+      .map((item) => item.trim())
+      .filter((item): item is QuickRecordType => options.some((option) => option.value === item))
+      .slice(0, MAX_TYPES);
+    if (fromList.length > 0) return fromList;
+    if (initialType && options.some((option) => option.value === initialType)) {
+      return [initialType as QuickRecordType];
+    }
+    if (defaultValues?.record_type) return [defaultValues.record_type];
+    return [] as QuickRecordType[];
+  }, [defaultValues?.record_type, initialType, initialTypes]);
+
+  const fallbackType: QuickRecordType = neonatalContext && parsedInitialTypes.length === 0
     ? "feeding"
     : defaultPet?.neonatal
       ? "feeding"
       : "weight";
 
-  const validInitial = options.some((option) => option.value === (defaultValues?.record_type ?? initialType))
-    ? (defaultValues?.record_type ?? initialType) as QuickRecordType
-    : fallbackType;
+  const validInitial = parsedInitialTypes[0] ?? fallbackType;
 
-  const [selectedTypes, setSelectedTypes] = useState<QuickRecordType[]>([validInitial]);
+  const [selectedTypes, setSelectedTypes] = useState<QuickRecordType[]>(
+    () => (parsedInitialTypes.length > 0 ? parsedInitialTypes : [validInitial]),
+  );
   const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
   const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
