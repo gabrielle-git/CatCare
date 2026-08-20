@@ -1,5 +1,5 @@
 import type { NeonatalRecord } from "@/types/database";
-import { formatDateTime, formatTime } from "@/lib/format";
+import { APP_TIMEZONE, formatDateTime, formatTime } from "@/lib/format";
 
 export type NeonatalDailyStats = {
   petId: string;
@@ -23,29 +23,36 @@ export type NeonatalHouseholdSummary = {
   urineCount: number;
 };
 
+function zonedCalendarDate(value: Date | string, timeZone = APP_TIMEZONE) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(typeof value === "string" ? new Date(value) : value);
+}
+
+function shiftCalendarDate(isoDate: string, days: number) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+  return shifted.toISOString().slice(0, 10);
+}
+
 export function todayIsoDate(now = new Date()) {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return zonedCalendarDate(now);
 }
 
 export function isInDateRange(iso: string, from: string, to: string) {
-  const day = iso.slice(0, 10);
+  const day = zonedCalendarDate(iso);
   return day >= from && day <= to;
 }
 
 export function formatTimeAgo(iso: string, now = new Date()) {
-  const then = new Date(iso);
-  const diffMs = Math.max(0, now.getTime() - then.getTime());
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "agora há pouco";
-  if (diffMin < 60) return `há ${diffMin} min`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24 && then.toDateString() === now.toDateString()) return `há ${diffH} h`;
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (then.toDateString() === yesterday.toDateString()) return `ontem às ${formatTime(iso)}`;
+  const time = formatTime(iso);
+  const thenDay = zonedCalendarDate(iso);
+  const nowDay = zonedCalendarDate(now);
+  if (thenDay === nowDay) return `hoje às ${time}`;
+  if (thenDay === shiftCalendarDate(nowDay, -1)) return `ontem às ${time}`;
   return formatDateTime(iso);
 }
 

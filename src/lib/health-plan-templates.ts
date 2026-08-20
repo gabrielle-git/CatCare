@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { HealthPlanProvider, HealthPlanTemplate } from "@/types/database";
+import { PETLOVE_LEVE_REFERENCE } from "@/lib/petlove-health-reference";
 
 export const DEFAULT_PETLOVE_LEVE_COVERAGE = [
   "Consultas em horário normal",
@@ -97,10 +98,113 @@ export async function syncTemplateCoverageToPlans(supabase: SupabaseClient, temp
     .eq("template_id", templateId);
 }
 
-export function petDiscountHint(activeSamePlanCount: number, provider: HealthPlanProvider) {
-  if (provider !== "petlove" || activeSamePlanCount <= 0) return null;
-  const position = activeSamePlanCount + 1;
-  const discount = position === 1 ? 0 : position === 2 ? 10 : position === 3 ? 20 : 30;
-  if (discount === 0) return "Este será o 1º pet no plano — mensalidade cheia.";
-  return `Este será o ${position}º pet no plano — desconto de ${discount}% na mensalidade (Petlove).`;
+export type ExistingHealthPlanRef = {
+  pet_id: string;
+  pet_name?: string;
+  provider: HealthPlanProvider;
+  plan_name: string;
+  active: boolean;
+  template_id?: string | null;
+  started_at?: string | null;
+  created_at?: string | null;
+};
+
+export function normalizePlanName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Agrupa planos iguais mesmo com nomes levemente diferentes (ex.: "Leve" vs "Petlove Leve"). */
+export function sameHealthPlan(
+  provider: HealthPlanProvider,
+  planName: string,
+  other: Pick<ExistingHealthPlanRef, "provider" | "plan_name" | "template_id">,
+  templateId?: string | null,
+) {
+  if (other.provider !== provider) return false;
+  if (templateId && other.template_id && templateId === other.template_id) return true;
+  const a = normalizePlanName(planName);
+  const b = normalizePlanName(other.plan_name);
+  if (a === b) return true;
+  if (provider === "petlove") {
+    const strip = (value: string) => value.replace(/^petlove\s+/, "").replace(/\s+saúde\s+/, " ").trim();
+    if (strip(a) === strip(b)) return true;
+    if (strip(a).includes("leve") && strip(b).includes("leve")) return true;
+  }
+  return false;
+}
+
+export function petloveDiscountPercent(position: number) {
+  if (position <= 1) return 0;
+  if (position === 2) return 10;
+  if (position === 3) return 20;
+  return 30;
+}
+
+function planSortTime(plan: ExistingHealthPlanRef) {
+  return new Date(plan.started_at || plan.created_at || 0).getTime();
+}
+
+function activeSamePlanGroup(
+  existingPlans: ExistingHealthPlanRef[],
+  provider: HealthPlanProvider,
+  planName: string,
+  templateId?: string | null,
+) {
+  return existingPlans.filter((plan) => plan.active && sameHealthPlan(provider, planName, plan, templateId));
+}
+
+/**
+ * Posição do pet no desconto multi-pet Petlove.
+ * - create: sempre “quantos já estão no plano + 1” (não esconde o pet selecionado da conta se ele ainda não tem plano).
+ * - edit: posição cronológica entre os pets já no mesmo plano.
+ */
+export function resolvePetlovePlanPosition(
+  existingPlans: ExistingHealthPlanRef[],
+  provider: HealthPlanProvider,
+  planName: string,
+  petId: string,
+  mode: "create" | "edit",
+  templateId?: string | null,
+) {
+  const group = activeSamePlanGroup(existingPlans, provider, planName, templateId);
+  const others = group.filter((plan) => plan.pet_id !== petId);
+
+  if (mode === "create") {
+    return {
+      position: others.length + 1,
+      others: [...others].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id)),
+    };
+  }
+
+  const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
+  const index = ordered.findIndex((plan) => plan.pet_id === petId);
+  return {
+    position: index >= 0 ? index + 1 : ordered.length + 1,
+    others: ordered.filter((plan) => plan.pet_id !== petId),
+  };
+}
+
+export function petloveFeeForPosition(position: number, baseFeeCents = PETLOVE_LEVE_REFERENCE.baseMonthlyFeeCents) {
+  const discount = petloveDiscountPercent(position);
+  return Math.round(baseFeeCents * (1 - discount / 100));
+}
+
+export function petDiscountHint(
+  position: number,
+  provider: HealthPlanProvider,
+  others: ExistingHealthPlanRef[],
+  mode: "create" | "edit",
+) {
+  if (provider !== "petlove") return null;
+  const discount = petloveDiscountPercent(position);
+  const names = others.map((plan) => plan.pet_name).filter(Boolean);
+  const already = names.length
+    ? `Já neste plano: ${names.join(", ")}.`
+    : others.length > 0
+      ? `${others.length} pet${others.length === 1 ? "" : "s"} já cadastrado${others.length === 1 ? "" : "s"} neste plano.`
+      : "Nenhum outro pet neste plano ainda.";
+  const ordinal = `${position}º`;
+  const verb = mode === "edit" ? "é" : "será";
+  if (discount === 0) return `${already} Este ${verb} o ${ordinal} pet — mensalidade cheia.`;
+  return `${already} Este ${verb} o ${ordinal} pet — ${discount}% de desconto na mensalidade (Petlove).`;
 }

@@ -6,6 +6,7 @@ import { HealthPlanPromoFields } from "@/components/health-plan-promo-fields";
 import { listHealthPlanTemplates } from "@/lib/health-plan-templates";
 import { getHealthPlan, listHealthPlans } from "@/lib/health-plan";
 import { ensureHousehold } from "@/lib/households";
+import { listPets } from "@/lib/pets";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { deleteHealthPlan, updateHealthPlan } from "../../actions";
@@ -20,10 +21,11 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
   if (!data.user) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Entre na conta.</div>;
 
   const household = await ensureHousehold(supabase, data.user.id);
-  const [plan, templates, plans] = await Promise.all([
+  const [plan, templates, plans, pets] = await Promise.all([
     getHealthPlan(supabase, household.id, id),
     listHealthPlanTemplates(supabase, household.id),
     listHealthPlans(supabase, household.id),
+    listPets(supabase, household.id),
   ]);
   if (!plan) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Plano não encontrado.</div>;
 
@@ -35,6 +37,10 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
     plan_name: item.plan_name,
     active: item.active,
     pet_id: item.pet_id,
+    pet_name: pets.find((pet) => pet.id === item.pet_id)?.name,
+    template_id: item.template_id,
+    started_at: item.started_at,
+    created_at: item.created_at,
   }));
 
   return (
@@ -62,6 +68,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
             defaultPetId={plan.pet_id}
             currentPetId={plan.pet_id}
             existingPlans={existingPlans}
+            mode="edit"
             initialProvider={plan.provider}
             initialPlanName={plan.plan_name}
             initialCoverage={plan.coverage_summary ?? ""}
