@@ -12,14 +12,14 @@ import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoHealthPlans, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { saveBenefitMembership, deleteBenefitMembership, deleteHealthPlan } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     return { pets: demoPets, plans: demoHealthPlans, memberships: demoBenefitMemberships, configured: false, editable: false };
   }
   const supabase = await createClient();
@@ -79,7 +79,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
 
       {!configured && (
         <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
-          <strong>Modo de demonstração.</strong> Conecte uma conta para salvar planos reais.
+          <strong>Modo de demonstração.</strong> <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para salvar planos reais.
         </div>
       )}
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano salvo.</div>}

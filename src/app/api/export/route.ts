@@ -4,7 +4,7 @@ import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
-  if (!hasSupabaseEnv()) return NextResponse.json({ error: "Supabase não configurado." }, { status: 503 });
+  if (!hasSupabaseEnv()) return NextResponse.json({ error: "Exportação indisponível neste ambiente." }, { status: 503 });
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return NextResponse.json({ error: "Entre na sua conta para exportar." }, { status: 401 });

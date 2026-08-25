@@ -6,11 +6,11 @@ import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 async function loadPets() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false, editable: false };
+  if (!(await isLiveData())) return { pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { pets: [], configured: true, editable: false };
@@ -36,7 +36,7 @@ export default async function PetsPage({ searchParams }: { searchParams: Promise
         </Link>}
       </header>
 
-      {!configured && <div className="mt-6 rounded-[20px] border border-[#d9cfee] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Dobby, Crystal e os dois bebês já usam os dados informados; fotos e registros de rotina continuam demonstrativos até conectar o Supabase.</div>}
+      {!configured && <div className="mt-6 rounded-[20px] border border-[#d9cfee] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Perfis de exemplo.</strong> Dobby, Crystal e os dois bebês ilustram o app; <Link href="/login" className="font-bold underline">crie sua conta ou faça login</Link> para cadastrar seus pets de verdade.</div>}
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">A fase de vida é identificada automaticamente pela data de nascimento. A equivalência humana é aproximada e serve apenas como referência carinhosa.</p>
       {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Pet arquivado. O histórico continua guardado.</div>}
 

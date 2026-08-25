@@ -11,7 +11,7 @@ import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
 import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import type { ProductCategory, ProductReview, Purchase, PurchaseChannel } from "@/types/database";
 import { deleteProduct, deletePurchase } from "./actions";
@@ -27,7 +27,7 @@ const tones: Record<ProductCategory, string> = {
 };
 
 async function loadPage() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     return {
       products: demoProducts,
       purchases: demoPurchases,

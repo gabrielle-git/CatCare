@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
+import { DEMO_COOKIE } from "@/lib/demo-mode";
 import { isSafeNextPath } from "@/lib/invites";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,10 +37,10 @@ function authErrorMessage(error: { message: string; code?: string }) {
     return "Esta conta já existe. Use Entrar com a senha cadastrada.";
   }
   if (text.includes("signups not allowed")) {
-    return "O cadastro está desativado neste projeto Supabase. Em Authentication → Providers → Email, habilite os cadastros uma vez.";
+    return "O cadastro está temporariamente desativado. Use a demonstração ou tente de novo mais tarde.";
   }
   if (text.includes("redirect")) {
-    return "A URL de retorno não está liberada no Supabase. Em Authentication → URL Configuration, adicione a URL do app + /auth/callback.";
+    return "Não foi possível concluir o login. Peça para quem administra o app revisar a URL de retorno.";
   }
   if (text.includes("leaked") || text.includes("pwned")) {
     return "Essa senha é muito comum. Escolha outra com pelo menos 6 caracteres.";
@@ -49,6 +51,8 @@ function authErrorMessage(error: { message: string; code?: string }) {
 const CONFIRM_COPY = "Enviamos um e-mail para confirmar sua conta. Abra o link e depois toque em Entrar.";
 
 async function enterApp(formData?: FormData) {
+  const jar = await cookies();
+  jar.set(DEMO_COOKIE, "", { path: "/", maxAge: 0 });
   revalidatePath("/", "layout");
   redirect(formData ? destination(formData) : "/");
 }

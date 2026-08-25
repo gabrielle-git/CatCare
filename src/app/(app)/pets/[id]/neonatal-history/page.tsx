@@ -6,11 +6,11 @@ import { demoPets, demoTimeline } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
 import { isNeonatalTimelineItem, listPetNeonatalTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 async function loadNeonatalHistory(petId: string) {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     const pet = demoPets.find((item) => item.id === petId) ?? null;
     const items = demoTimeline.filter((item) => item.pet_id === petId && isNeonatalTimelineItem(item));
     return { pet, items, configured: false, editable: false };

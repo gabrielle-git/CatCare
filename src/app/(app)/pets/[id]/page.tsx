@@ -14,12 +14,12 @@ import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
 import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
 import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { updatePetDescription } from "../actions";
 
 async function loadPetPage(id: string) {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     const pet = demoPets.find((item) => item.id === id);
     return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: false, editable: false };
   }

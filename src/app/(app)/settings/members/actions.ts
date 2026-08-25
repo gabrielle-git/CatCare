@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildInviteUrl, isLocalAppUrl } from "@/lib/app-url";
+import { INVITE_MANUAL_COOKIE, demoCookieOptions } from "@/lib/demo-mode";
 import { sendInviteEmail } from "@/lib/email/send-invite";
 import { ensureHousehold } from "@/lib/households";
 import { getMyRole, isOwner } from "@/lib/roles";
@@ -65,7 +67,11 @@ export async function sendInvite(formData: FormData) {
   if (mail.sent) {
     redirect("/settings/members?invited=1");
   }
-  redirect(`/settings/members?invited=1&manual=${encodeURIComponent(inviteUrl)}`);
+
+  // Keep the invite URL out of the address bar / history / server logs.
+  const jar = await cookies();
+  jar.set(INVITE_MANUAL_COOKIE, inviteUrl, demoCookieOptions(60 * 10));
+  redirect("/settings/members?invited=1&manual=1");
 }
 
 export async function revokeInvite(inviteId: string) {

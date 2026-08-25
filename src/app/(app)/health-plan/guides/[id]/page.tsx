@@ -10,14 +10,14 @@ import { ensureHousehold } from "@/lib/households";
 import { demoHealthPlanGuides, demoHealthPlans, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { addGuideService, deleteGuideService, deleteHealthPlanGuide, saveGuideBaseFee, saveGuideNotes } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
 async function loadGuide(id: string) {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     const guide = demoHealthPlanGuides.find((item) => item.id === id) ?? demoHealthPlanGuides[0];
     const petNames = new Map(demoPets.map((pet) => [pet.id, pet.name]));
     const plans = demoHealthPlans

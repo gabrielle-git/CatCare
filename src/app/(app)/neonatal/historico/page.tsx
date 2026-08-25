@@ -8,13 +8,13 @@ import { demoPets, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { listHouseholdTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 async function loadHistory() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     const babies = demoPets.filter(isNeonatalPet);
     const babyIds = new Set(babies.map((pet) => pet.id));
     const items = demoTimeline.filter((item) => babyIds.has(item.pet_id));

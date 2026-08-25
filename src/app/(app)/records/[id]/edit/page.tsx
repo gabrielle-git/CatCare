@@ -7,7 +7,7 @@ import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
 import type { RecordSource } from "@/lib/record-form";
 import { getEditableRecord } from "@/lib/records";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteRecord, updateRecord } from "../../actions";
 
@@ -15,7 +15,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
   const { id } = await params;
   const query = await searchParams;
   const source = (query.source === "weight" || query.source === "health" || query.source === "neonatal" ? query.source : null) as RecordSource | null;
-  if (!hasSupabaseEnv() || !source) {
+  if (!(await isLiveData()) || !source) {
     return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
   }
 

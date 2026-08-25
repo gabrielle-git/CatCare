@@ -8,7 +8,7 @@ import { listMemories } from "@/lib/memories";
 import { demoArchivedMemories, demoMemories, demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import type { MemoryType } from "@/types/database";
 import { archiveMemory, deleteMemoryPermanently, restoreMemory } from "./actions";
@@ -22,7 +22,7 @@ const typeMeta: Record<MemoryType, { label: string; icon: typeof Sparkles; tone:
 };
 
 async function loadPage(archived: boolean) {
-  if (!hasSupabaseEnv()) return { memories: archived ? demoArchivedMemories : demoMemories, pets: demoPets, configured: false, editable: false };
+  if (!(await isLiveData())) return { memories: archived ? demoArchivedMemories : demoMemories, pets: demoPets, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { memories: [], pets: [], configured: true, editable: false };

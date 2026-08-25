@@ -6,14 +6,14 @@ import { LeaveHouseholdForm } from "@/components/leave-household-form";
 import { ensureHousehold } from "@/lib/households";
 import { listMyHouseholds } from "@/lib/household-switch";
 import { isOwner, roleLabel } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteHousehold, leaveHousehold, logout, switchHousehold, updateDisplayName } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 async function loadSettings() {
-  if (!hasSupabaseEnv()) return { configured: false, email: null, displayName: "Família de pets", householdName: "Nossa família", members: 1, activePets: 4, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
+  if (!(await isLiveData())) return { configured: false, email: null, displayName: "Família de pets", householdName: "Nossa família", members: 1, activePets: 4, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { configured: true, email: null, displayName: null, householdName: null, members: 0, activePets: 0, archivedPets: 0, households: [] as Awaited<ReturnType<typeof listMyHouseholds>> };
@@ -104,7 +104,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       const content = <><span className={`grid size-11 shrink-0 place-items-center rounded-[17px] ${tone}`}><Icon size={19} /></span><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs leading-relaxed text-[var(--muted)]">{detail}</span></span>{href ? label.startsWith("Privacidade") && signedIn ? <Download size={17} className="shrink-0 text-[var(--muted)]" /> : <ChevronRight size={17} className="shrink-0 text-[var(--muted)]" /> : <span className="rounded-full bg-[var(--cream)] px-2 py-1 text-[9px] font-bold text-[var(--muted)]">Em evolução</span>}</>;
       return href ? <Link key={label} href={href} className="cat-card focus-ring flex items-center gap-4 p-4 transition hover:-translate-y-0.5">{content}</Link> : <div key={label} className="cat-card flex items-center gap-4 p-4">{content}</div>;
     })}</div>
-    <p className="mt-6 rounded-[20px] bg-[var(--cream)] px-4 py-3 text-xs leading-relaxed text-[var(--muted)]">O CatCare mantém fotos e documentos em armazenamento privado quando o Supabase está conectado. O modo demonstrativo não envia dados para nenhum servidor.</p>
+    <p className="mt-6 rounded-[20px] bg-[var(--cream)] px-4 py-3 text-xs leading-relaxed text-[var(--muted)]">Fotos e documentos ficam em armazenamento privado quando você entra com a conta. No modo demonstração nada é enviado a servidor.</p>
     {signedIn && (
       <form action={logout} className="mt-5">
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-xs font-bold text-[var(--muted)] sm:w-auto">

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { Bot, Send, Sparkles } from "lucide-react";
 
 type AnswerKey = "vaccine" | "expenses" | "weight" | "reminder" | "food" | "litter" | "shopping" | "summary";
@@ -28,25 +29,74 @@ function identify(text: string): AnswerKey {
   return "summary";
 }
 
-export function AssistantPanel({ answers }: { answers: Record<AnswerKey, string> }) {
-  const [messages, setMessages] = useState<Message[]>([{ role: "assistant", text: "Oi! Eu organizo respostas usando somente o que está registrado no CatCare. O que você quer revisar?" }]);
+export function AssistantPanel({ answers, demoMode = false }: { answers: Record<AnswerKey, string>; demoMode?: boolean }) {
+  const [messages, setMessages] = useState<Message[]>([{
+    role: "assistant",
+    text: demoMode
+      ? "No modo demonstração o assistente fica só de leitura. Crie sua conta ou faça login para perguntar com os dados da sua família."
+      : "Oi! Eu organizo respostas usando somente o que está registrado no CatCare. O que você quer revisar?",
+  }]);
   const [draft, setDraft] = useState("");
 
   function ask(text: string, key = identify(text)) {
+    if (demoMode) return;
     setMessages((current) => [...current, { role: "user", text }, { role: "assistant", text: answers[key] }]);
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (demoMode) return;
     const question = draft.trim();
     if (!question) return;
     ask(question);
     setDraft("");
   }
 
-  return <div className="cat-card mt-6 overflow-hidden">
-    <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--cream)] px-4 py-3"><div className="flex items-center gap-2 text-xs font-bold"><span className="grid size-8 place-items-center rounded-[13px] bg-[var(--lavender-soft)]"><Bot size={16} /></span> Assistente de dados</div><span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-[9px] font-bold text-[var(--success)]"><Sparkles size={10} /> Sem inventar dados</span></div>
-    <div className="min-h-[360px] space-y-3 p-4 md:min-h-[410px] md:p-5">{messages.map((message, index) => <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><p className={`max-w-[86%] rounded-[18px] px-4 py-3 text-sm leading-relaxed ${message.role === "user" ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"}`}>{message.text}</p></div>)}</div>
-    <div className="border-t border-[var(--border)] p-4 md:p-5"><div className="mb-3 flex flex-wrap gap-2">{suggestions.map((suggestion) => <button key={suggestion.key} type="button" onClick={() => ask(suggestion.label, suggestion.key)} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-2 text-[10px] font-bold transition hover:bg-[var(--lavender-soft)]">{suggestion.label}</button>)}</div><form onSubmit={submit} className="flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} className="field min-w-0 flex-1" placeholder="Pergunte sobre seus pets..." aria-label="Pergunta para o assistente" /><button aria-label="Enviar pergunta" className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Send size={17} /><span className="hidden sm:inline">Enviar</span></button></form></div>
-  </div>;
+  return (
+    <div className="cat-card mt-6 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--cream)] px-4 py-3">
+        <div className="flex items-center gap-2 text-xs font-bold">
+          <span className="grid size-8 place-items-center rounded-[13px] bg-[var(--lavender-soft)]"><Bot size={16} /></span>
+          Assistente de dados
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-[9px] font-bold text-[var(--success)]">
+          <Sparkles size={10} /> Sem inventar dados
+        </span>
+      </div>
+      <div className="min-h-[360px] space-y-3 p-4 md:min-h-[410px] md:p-5">
+        {messages.map((message, index) => (
+          <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+            <p className={`max-w-[86%] rounded-[18px] px-4 py-3 text-sm leading-relaxed ${message.role === "user" ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"}`}>
+              {message.text}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-[var(--border)] p-4 md:p-5">
+        {demoMode ? (
+          <p className="rounded-[16px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
+            Perguntas desativadas na demonstração.{" "}
+            <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link>
+            {" "}para usar o assistente.
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <button key={suggestion.key} type="button" onClick={() => ask(suggestion.label, suggestion.key)} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-2 text-[10px] font-bold transition hover:bg-[var(--lavender-soft)]">
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+            <form onSubmit={submit} className="flex gap-2">
+              <input value={draft} onChange={(event) => setDraft(event.target.value)} className="field min-w-0 flex-1" placeholder="Pergunte sobre seus pets..." aria-label="Pergunta para o assistente" />
+              <button aria-label="Enviar pergunta" className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white">
+                <Send size={17} /><span className="hidden sm:inline">Enviar</span>
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }

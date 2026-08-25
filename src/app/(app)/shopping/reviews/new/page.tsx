@@ -6,7 +6,7 @@ import { getProduct, getPurchase } from "@/lib/commerce";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { createProductReview } from "../../actions";
 
@@ -18,7 +18,7 @@ const scoreFields = [
 
 export default async function NewReviewPage({ searchParams }: { searchParams: Promise<{ purchase?: string; error?: string }> }) {
   const flags = await searchParams;
-  if (!hasSupabaseEnv()) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
+  if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
   if (!flags.purchase) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Informe a compra para avaliar.</div>;
 
   const supabase = await createClient();
