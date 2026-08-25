@@ -1,0 +1,28 @@
+---
+description: Ritmo de PRs para CatCare (solo, escopo e tempo)
+alwaysApply: true
+---
+
+# Pull requests — ritmo do projeto
+
+Só a dona do projeto mexe no código agora. Priorizar **continuidade e tempo**, não cerimônia de PR a cada passo.
+
+## Padrão
+
+- **Commit local** quando o pedaço estiver estável (sem abrir PR por padrão).
+- **Não** sugerir PR a cada bugfix ou ajuste pequeno.
+- **Recomendar PR** (perguntar antes de abrir) quando fizer sentido mergear na `main`, tipicamente:
+  - um pacote relacionado já “fechou” (ex.: neonatal + planos + demo guest);
+  - a `main`/Vercel precisa da mudança no site oficial;
+  - a branch ficou grande demais ou misturou temas que valem separar;
+  - a usuária pediu explicitamente.
+
+## Como recomendar
+
+- Ser breve: “vale PR agora?” + 1 linha do porquê (deploy / fechar épica / branch inchada).
+- Preferir **um PR com commits relacionados** a vários PRs minúsculos.
+- Se a usuária disser “depois”, não insistir; continuar na branch.
+
+## Lembrete
+
+PR = pedido de merge na `main` (código oficial + deploy). Commit na branch ≠ estar no app publicado.
