@@ -83,12 +83,26 @@ Libs principais: `roles.ts`, `households.ts`, `invites.ts`, `household-media.ts`
 - Convites: token forte, e-mail vinculado, RPCs SECURITY DEFINER; orphan auto-delete removido (0015)
 - Fuso Brasil explícito; redirects de invite com `next` sanitizado
 - **`getMyRole` fail-closed:** se a RPC falhar, retorna `null` (sem privilégio) — não assume `owner`
+- **Demo sem login:** cookie `catcare_demo` + mock; visitantes sem sessão vão para `/demo` (não para a parede de login). Assistente bloqueado na demo. Mutações e `/api/export` ainda exigem Auth real
+
+### Teste rápido: “dá para roubar o sistema pela demo?”
+
+| Tentativa | Resultado esperado |
+|-----------|-------------------|
+| Abrir `/` sem login | Redirect → `/demo` → home com Dobby/Crystal/bebês fictícios |
+| Cookie de demo + navegar pets/neonatal/planos | Só mock; nomes/IDs de exemplo |
+| Cookie de demo + `/api/export` | **401** JSON (`Entre na sua conta…`) — testado 2026-08-20 |
+| Visitante sem cookie + `/` ou `/pets` | **307** → `/demo` — testado 2026-08-20 |
+| Cookie de demo + salvar registro/pet | Server Action manda para `/login` (sem sessão) |
+| Inventar sessão / só cookie | Não vira `owner`; RLS + `getUser()` bloqueiam |
+
+**Conclusão:** a demo não é um “atalho de cadastro”. Não cria conta, não entra em família alheia e não grava nada. Login/cadastro existem para a família real; a entrada pública, por enquanto, é só demonstração.
 
 ### Achados ainda abertos
 
 | Prioridade | Achado | Onde |
 |------------|--------|------|
-| Média | Token de convite pode ir na query `?manual=` (histórico/logs) | `settings/members/actions` |
+| ~~Média~~ | ~~Token de convite pode ir na query `?manual=`~~ — **corrigido (cookie httpOnly; query só `manual=1`)** | `settings/members` |
 | Baixa | Senha mínima 6; signed URLs ~1h | login / pets / memories |
 | Baixa | Export JSON incompleto (não inclui planos/guias/clubes novos) | `/api/export` |
 
@@ -113,10 +127,11 @@ Correções e UX ligadas ao pacote neonatal + plano de saúde + registros:
 O CatCare já cobre um fluxo familiar amplo (cuidados + finanças leves + planos + neonatal), com defesa em profundidade. O maior salto recente foi o **PR #13**. A branch de qualidade fecha bugs e UX desse pacote sem misturar documentação de “go-live”.
 
 ### Próximos cortes sugeridos (depois do PR)
-1. Evitar token de convite em `?manual=`
-2. Completar `/api/export` com planos, guias e clubes
-3. PWA / notificações
-4. IA visual só com consentimento explícito
+1. Completar `/api/export` com planos, guias e clubes
+2. PWA / notificações
+3. IA visual só com consentimento explícito
+
+**Demo sem login:** entrada pública padrão via `/demo` (cookie `catcare_demo`); mock enriquecido (peso, cocô, temperatura, vacina, registros neonatais); assistente desativado na demo; textos de UI sem citar Supabase.
 
 ---
 

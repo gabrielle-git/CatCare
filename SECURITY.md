@@ -16,6 +16,21 @@ Este documento descreve as decisões de segurança do app e o que configurar no 
 - **Excluir família** exige digitar o nome na UI e só funciona se o dono for o único membro.
 - **Exportação JSON** (`/api/export`) exige sessão e limita-se à família ativa do usuário.
 
+## Modo demonstração (sem login)
+
+- Visitantes sem sessão são enviados para **`/demo`**, que grava o cookie httpOnly `catcare_demo` e mostra **dados fictícios** de `src/lib/mock-data.ts`.
+- Com o cookie de demo, o app **não** lê a família real: `isLiveData()` fica falso e as páginas usam só o mock.
+- **Mutações** (criar pet, registro, export, etc.) continuam exigindo `auth.getUser()` nas Server Actions / `/api/export`. Sem sessão → redirect para login ou 401. O cookie de demo **não** eleva privilégio.
+- Rotas `/api/*` sem sessão (com ou sem cookie de demo) respondem **401 JSON** — não redirecionam para a página de demo.
+- A chave publishable do Supabase é pública por desenho; o isolamento de dados depende de **RLS** + sessão. Demo não contorna RLS.
+- Login e cadastro em `/login` e `/cadastro` ficam disponíveis para quem já tem (ou terá) conta; a entrada pública, por enquanto, é a demonstração.
+
+### O que a demo **não** permite
+- Ver ou editar dados de outra família
+- Aceitar convites sem autenticação
+- Chamar RPCs autenticadas com sucesso
+- Usar o assistente (UI bloqueada na demo)
+
 ## Convites
 
 - Tokens de convite são UUIDs; validados no RPC `accept_household_invite`.
