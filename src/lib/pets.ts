@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pet, PetWithPhotoUrl } from "@/types/database";
 
 export const PET_MEDIA_BUCKET = "pet-media";
-const PHOTO_TTL_SECONDS = 60 * 60;
+/** Link temporário da foto: 30 min. Cada página gera de novo; se vazar, expira mais cedo. */
+const PHOTO_TTL_SECONDS = 60 * 30;
 
 async function addPhotoUrl(supabase: SupabaseClient, pet: Pet): Promise<PetWithPhotoUrl> {
   if (!pet.photo_path) return { ...pet, photo_url: null };

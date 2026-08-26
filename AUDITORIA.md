@@ -111,6 +111,11 @@ Se uma camada falhar, a próxima ainda deve proteger. Por isso não “desligamo
 - **Por quê:** só você mexe no código; PR a cada ajuste cansa e não agrega.
 - **Como:** commits na branch; PR quando for mergear na `main` (deploy). Regra em `.cursor/rules/pr-cadence.mdc`.
 
+### 2.11 Senha e links de foto
+
+- **Por quê:** senha de 6 caracteres é frágil; links assinados de 1h deixam a foto “aberta” por mais tempo se alguém copiar a URL.
+- **Como:** cadastro novo exige **8+** caracteres; login não força 8 (não tranca contas antigas). Fotos/memórias usam signed URL de **30 minutos** — a cada visita o servidor gera um link novo.
+
 ---
 
 ## 3. Linha do tempo (entregas)
@@ -198,7 +203,7 @@ Pacote da branch `fix/plan-discount-neonatal-dual-records`:
 | Item | Status |
 |------|--------|
 | ~~Completar `/api/export` (planos, guias, clubes)~~ | **Feito** — inclui `health_plans`, copays, templates, guias, serviços, `benefit_memberships` |
-| Senha mínima &gt; 6; signed URLs mais curtas | Pendente — endurecimento fino; não bloqueia uso da família |
+| ~~Senha mínima &gt; 6; signed URLs mais curtas~~ | **Feito** — cadastro exige 8+ caracteres (login aceita senhas antigas); signed URLs de foto/memória = 30 min |
 
 ### Produto futuro (não é “bug”)
 | Item | O que é na prática |

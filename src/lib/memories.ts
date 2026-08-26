@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 import type { Memory, MemoryMedia, MemoryMediaWithUrl, MemoryWithMediaUrl } from "@/types/database";
 
-const MEDIA_TTL_SECONDS = 60 * 60;
+/** Link temporário da mídia: 30 min (mesmo critério das fotos de pets). */
+const MEDIA_TTL_SECONDS = 60 * 30;
 
 async function attachMediaUrls(supabase: SupabaseClient, memory: Memory, petIds: string[], rows: MemoryMedia[]): Promise<MemoryWithMediaUrl> {
   const ordered = [...rows].sort((a, b) => a.position - b.position);
