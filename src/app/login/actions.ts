@@ -18,7 +18,7 @@ function destination(formData: FormData) {
 }
 
 /** Contas novas: mínimo 8. Login não exige 8 para não trancar quem já cadastrou com 6. */
-export const MIN_SIGNUP_PASSWORD_LENGTH = 8;
+const MIN_SIGNUP_PASSWORD_LENGTH = 8;
 
 function readEmailPassword(formData: FormData, path: string) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
