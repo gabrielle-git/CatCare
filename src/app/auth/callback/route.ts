@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEMO_COOKIE } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -11,9 +12,11 @@ export async function GET(request: Request) {
   }
 
   const code = url.searchParams.get("code");
+  const response = NextResponse.redirect(new URL("/", url.origin));
   if (code) {
     const supabase = await createClient();
     await supabase.auth.exchangeCodeForSession(code);
+    response.cookies.set(DEMO_COOKIE, "", { path: "/", maxAge: 0 });
   }
-  return NextResponse.redirect(new URL("/", url.origin));
+  return response;
 }

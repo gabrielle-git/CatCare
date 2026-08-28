@@ -50,7 +50,6 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
         <p className="mt-2 text-sm text-[var(--muted)]">Peso, saúde e cuidados ficam juntos na linha do tempo do pet.</p>
       </header>
 
-      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Explore o formulário; <Link href="/login" className="font-bold underline">crie sua conta ou faça login</Link> para salvar.</div>}
       {query.error && <div role="alert" className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{query.error}</div>}
 
       {configured && pets.length === 0 ? (

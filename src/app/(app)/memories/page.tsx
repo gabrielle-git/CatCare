@@ -47,7 +47,6 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
       <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Álbum da família</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Memórias</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Primeiras vezes, marcos e cenas comuns que um dia viram as melhores histórias.</p></div>
       <Link href="/memories/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Guardar memória</Link>
     </header>
-    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> As capas abaixo são ilustrações; suas memórias reais sempre terão uma foto enviada por você.</div>}
     {configured && !editable && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">Entre na sua conta para ver e guardar as memórias privadas da família. <Link href="/login" className="font-bold underline">Entrar</Link></div>}
     {(flags.saved || flags.updated) && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Memória guardada com carinho.</div>}
     {flags.archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm">Memória excluída do álbum e guardada em Arquivadas. As fotos continuam protegidas e ela pode ser restaurada.</div>}

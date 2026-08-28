@@ -54,7 +54,6 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Vida financeira</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Gastos da família</h1><p className="mt-2 max-w-[620px] text-sm text-[var(--muted)]">Descubra para onde o dinheiro está indo sem perder o contexto de cada cuidado.</p></div>
         {editable && <Link href="/expenses/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Adicionar gasto</Link>}
       </header>
-      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> Os valores mostram como sua visão financeira ficará depois que você <Link href="/login" className="font-bold underline">criar conta ou fizer login</Link>.</div>}
       {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Gasto registrado e incluído no resumo.</div>}
 
       <section className="mt-6 grid gap-3 sm:grid-cols-3">

@@ -53,11 +53,6 @@ export default async function HealthPlanGuidesPage({
         )}
       </header>
 
-      {!configured && (
-        <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
-          <strong>Modo demonstração.</strong> <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para criar e editar tabelas.
-        </div>
-      )}
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Salvo.</div>}
       {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Removido.</div>}
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}

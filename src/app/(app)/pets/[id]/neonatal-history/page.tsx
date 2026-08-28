@@ -44,12 +44,6 @@ export default async function PetNeonatalHistoryPage({ params }: { params: Promi
         <p className="mt-2 text-sm text-[var(--muted)]">Mamadas, xixi, cocô e demais cuidados registrados enquanto {pet.name} era filhote.</p>
       </header>
 
-      {!configured && (
-        <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm">
-          <strong>Modo de demonstração.</strong> Exemplo com dados fictícios.
-        </div>
-      )}
-
       <section className="mt-8">
         <TimelineList
           items={items}

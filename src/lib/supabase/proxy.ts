@@ -56,5 +56,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(homeUrl);
   }
 
+  if (isLoggedIn && isDemoGuest) {
+    response.cookies.set(DEMO_COOKIE, "", { path: "/", maxAge: 0 });
+  }
+
   return response;
 }

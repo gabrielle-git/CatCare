@@ -77,11 +77,6 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
         )}
       </header>
 
-      {!configured && (
-        <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
-          <strong>Modo de demonstração.</strong> <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para salvar planos reais.
-        </div>
-      )}
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano salvo.</div>}
       {flags.membership && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Assinatura salva.</div>}
       {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano removido.</div>}

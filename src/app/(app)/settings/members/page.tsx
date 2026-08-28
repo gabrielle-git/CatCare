@@ -69,7 +69,6 @@ export default async function MembersPage({
       </div>
       <p className="mt-2 text-sm text-[var(--muted)]">{householdName} — quem pode ver e quem pode editar os cuidados dos pets.</p>
 
-      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">Modo demonstrativo: só aparece um membro fictício.</div>}
       {params.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{params.error}</div>}
       {params.updated && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Papel atualizado.</div>}
       {params.removed && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Membro removido.</div>}

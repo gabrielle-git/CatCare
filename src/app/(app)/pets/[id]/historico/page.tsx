@@ -47,12 +47,6 @@ export default async function PetHistoryPage({ params }: { params: Promise<{ id:
         <p className="mt-2 text-sm text-[var(--muted)]">Todos os cuidados registrados, com filtros e seleção em lote.</p>
       </header>
 
-      {!configured && (
-        <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
-          <strong>Modo de demonstração.</strong> Exemplo com dados fictícios.
-        </div>
-      )}
-
       <section className="mt-8">
         <TimelineList
           items={items}
