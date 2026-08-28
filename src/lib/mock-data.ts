@@ -1,7 +1,7 @@
 import { formatWeight } from "@/lib/format";
 import { DEFAULT_PETLOVE_LEVE_COVERAGE } from "@/lib/health-plan-templates";
 import { PETLOVE_LEVE_PROCEDURE_GROUPS, PETLOVE_LEVE_REFERENCE } from "@/lib/petlove-health-reference";
-import type { BenefitMembership, Expense, HealthPlanGuideWithServices, HealthPlanWithCopays, MemoryWithMediaUrl, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
+import type { BenefitMembership, Expense, HealthPlanGuideWithServices, HealthPlanWithCopays, MemoryWithMediaUrl, NeonatalRecord, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
 import type { HealthPlanGuideService } from "@/types/database";
 
 export const demoPets: PetWithPhotoUrl[] = [
@@ -17,7 +17,7 @@ export const demoPets: PetWithPhotoUrl[] = [
     color: "Branca",
     photo_path: null,
     photo_url: null,
-    current_weight_grams: null,
+    current_weight_grams: 4250,
     neutered: true,
     neutered_at: "2026-08-05",
     neutered_place: "Clínica Vet Vida",
@@ -42,7 +42,7 @@ export const demoPets: PetWithPhotoUrl[] = [
     color: "Branca",
     photo_path: null,
     photo_url: null,
-    current_weight_grams: null,
+    current_weight_grams: 3600,
     neutered: false,
     neutered_at: null,
     neutered_place: null,
@@ -67,7 +67,7 @@ export const demoPets: PetWithPhotoUrl[] = [
     color: null,
     photo_path: null,
     photo_url: null,
-    current_weight_grams: null,
+    current_weight_grams: 285,
     neutered: false,
     neutered_at: null,
     neutered_place: null,
@@ -92,7 +92,7 @@ export const demoPets: PetWithPhotoUrl[] = [
     color: null,
     photo_path: null,
     photo_url: null,
-    current_weight_grams: null,
+    current_weight_grams: 270,
     neutered: false,
     neutered_at: null,
     neutered_place: null,
@@ -120,12 +120,47 @@ export const demoWeights: Record<string, { date: string; grams: number }[]> = {
     { date: "2026-07-12T10:00:00-03:00", grams: 3300 },
     { date: "2026-08-10T10:00:00-03:00", grams: 3600 },
   ],
+  [demoPets[2].id]: [
+    { date: "2026-08-10T08:00:00-03:00", grams: 220 },
+    { date: "2026-08-13T08:00:00-03:00", grams: 248 },
+    { date: "2026-08-16T08:00:00-03:00", grams: 270 },
+    { date: "2026-08-19T08:00:00-03:00", grams: 285 },
+  ],
+  [demoPets[3].id]: [
+    { date: "2026-08-10T08:10:00-03:00", grams: 210 },
+    { date: "2026-08-13T08:10:00-03:00", grams: 235 },
+    { date: "2026-08-16T08:10:00-03:00", grams: 255 },
+    { date: "2026-08-19T08:10:00-03:00", grams: 270 },
+  ],
 };
 
+export const demoNeonatalRecords: NeonatalRecord[] = [
+  { id: "neo-1", household_id: demoPets[0].household_id, pet_id: demoPets[2].id, type: "feeding", occurred_at: "2026-08-20T07:40:00-03:00", amount_ml: 9, weight_grams: null, temperature_c: null, quality: "pegou bem", notes: null, created_at: "2026-08-20T07:40:00-03:00" },
+  { id: "neo-2", household_id: demoPets[0].household_id, pet_id: demoPets[2].id, type: "urine", occurred_at: "2026-08-20T07:55:00-03:00", amount_ml: null, weight_grams: null, temperature_c: null, quality: "normal", notes: null, created_at: "2026-08-20T07:55:00-03:00" },
+  { id: "neo-3", household_id: demoPets[0].household_id, pet_id: demoPets[2].id, type: "stool", occurred_at: "2026-08-20T08:05:00-03:00", amount_ml: null, weight_grams: null, temperature_c: null, quality: "pastoso", notes: "Cor mostarda", created_at: "2026-08-20T08:05:00-03:00" },
+  { id: "neo-4", household_id: demoPets[0].household_id, pet_id: demoPets[2].id, type: "temperature", occurred_at: "2026-08-20T08:15:00-03:00", amount_ml: null, weight_grams: null, temperature_c: 37.8, quality: null, notes: null, created_at: "2026-08-20T08:15:00-03:00" },
+  { id: "neo-5", household_id: demoPets[0].household_id, pet_id: demoPets[2].id, type: "weight", occurred_at: "2026-08-19T08:00:00-03:00", amount_ml: null, weight_grams: 285, temperature_c: null, quality: null, notes: null, created_at: "2026-08-19T08:00:00-03:00" },
+  { id: "neo-6", household_id: demoPets[0].household_id, pet_id: demoPets[3].id, type: "feeding", occurred_at: "2026-08-20T07:50:00-03:00", amount_ml: 8, weight_grams: null, temperature_c: null, quality: "pegou bem", notes: null, created_at: "2026-08-20T07:50:00-03:00" },
+  { id: "neo-7", household_id: demoPets[0].household_id, pet_id: demoPets[3].id, type: "urine", occurred_at: "2026-08-20T08:00:00-03:00", amount_ml: null, weight_grams: null, temperature_c: null, quality: "normal", notes: null, created_at: "2026-08-20T08:00:00-03:00" },
+  { id: "neo-8", household_id: demoPets[0].household_id, pet_id: demoPets[3].id, type: "stool", occurred_at: "2026-08-19T19:20:00-03:00", amount_ml: null, weight_grams: null, temperature_c: null, quality: "normal", notes: null, created_at: "2026-08-19T19:20:00-03:00" },
+  { id: "neo-9", household_id: demoPets[0].household_id, pet_id: demoPets[3].id, type: "temperature", occurred_at: "2026-08-19T19:30:00-03:00", amount_ml: null, weight_grams: null, temperature_c: 37.6, quality: null, notes: null, created_at: "2026-08-19T19:30:00-03:00" },
+  { id: "neo-10", household_id: demoPets[0].household_id, pet_id: demoPets[3].id, type: "weight", occurred_at: "2026-08-19T08:10:00-03:00", amount_ml: null, weight_grams: 270, temperature_c: null, quality: null, notes: null, created_at: "2026-08-19T08:10:00-03:00" },
+];
+
 export const demoTimeline: TimelineItem[] = [
-  { id: "demo-1", pet_id: demoPets[2].id, source: "neonatal", kind: "feeding", title: "Mamada", detail: "8 ml • pegou bem", occurred_at: "2026-08-16T21:10:00-03:00", tone: "rose" },
-  { id: "demo-3", pet_id: demoPets[0].id, source: "health", kind: "surgery", title: "Castração", detail: "Data aproximada • cerca de 12 dias atrás", occurred_at: "2026-08-05T12:00:00-03:00", tone: "mint" },
-  { id: "demo-4", pet_id: demoPets[2].id, source: "neonatal", kind: "urine", title: "Fez xixi", detail: "Normal", occurred_at: "2026-08-16T18:15:00-03:00", tone: "peach" },
+  { id: "demo-1", pet_id: demoPets[2].id, source: "neonatal", kind: "feeding", title: "Mamada", detail: "9 ml • pegou bem", occurred_at: "2026-08-20T07:40:00-03:00", tone: "rose" },
+  { id: "demo-2", pet_id: demoPets[2].id, source: "neonatal", kind: "stool", title: "Fez cocô", detail: "Pastoso • cor mostarda", occurred_at: "2026-08-20T08:05:00-03:00", tone: "peach" },
+  { id: "demo-3", pet_id: demoPets[2].id, source: "neonatal", kind: "temperature", title: "Temperatura", detail: "37,8 °C", occurred_at: "2026-08-20T08:15:00-03:00", tone: "lavender" },
+  { id: "demo-4", pet_id: demoPets[2].id, source: "neonatal", kind: "urine", title: "Fez xixi", detail: "Normal", occurred_at: "2026-08-20T07:55:00-03:00", tone: "peach" },
+  { id: "demo-5", pet_id: demoPets[2].id, source: "neonatal", kind: "weight", title: "Peso", detail: "285 g", occurred_at: "2026-08-19T08:00:00-03:00", tone: "mint" },
+  { id: "demo-6", pet_id: demoPets[3].id, source: "neonatal", kind: "feeding", title: "Mamada", detail: "8 ml • pegou bem", occurred_at: "2026-08-20T07:50:00-03:00", tone: "rose" },
+  { id: "demo-7", pet_id: demoPets[3].id, source: "neonatal", kind: "stool", title: "Fez cocô", detail: "Normal", occurred_at: "2026-08-19T19:20:00-03:00", tone: "peach" },
+  { id: "demo-8", pet_id: demoPets[3].id, source: "neonatal", kind: "temperature", title: "Temperatura", detail: "37,6 °C", occurred_at: "2026-08-19T19:30:00-03:00", tone: "lavender" },
+  { id: "demo-9", pet_id: demoPets[0].id, source: "weight", kind: "weight", title: "Pesagem", detail: "4,25 kg", occurred_at: "2026-08-16T10:00:00-03:00", tone: "mint" },
+  { id: "demo-10", pet_id: demoPets[1].id, source: "weight", kind: "weight", title: "Pesagem", detail: "3,60 kg", occurred_at: "2026-08-10T10:00:00-03:00", tone: "mint" },
+  { id: "demo-11", pet_id: demoPets[0].id, source: "health", kind: "vaccine", title: "Vacina V4 (1ª dose)", detail: "Clínica Vet Vida", occurred_at: "2026-08-03T15:00:00-03:00", tone: "lavender" },
+  { id: "demo-12", pet_id: demoPets[0].id, source: "health", kind: "surgery", title: "Castração", detail: "Data aproximada", occurred_at: "2026-08-05T12:00:00-03:00", tone: "mint" },
+  { id: "demo-13", pet_id: demoPets[1].id, source: "health", kind: "deworming", title: "Vermífugo", detail: "Dose mensal", occurred_at: "2026-08-12T11:00:00-03:00", tone: "peach" },
 ];
 
 export const demoReminders: Reminder[] = [

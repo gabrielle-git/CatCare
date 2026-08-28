@@ -34,7 +34,8 @@ export async function getMyRole(supabase?: SupabaseClient): Promise<HouseholdRol
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) return null;
   const { data, error } = await client.rpc("my_household_role");
-  if (error || !data) return "owner";
+  // Fail closed: never escalate to owner on RPC/network failure.
+  if (error || !data) return null;
   return data as HouseholdRole;
 }
 

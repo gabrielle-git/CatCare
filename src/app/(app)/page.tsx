@@ -8,7 +8,7 @@ import { listPets } from "@/lib/pets";
 import { listHouseholdTimeline, listPetDewormingDoses, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
 import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
 import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
@@ -27,7 +27,7 @@ type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: b
 
 async function loadDashboard() {
   const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
-  if (!hasSupabaseEnv()) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
+  if (!(await isLiveData())) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return empty;

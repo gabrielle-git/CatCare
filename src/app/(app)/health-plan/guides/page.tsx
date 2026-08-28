@@ -4,13 +4,13 @@ import { ensureAllGuides } from "@/lib/health-plan-guides";
 import { ensureHousehold } from "@/lib/households";
 import { demoHealthPlanGuides } from "@/lib/mock-data";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 async function loadGuides() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     return { guides: demoHealthPlanGuides, editable: false, configured: false };
   }
   const supabase = await createClient();
@@ -55,7 +55,7 @@ export default async function HealthPlanGuidesPage({
 
       {!configured && (
         <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">
-          <strong>Modo demonstração.</strong> Conecte uma conta para criar e editar tabelas.
+          <strong>Modo demonstração.</strong> <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para criar e editar tabelas.
         </div>
       )}
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Salvo.</div>}

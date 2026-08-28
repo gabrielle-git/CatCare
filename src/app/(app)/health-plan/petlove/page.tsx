@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { ensurePetloveLeveGuide } from "@/lib/health-plan-guides";
 import { ensureHousehold } from "@/lib/households";
 import { demoHealthPlanGuides } from "@/lib/mock-data";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PetloveLegacyRedirectPage() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     redirect(`/health-plan/guides/${demoHealthPlanGuides[0].id}`);
   }
 

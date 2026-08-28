@@ -6,7 +6,7 @@ import { ensureHousehold } from "@/lib/households";
 import { getReminder } from "@/lib/commerce";
 import { listPets } from "@/lib/pets";
 import { toLocalDateTimeInput } from "@/lib/record-form";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteReminder, updateReminder } from "../../actions";
 
@@ -20,7 +20,7 @@ function recurrenceValue(rule: string | null) {
 export default async function EditReminderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  if (!hasSupabaseEnv()) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
+  if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
 
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();

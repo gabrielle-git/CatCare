@@ -4,12 +4,12 @@ import { PetMultiSelect } from "@/components/pet-multi-select";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { createExpense } from "../actions";
 
 async function loadPetsForForm() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, configured: false };
+  if (!(await isLiveData())) return { pets: demoPets, configured: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { pets: [], configured: true };
@@ -22,7 +22,7 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
   return <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <Link href="/expenses" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar aos gastos</Link>
     <div className="mt-4 flex items-center gap-3"><span className="grid size-11 place-items-center rounded-[18px] bg-[var(--lavender-soft)]"><ReceiptText size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Novo lançamento</p><h1 className="text-3xl font-bold tracking-[-0.04em]">Adicionar gasto</h1></div></div>
-    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">O formulário está visível para comparação. <Link href="/login" className="font-bold underline">Conecte uma conta</Link> para salvar de verdade.</div>}
+    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">O formulário está visível para comparação. <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para salvar de verdade.</div>}
     {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
     <form action={createExpense} className="cat-card mt-6 space-y-5 p-5 md:p-7">
       <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Descrição<input disabled={!configured} required name="description" className="field mt-2" placeholder="Ex.: Consulta de retorno" /></label><label className="text-sm font-bold">Valor total (R$)<input disabled={!configured} required name="amount" type="number" min="0" step="0.01" inputMode="decimal" className="field mt-2" placeholder="0,00" /></label></div>

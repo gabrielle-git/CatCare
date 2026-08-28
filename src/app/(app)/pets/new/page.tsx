@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PetFields } from "@/components/pet-fields";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createPet } from "../actions";
 
 export default async function NewPetPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
-  const configured = hasSupabaseEnv();
+  const configured = await isLiveData();
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
       <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus pets</Link>
@@ -16,7 +16,7 @@ export default async function NewPetPage({ searchParams }: { searchParams: Promi
         <p className="mt-2 text-sm text-[var(--muted)]">Só o essencial agora. Você pode completar e editar depois.</p>
       </header>
 
-      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração:</strong> conecte o Supabase para salvar um novo perfil.</div>}
+      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração:</strong> <Link href="/login" className="font-bold underline">crie sua conta ou faça login</Link> para salvar um novo perfil.</div>}
       {error && <div role="alert" className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
 
       <form action={createPet} className="cat-card mt-6 p-5 md:p-7">

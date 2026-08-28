@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowLeft, MailPlus, Shield, UserMinus, UsersRound, X } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { INVITE_MANUAL_COOKIE, isLiveData } from "@/lib/demo-mode";
 import { ensureHousehold } from "@/lib/households";
 import { listPendingInvites } from "@/lib/invites";
 import { getMyRole, isOwner, listHouseholdRoster, roleLabel } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdRole } from "@/types/database";
 import { removeMember, revokeInvite, renameHousehold, sendInvite, setMemberAlias, setMemberRole, transferOwnership } from "./actions";
@@ -13,7 +14,7 @@ import { removeMember, revokeInvite, renameHousehold, sendInvite, setMemberAlias
 export const dynamic = "force-dynamic";
 
 async function loadMembersPage() {
-  if (!hasSupabaseEnv()) {
+  if (!(await isLiveData())) {
     return {
       configured: false,
       householdName: "Nossa família",
@@ -50,6 +51,12 @@ export default async function MembersPage({
   const { configured, householdName, roster, invites, myRole, myUserId, error } = await loadMembersPage();
   const owner = isOwner(myRole);
 
+  let manualInviteUrl: string | null = null;
+  if (params.manual === "1") {
+    const jar = await cookies();
+    manualInviteUrl = jar.get(INVITE_MANUAL_COOKIE)?.value ?? null;
+  }
+
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
       <Link href="/settings" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Configurações</Link>
@@ -68,15 +75,15 @@ export default async function MembersPage({
       {params.removed && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Membro removido.</div>}
       {params.invited && (
         <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">
-          Convite criado{params.manual ? " — copie o link abaixo e envie manualmente:" : " e e-mail enviado."}
-          {params.manual && <p className="mt-2 break-all font-normal text-[var(--foreground)]">{params.manual}</p>}
+          Convite criado{manualInviteUrl ? " — copie o link abaixo e envie manualmente:" : " e e-mail enviado."}
+          {manualInviteUrl && <p className="mt-2 break-all font-normal text-[var(--foreground)]">{manualInviteUrl}</p>}
         </div>
       )}
       {params.revoked && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Convite cancelado.</div>}
       {params.renamed && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Nome da família atualizado.</div>}
       {params.alias && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Apelido salvo — só você vê assim.</div>}
       {params.transferred && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Dono da família transferido. Você agora é cuidador.</div>}
-      {error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error} Rode as migrations no Supabase se necessário.</div>}
+      {error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error} Se o problema continuar, avise quem administra o app.</div>}
 
       {owner && configured && (
         <section className="cat-card mt-6 p-5">

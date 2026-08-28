@@ -7,11 +7,24 @@ export function newRecordHref(petId: string, type: string, title?: string, retur
   return `/records/new?${params.toString()}`;
 }
 
-/** Pre-selects type without locking — filters, neonatal quick actions, etc. */
-export function preselectRecordHref(opts: { pet?: string; type?: string; returnTo?: string; neonatal?: boolean }) {
+/** Pre-selects type(s) without locking — filters, neonatal quick actions, etc. */
+export function preselectRecordHref(opts: {
+  pet?: string;
+  type?: string;
+  types?: string[];
+  returnTo?: string;
+  neonatal?: boolean;
+}) {
   const params = new URLSearchParams();
   if (opts.pet) params.set("pet", opts.pet);
-  if (opts.type && opts.type !== "all") params.set("type", opts.type);
+  const types = (opts.types ?? []).filter((type) => type && type !== "all").slice(0, 2);
+  if (types.length > 1) {
+    params.set("types", types.join(","));
+  } else if (types.length === 1) {
+    params.set("type", types[0]);
+  } else if (opts.type && opts.type !== "all") {
+    params.set("type", opts.type);
+  }
   if (opts.returnTo) params.set("return_to", opts.returnTo);
   if (opts.neonatal) params.set("context", "neonatal");
   const query = params.toString();

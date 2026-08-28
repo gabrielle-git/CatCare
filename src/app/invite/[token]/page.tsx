@@ -22,7 +22,7 @@ export default async function InvitePage({
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <div className="cat-card p-6 text-center">
-          <p className="text-sm text-[var(--muted)]">Configure o Supabase para aceitar convites.</p>
+          <p className="text-sm text-[var(--muted)]">Os convites precisam que o app esteja com a conta configurada. Tente de novo mais tarde ou peça para quem administra o CatCare.</p>
         </div>
       </div>
     );

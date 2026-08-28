@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, Shield } from "lucide-react";
 import { HEALTH_PLAN_PROVIDER_LABELS } from "@/lib/health-plan";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createHealthPlanGuide } from "../../actions";
 
 export default async function NewHealthPlanGuidePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const flags = await searchParams;
-  if (!hasSupabaseEnv()) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
+  if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
 
   return (
     <div className="mx-auto w-full max-w-[720px] px-5 pb-8 pt-7 md:px-8 lg:py-10">

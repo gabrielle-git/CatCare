@@ -36,9 +36,10 @@ export function numberValue(formData: FormData, name: string) {
 }
 
 export function parseLocalDateTime(raw: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(raw);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
   if (!match) return null;
-  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:00-03:00`);
+  const seconds = match[6] ?? "00";
+  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${seconds}-03:00`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
@@ -61,6 +62,23 @@ export const neonatalCareTypes = new Set(["feeding", "urine", "stool", "temperat
 
 export function isNeonatalCareType(type: string) {
   return neonatalCareTypes.has(type);
+}
+
+export function parseRecordTypes(formData: FormData): string[] {
+  const fromList = value(formData, "record_types");
+  const raw = fromList
+    ? fromList.split(/[,|]+/)
+    : formData.getAll("record_type").map((item) => String(item));
+  const seen = new Set<string>();
+  const types: string[] = [];
+  for (const item of raw) {
+    const type = item.trim();
+    if (!type || !quickRecordTypes.has(type) || seen.has(type)) continue;
+    seen.add(type);
+    types.push(type);
+    if (types.length >= 2) break;
+  }
+  return types;
 }
 
 export function safeReturnPath(raw: string | null | undefined, fallback: string) {

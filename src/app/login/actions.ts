@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
+import { DEMO_COOKIE } from "@/lib/demo-mode";
 import { isSafeNextPath } from "@/lib/invites";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,11 +17,25 @@ function destination(formData: FormData) {
   return isSafeNextPath(next) ? next : "/";
 }
 
-function credentials(formData: FormData, path: string) {
+/** Contas novas: mínimo 8. Login não exige 8 para não trancar quem já cadastrou com 6. */
+const MIN_SIGNUP_PASSWORD_LENGTH = 8;
+
+function readEmailPassword(formData: FormData, path: string) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) redirect(message(path, "error", "Informe e-mail e senha."));
-  if (password.length < 6) redirect(message(path, "error", "A senha precisa ter pelo menos 6 caracteres."));
+  return { email, password };
+}
+
+function loginCredentials(formData: FormData) {
+  return readEmailPassword(formData, "/login");
+}
+
+function signupCredentials(formData: FormData) {
+  const { email, password } = readEmailPassword(formData, "/cadastro");
+  if (password.length < MIN_SIGNUP_PASSWORD_LENGTH) {
+    redirect(message("/cadastro", "error", `A senha precisa ter pelo menos ${MIN_SIGNUP_PASSWORD_LENGTH} caracteres.`));
+  }
   return { email, password };
 }
 
@@ -35,13 +51,13 @@ function authErrorMessage(error: { message: string; code?: string }) {
     return "Esta conta já existe. Use Entrar com a senha cadastrada.";
   }
   if (text.includes("signups not allowed")) {
-    return "O cadastro está desativado neste projeto Supabase. Em Authentication → Providers → Email, habilite os cadastros uma vez.";
+    return "O cadastro está temporariamente desativado. Use a demonstração ou tente de novo mais tarde.";
   }
   if (text.includes("redirect")) {
-    return "A URL de retorno não está liberada no Supabase. Em Authentication → URL Configuration, adicione a URL do app + /auth/callback.";
+    return "Não foi possível concluir o login. Peça para quem administra o app revisar a URL de retorno.";
   }
   if (text.includes("leaked") || text.includes("pwned")) {
-    return "Essa senha é muito comum. Escolha outra com pelo menos 6 caracteres.";
+    return `Essa senha é muito comum. Escolha outra com pelo menos ${MIN_SIGNUP_PASSWORD_LENGTH} caracteres.`;
   }
   return error.message;
 }
@@ -49,12 +65,14 @@ function authErrorMessage(error: { message: string; code?: string }) {
 const CONFIRM_COPY = "Enviamos um e-mail para confirmar sua conta. Abra o link e depois toque em Entrar.";
 
 async function enterApp(formData?: FormData) {
+  const jar = await cookies();
+  jar.set(DEMO_COOKIE, "", { path: "/", maxAge: 0 });
   revalidatePath("/", "layout");
   redirect(formData ? destination(formData) : "/");
 }
 
 export async function login(formData: FormData) {
-  const { email, password } = credentials(formData, "/login");
+  const { email, password } = loginCredentials(formData);
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
@@ -66,7 +84,7 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const { email, password } = credentials(formData, "/cadastro");
+  const { email, password } = signupCredentials(formData);
   const displayName = String(formData.get("display_name") ?? "").trim();
   if (!displayName) redirect(message("/cadastro", "error", "Informe o nome que vai aparecer na família."));
   if (displayName.length > 60) redirect(message("/cadastro", "error", "Nome muito longo."));

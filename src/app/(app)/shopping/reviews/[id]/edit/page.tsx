@@ -6,14 +6,14 @@ import { StarRating } from "@/components/star-rating";
 import { getProduct, getProductReview } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteProductReview, updateProductReview } from "../../../actions";
 
 export default async function EditReviewPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  if (!hasSupabaseEnv()) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
+  if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
 
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();

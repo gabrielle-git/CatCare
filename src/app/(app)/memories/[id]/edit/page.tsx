@@ -6,12 +6,12 @@ import { MemoryFields } from "@/components/memory-fields";
 import { ensureHousehold } from "@/lib/households";
 import { getMemory } from "@/lib/memories";
 import { listPets } from "@/lib/pets";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { archiveMemory, updateMemory } from "../../actions";
 
 export default async function EditMemoryPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
-  if (!hasSupabaseEnv()) redirect("/memories");
+  if (!(await isLiveData())) redirect("/memories");
   const { id } = await params;
   const flags = await searchParams;
   const supabase = await createClient();

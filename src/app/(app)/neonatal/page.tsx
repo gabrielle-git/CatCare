@@ -4,17 +4,17 @@ import { NeonatalDashboard } from "@/components/neonatal-dashboard";
 import { TimelineList } from "@/components/timeline-list";
 import { isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
-import { demoPets, demoTimeline } from "@/lib/mock-data";
+import { demoPets, demoTimeline, demoNeonatalRecords } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { listHouseholdNeonatalRecords, listHouseholdTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 async function loadNeonatal() {
-  if (!hasSupabaseEnv()) return { pets: demoPets, timeline: demoTimeline, neonatalRecords: [], configured: false, editable: false };
+  if (!(await isLiveData())) return { pets: demoPets, timeline: demoTimeline, neonatalRecords: demoNeonatalRecords, configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { pets: [], timeline: [], neonatalRecords: [], configured: true, editable: false };
