@@ -5,6 +5,8 @@ import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, 
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
+import { WEIGHT_KG_LEGACY_FIELD, weightKgFieldName } from "@/lib/record-field-names";
+import { validateCreateRecordForm } from "@/lib/record-form-validation";
 import { isNeonatalCareType, toLocalDateTimeInput } from "@/lib/record-form";
 import type { QuickRecordType } from "@/components/record-fields-types";
 
@@ -12,8 +14,6 @@ export type { QuickRecordType } from "@/components/record-fields-types";
 
 type PetOption = { id: string; name: string; neonatal: boolean };
 type RecordOption = { value: QuickRecordType; label: string; shortLabel: string; icon: LucideIcon; neonatal?: boolean };
-
-const MAX_TYPES = 2;
 
 const options: RecordOption[] = [
   { value: "weight", label: "Pesagem", shortLabel: "Peso", icon: Scale },
@@ -121,18 +121,13 @@ export function RecordFields({
   submitLabel?: string;
 }) {
   const neonatalPets = useMemo(() => neonatalPetPool(pets), [pets]);
-  const defaultPet = initialPetId && pets.some((pet) => pet.id === initialPetId)
-    ? pets.find((pet) => pet.id === initialPetId)
-    : neonatalContext
-      ? neonatalPets[0]
-      : pets[0];
+  const petNames = useMemo(() => new Map(pets.map((pet) => [pet.id, pet.name])), [pets]);
 
   const parsedInitialTypes = useMemo(() => {
     const fromList = (initialTypes ?? [])
       .flatMap((item) => item.split(","))
       .map((item) => item.trim())
-      .filter((item): item is QuickRecordType => options.some((option) => option.value === item))
-      .slice(0, MAX_TYPES);
+      .filter((item): item is QuickRecordType => options.some((option) => option.value === item));
     if (fromList.length > 0) return fromList;
     if (initialType && options.some((option) => option.value === initialType)) {
       return [initialType as QuickRecordType];
@@ -141,19 +136,24 @@ export function RecordFields({
     return [] as QuickRecordType[];
   }, [defaultValues?.record_type, initialType, initialTypes]);
 
-  const fallbackType: QuickRecordType = neonatalContext && parsedInitialTypes.length === 0
-    ? "feeding"
-    : defaultPet?.neonatal
-      ? "feeding"
-      : "weight";
-
+  const fallbackType: QuickRecordType = neonatalContext ? "feeding" : "weight";
   const validInitial = parsedInitialTypes[0] ?? fallbackType;
 
-  const [selectedTypes, setSelectedTypes] = useState<QuickRecordType[]>(
-    () => (parsedInitialTypes.length > 0 ? parsedInitialTypes : [validInitial]),
-  );
+  const [selectedTypes, setSelectedTypes] = useState<QuickRecordType[]>(() => {
+    if (parsedInitialTypes.length > 0) return parsedInitialTypes;
+    if (neonatalContext) return ["feeding"];
+    return [];
+  });
+
   const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
   const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
+  const [weightKg, setWeightKg] = useState(() =>
+    defaultValues?.weight_grams != null ? gramsToKgInput(defaultValues.weight_grams) : "",
+  );
+  const [weightKgByPetId, setWeightKgByPetId] = useState<Record<string, string>>({});
+  const [amountMl, setAmountMl] = useState(defaultValues?.amount_ml?.toString() ?? "");
+  const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
+
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const lockTypeFromUrl = mode === "create" && (initialLockType === "1" || initialLockType === "true" || lockTitleFromUrl);
   const lockedType = mode === "edit" || lockTypeFromUrl;
@@ -190,6 +190,14 @@ export function RecordFields({
     [selectedPetIds, visiblePets],
   );
 
+  const droppedPetNames = useMemo(() => {
+    if (!restrictToNeonatal) return [] as string[];
+    return selectedPetIds
+      .filter((id) => !visiblePets.some((pet) => pet.id === id))
+      .map((id) => petNames.get(id))
+      .filter((name): name is string => Boolean(name));
+  }, [petNames, restrictToNeonatal, selectedPetIds, visiblePets]);
+
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
   const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
   const hasHealthType = activeTypes.some((type) =>
@@ -204,6 +212,21 @@ export function RecordFields({
     : recordCount > 1
       ? `Salvar ${recordCount} registros`
       : submitLabel;
+
+  const validationMessage = useMemo(
+    () => validateCreateRecordForm({
+      petIds: visibleSelectedIds,
+      types: activeTypes,
+      weightKg,
+      weightKgByPetId,
+      amountMl,
+      temperatureC,
+      petNames,
+    }),
+    [activeTypes, amountMl, petNames, temperatureC, visibleSelectedIds, weightKg, weightKgByPetId],
+  );
+
+  const submitBlocked = disabled || visiblePets.length === 0 || validationMessage !== null;
 
   useEffect(() => {
     if (initialTitle) {
@@ -220,16 +243,28 @@ export function RecordFields({
       prev,
       neonatalContext || activeTypes.some(isNeonatalCareType),
       initialPetId,
-      Boolean(initialPetId),
+      hasExplicitPet,
     ));
-  }, [activeTypes, initialPetId, lockedType, mode, neonatalContext, pets]);
+  }, [activeTypes, hasExplicitPet, initialPetId, lockedType, mode, neonatalContext, pets]);
+
+  useEffect(() => {
+    setWeightKgByPetId((prev) => {
+      const next = { ...prev };
+      for (const id of visibleSelectedIds) {
+        if (!(id in next)) next[id] = "";
+      }
+      return next;
+    });
+  }, [visibleSelectedIds]);
 
   const toggleType = (value: QuickRecordType) => {
-    setSelectedTypes((prev) => {
-      if (prev.includes(value)) return prev.filter((item) => item !== value);
-      if (prev.length >= MAX_TYPES) return [prev[1] ?? prev[0], value];
-      return [...prev, value];
-    });
+    if (disabled) return;
+    setSelectedTypes((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
+  };
+
+  const clearTypes = () => {
+    if (disabled) return;
+    setSelectedTypes([]);
   };
 
   const petHint = mode === "create"
@@ -240,7 +275,56 @@ export function RecordFields({
         : "Pode escolher mais de um — o registro será criado para cada pet selecionado."
     : undefined;
 
-  const typeLabels = activeTypes.map((type) => optionByType[type]?.label ?? type).join(" + ");
+  const weightUsesPerPetFields = mode === "create" && visibleSelectedIds.length > 1;
+
+  function renderWeightFields() {
+    if (weightUsesPerPetFields) {
+      return (
+        <div className="grid gap-4 sm:col-span-2">
+          {visibleSelectedIds.map((petId) => (
+            <label key={petId} className="block text-sm font-bold">
+              Peso (kg) — {petNames.get(petId) ?? "Pet"}
+              <input
+                disabled={disabled}
+                type="text"
+                name={weightKgFieldName(petId)}
+                inputMode="decimal"
+                value={weightKgByPetId[petId] ?? ""}
+                onChange={(event) => setWeightKgByPetId((prev) => ({ ...prev, [petId]: event.target.value }))}
+                className="field mt-2"
+                placeholder="Ex.: 4,2"
+                aria-required="true"
+              />
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    const singlePetId = visibleSelectedIds[0];
+    const label = mode === "edit"
+      ? "Peso (kg)"
+      : singlePetId
+        ? `Peso (kg)${petNames.get(singlePetId) ? ` — ${petNames.get(singlePetId)}` : ""}`
+        : "Peso (kg)";
+
+    return (
+      <label className="block text-sm font-bold">
+        {label}
+        <input
+          disabled={disabled}
+          type="text"
+          name={WEIGHT_KG_LEGACY_FIELD}
+          inputMode="decimal"
+          value={weightKg}
+          onChange={(event) => setWeightKg(event.target.value)}
+          className="field mt-2"
+          placeholder="Ex.: 4,2"
+          aria-required="true"
+        />
+      </label>
+    );
+  }
 
   return (
     <>
@@ -272,8 +356,17 @@ export function RecordFields({
             />
           )}
         </div>
-        {mode === "create" && activeTypes.includes("weight") && visibleSelectedIds.length > 1 && (
-          <p className="mt-2 text-xs text-[var(--muted)]">Cada pet receberá o mesmo peso informado. Para pesos diferentes, registre um de cada vez.</p>
+        {droppedPetNames.length > 0 && (
+          <p className="mt-2 text-xs font-semibold text-[#9a536c]" role="status">
+            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — mamada, xixi, cocô e temperatura só valem para filhotes.
+          </p>
+        )}
+        {mode === "create" && recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
+          <p className="mt-2 text-xs font-semibold text-[var(--muted)]" role="status">
+            {recordCount} registros serão criados ({visibleSelectedIds.length}{" "}
+            {visibleSelectedIds.length === 1 ? "pet" : "pets"} × {activeTypes.length}{" "}
+            {activeTypes.length === 1 ? "tipo" : "tipos"}).
+          </p>
         )}
       </section>
 
@@ -281,16 +374,15 @@ export function RecordFields({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <p className="text-sm font-bold">2. O que aconteceu?</p>
           {allowMultiType && (
-            <p className="text-[11px] font-semibold text-[var(--muted)]">Até {MAX_TYPES} tipos — ex.: xixi + cocô</p>
+            <p className="text-[11px] font-semibold text-[var(--muted)]">Você pode registrar vários cuidados de uma vez</p>
           )}
         </div>
         {lockedType ? (
           <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{optionByType[primaryType]?.label ?? primaryType}</p>
         ) : (
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" role="group" aria-label="Tipo de cuidado">
             {options.map(({ value, shortLabel, icon: Icon }) => {
               const active = selectedTypes.includes(value);
-              const atLimit = selectedTypes.length >= MAX_TYPES && !active;
               return (
                 <button
                   key={value}
@@ -301,25 +393,45 @@ export function RecordFields({
                   className={`focus-ring flex min-h-20 flex-col items-center justify-center gap-2 rounded-[18px] border px-2 text-xs font-bold transition ${
                     active
                       ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                      : atLimit
-                        ? "border-[var(--border)] bg-white text-[var(--muted)] opacity-55"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
+                      : "border-[var(--border)] bg-white text-[var(--muted)] hover:border-[var(--lavender)]/40"
                   }`}
                 >
-                  <Icon size={19} /> {shortLabel}
+                  <Icon size={19} aria-hidden /> {shortLabel}
                 </button>
               );
             })}
           </div>
         )}
-        {multiType && (
-          <p className="mt-3 rounded-[14px] bg-[var(--cream)] px-3 py-2 text-xs font-semibold text-[var(--muted)]">
-            Registrando juntos: <span className="text-[var(--foreground)]">{typeLabels}</span>
-          </p>
+        {allowMultiType && activeTypes.length >= 2 && (
+          <div className="mt-3 rounded-[14px] bg-[var(--cream)] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-[var(--muted)]">
+                {activeTypes.length} cuidados selecionados
+              </p>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={clearTypes}
+                className="focus-ring text-[11px] font-bold text-[var(--lavender-strong)] underline disabled:opacity-50"
+              >
+                Limpar seleção
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {activeTypes.map((type) => (
+                <span
+                  key={type}
+                  className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"
+                >
+                  {optionByType[type]?.shortLabel ?? type}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
         {allowMultiType && activeTypes.length === 0 && (
           <p className="mt-3 rounded-[14px] border border-dashed border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--muted)]">
-            Nenhum tipo selecionado — toque em 1 ou 2 opções acima para abrir o formulário.
+            Nenhum tipo selecionado — toque em uma ou mais opções acima para abrir o formulário.
           </p>
         )}
       </section>
@@ -331,102 +443,123 @@ export function RecordFields({
           </div>
         ) : (
           activeTypes.map((type) => {
-          const meta = optionByType[type];
-          const showCard = multiType;
-          const qualityName = multiType ? `quality_${type}` : "quality";
-          const titleName = multiType ? `title_${type}` : "title";
-          const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation";
+            const meta = optionByType[type];
+            const showCard = multiType;
+            const qualityName = multiType ? `quality_${type}` : "quality";
+            const titleName = multiType ? `title_${type}` : "title";
+            const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation";
 
-          const fields = (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {type === "weight" && (
-                <label className="block text-sm font-bold">
-                  Peso (kg)
-                  <input disabled={disabled} required type="text" name="weight_kg" inputMode="decimal" defaultValue={defaultValues?.weight_grams != null ? gramsToKgInput(defaultValues.weight_grams) : ""} className="field mt-2" placeholder="Ex.: 4,2" />
-                </label>
-              )}
-              {type === "feeding" && (
-                <label className="block text-sm font-bold">
-                  Quantidade em ml
-                  <input disabled={disabled} required type="number" name="amount_ml" min="0.1" max="1000" step="0.1" inputMode="decimal" defaultValue={defaultValues?.amount_ml ?? ""} className="field mt-2" placeholder="Ex.: 8" />
-                </label>
-              )}
-              {type === "temperature" && (
-                <label className="block text-sm font-bold">
-                  Temperatura em °C
-                  <input disabled={disabled} required type="number" name="temperature_c" min="30" max="45" step="0.1" inputMode="decimal" defaultValue={defaultValues?.temperature_c ?? ""} className="field mt-2" placeholder="Ex.: 37,8" />
-                </label>
-              )}
-              {(type === "feeding" || type === "urine" || type === "stool") && (
-                <QualitySelect
-                  name={qualityName}
-                  label={multiType ? `Como foi o ${meta?.label.toLowerCase() ?? type}?` : "Como foi?"}
-                  disabled={disabled}
-                  defaultValue={defaultValues?.quality}
-                />
-              )}
-              {healthType && (
-                lockTitleFromUrl && !multiType ? (
-                  <div className="block sm:col-span-2">
-                    <p className="text-sm font-bold">Título</p>
-                    <input type="hidden" name="title" value={title} />
-                    <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{title}</p>
-                  </div>
-                ) : (
-                  <label className="block text-sm font-bold sm:col-span-2">
-                    {multiType ? `Título (${meta?.label ?? type})` : "Título"}
-                    {multiType ? (
-                      <input
-                        disabled={disabled}
-                        name={titleName}
-                        defaultValue={type === "deworming" ? "Vermífugo" : ""}
-                        className="field mt-2"
-                        placeholder={
-                          type === "vaccine" ? "Ex.: V4 — primeira dose"
-                            : type === "deworming" ? "Ex.: Vermífugo"
-                              : type === "medication" ? "Ex.: Antipulgas"
-                                : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
-                                  : "O que você percebeu?"
-                        }
-                      />
-                    ) : (
-                      <input
-                        disabled={disabled}
-                        name="title"
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                        className="field mt-2"
-                        placeholder={
-                          type === "vaccine" ? "Ex.: V4 — primeira dose"
-                            : type === "deworming" ? "Ex.: Vermífugo"
-                              : type === "medication" ? "Ex.: Antipulgas"
-                                : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
-                                  : "O que você percebeu?"
-                        }
-                      />
-                    )}
+            const fields = (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {type === "weight" && renderWeightFields()}
+                {type === "feeding" && (
+                  <label className="block text-sm font-bold">
+                    Quantidade em ml
+                    <input
+                      disabled={disabled}
+                      type="number"
+                      name="amount_ml"
+                      min="0.1"
+                      max="1000"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={amountMl}
+                      onChange={(event) => setAmountMl(event.target.value)}
+                      className="field mt-2"
+                      placeholder="Ex.: 8"
+                      aria-required="true"
+                    />
                   </label>
-                )
-              )}
-              {(type === "vaccine" || type === "deworming" || type === "consultation") && !multiType && (
-                <label className="block text-sm font-bold sm:col-span-2">
-                  Clínica ou veterinário
-                  <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" />
-                </label>
-              )}
-            </div>
-          );
+                )}
+                {type === "temperature" && (
+                  <label className="block text-sm font-bold">
+                    Temperatura em °C
+                    <input
+                      disabled={disabled}
+                      type="number"
+                      name="temperature_c"
+                      min="30"
+                      max="45"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={temperatureC}
+                      onChange={(event) => setTemperatureC(event.target.value)}
+                      className="field mt-2"
+                      placeholder="Ex.: 37,8"
+                      aria-required="true"
+                    />
+                  </label>
+                )}
+                {(type === "feeding" || type === "urine" || type === "stool") && (
+                  <QualitySelect
+                    name={qualityName}
+                    label={multiType ? `Como foi o ${meta?.label.toLowerCase() ?? type}?` : "Como foi?"}
+                    disabled={disabled}
+                    defaultValue={defaultValues?.quality}
+                  />
+                )}
+                {healthType && (
+                  lockTitleFromUrl && !multiType ? (
+                    <div className="block sm:col-span-2">
+                      <p className="text-sm font-bold">Título</p>
+                      <input type="hidden" name="title" value={title} />
+                      <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{title}</p>
+                    </div>
+                  ) : (
+                    <label className="block text-sm font-bold sm:col-span-2">
+                      {multiType ? `Título (${meta?.label ?? type})` : "Título"}
+                      {multiType ? (
+                        <input
+                          disabled={disabled}
+                          name={titleName}
+                          defaultValue={type === "deworming" ? "Vermífugo" : ""}
+                          className="field mt-2"
+                          placeholder={
+                            type === "vaccine" ? "Ex.: V4 — primeira dose"
+                              : type === "deworming" ? "Ex.: Vermífugo"
+                                : type === "medication" ? "Ex.: Antipulgas"
+                                  : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                    : "O que você percebeu?"
+                          }
+                        />
+                      ) : (
+                        <input
+                          disabled={disabled}
+                          name="title"
+                          value={title}
+                          onChange={(event) => setTitle(event.target.value)}
+                          className="field mt-2"
+                          placeholder={
+                            type === "vaccine" ? "Ex.: V4 — primeira dose"
+                              : type === "deworming" ? "Ex.: Vermífugo"
+                                : type === "medication" ? "Ex.: Antipulgas"
+                                  : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                    : "O que você percebeu?"
+                          }
+                        />
+                      )}
+                    </label>
+                  )
+                )}
+                {(type === "vaccine" || type === "deworming" || type === "consultation") && !multiType && (
+                  <label className="block text-sm font-bold sm:col-span-2">
+                    Clínica ou veterinário
+                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" />
+                  </label>
+                )}
+              </div>
+            );
 
-          if (!showCard) {
-            return <div key={type}>{fields}</div>;
-          }
+            if (!showCard) {
+              return <div key={type}>{fields}</div>;
+            }
 
-          return (
-            <div key={type} className="rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">{meta?.label ?? type}</p>
-              <div className="mt-3">{fields}</div>
-            </div>
-          );
+            return (
+              <div key={type} className="rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">{meta?.label ?? type}</p>
+                <div className="mt-3">{fields}</div>
+              </div>
+            );
           })
         )}
 
@@ -453,12 +586,25 @@ export function RecordFields({
 
       <label className="mt-5 block text-sm font-bold">
         Observações
-        <textarea disabled={disabled} name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} className="field mt-2 resize-none" placeholder={multiType ? "Opcional — vale para os dois registros" : "Opcional — qualquer detalhe que ajude depois"} />
+        <textarea
+          disabled={disabled}
+          name="notes"
+          rows={3}
+          defaultValue={defaultValues?.notes ?? ""}
+          className="field mt-2 resize-none"
+          placeholder={recordCount > 1 ? `Opcional — vale para os ${recordCount} registros` : "Opcional — qualquer detalhe que ajude depois"}
+        />
       </label>
 
+      {validationMessage && (
+        <p className="mt-5 text-sm font-semibold text-[var(--danger)]" role="alert">
+          {validationMessage}
+        </p>
+      )}
+
       <SubmitButton
-        disabled={disabled || visiblePets.length === 0 || visibleSelectedIds.length === 0 || activeTypes.length === 0}
-        className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15"
+        disabled={submitBlocked}
+        className="focus-ring mt-3 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 disabled:cursor-not-allowed disabled:opacity-55"
       >
         {resolvedSubmitLabel}
       </SubmitButton>

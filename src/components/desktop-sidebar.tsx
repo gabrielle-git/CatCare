@@ -11,6 +11,7 @@ import {
   ImageIcon,
   Plus,
   ReceiptText,
+  Repeat2,
   Settings,
   ShoppingBasket,
   Shield,
@@ -31,6 +32,7 @@ const sections = [
     label: "Rotina e saúde",
     items: [
       { href: "/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/routines", label: "Rotinas", icon: Repeat2 },
       { href: "/health-plan", label: "Plano de saúde", icon: Shield },
       { href: "/neonatal", label: "Modo neonatal", icon: HeartPulse },
       { href: "/expenses", label: "Gastos", icon: ReceiptText },

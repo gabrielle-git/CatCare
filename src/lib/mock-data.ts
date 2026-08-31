@@ -1,7 +1,7 @@
 import { formatWeight } from "@/lib/format";
 import { DEFAULT_PETLOVE_LEVE_COVERAGE } from "@/lib/health-plan-templates";
 import { PETLOVE_LEVE_PROCEDURE_GROUPS, PETLOVE_LEVE_REFERENCE } from "@/lib/petlove-health-reference";
-import type { BenefitMembership, Expense, HealthPlanGuideWithServices, HealthPlanWithCopays, MemoryWithMediaUrl, NeonatalRecord, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
+import type { BenefitMembership, CareRoutineCompletion, CareRoutineWithPets, Expense, HealthPlanGuideWithServices, HealthPlanWithCopays, MemoryWithMediaUrl, NeonatalRecord, PetWithPhotoUrl, Product, ProductReview, Purchase, Reminder, TimelineItem } from "@/types/database";
 import type { HealthPlanGuideService } from "@/types/database";
 
 export const demoPets: PetWithPhotoUrl[] = [
@@ -312,3 +312,137 @@ export const demoArchivedMemories: MemoryWithMediaUrl[] = [
 
 export const mockPets = demoPets.map((pet) => ({ name: pet.name, detail: pet.current_weight_grams ? formatWeight(pet.current_weight_grams) : "Sem peso" }));
 export const mockUpcoming = demoReminders.map((reminder) => reminder.title);
+
+const demoHouseholdId = demoPets[0].household_id;
+
+export const demoCareRoutines: CareRoutineWithPets[] = [
+  {
+    id: "routine-demo-1",
+    household_id: demoHouseholdId,
+    title: "Escovar os dentes",
+    icon_key: "dental",
+    instructions: "Escova pequena e pasta veterinária.",
+    recurrence_days: 1,
+    preferred_time: "21:00:00",
+    starts_on: "2026-08-01",
+    active: true,
+    created_by: null,
+    created_at: "2026-08-01T12:00:00.000Z",
+    updated_at: "2026-08-20T12:00:00.000Z",
+    pet_ids: [demoPets[0].id],
+  },
+  {
+    id: "routine-demo-2",
+    household_id: demoHouseholdId,
+    title: "Escovar o pelo",
+    icon_key: "brush",
+    instructions: null,
+    recurrence_days: 3,
+    preferred_time: "19:30:00",
+    starts_on: "2026-08-05",
+    active: true,
+    created_by: null,
+    created_at: "2026-08-05T12:00:00.000Z",
+    updated_at: "2026-08-18T12:00:00.000Z",
+    pet_ids: [demoPets[1].id],
+  },
+  {
+    id: "routine-demo-3",
+    household_id: demoHouseholdId,
+    title: "Cortar unhas",
+    icon_key: "scissors",
+    instructions: "Só a pontinha, com boa luz.",
+    recurrence_days: 15,
+    preferred_time: "10:00:00",
+    starts_on: "2026-08-10",
+    active: true,
+    created_by: null,
+    created_at: "2026-08-10T12:00:00.000Z",
+    updated_at: "2026-08-10T12:00:00.000Z",
+    pet_ids: [demoPets[2].id, demoPets[3].id],
+  },
+  {
+    id: "routine-demo-4",
+    household_id: demoHouseholdId,
+    title: "Escovar os dentes",
+    icon_key: "dental",
+    instructions: null,
+    recurrence_days: 1,
+    preferred_time: "21:00:00",
+    starts_on: "2026-08-15",
+    active: true,
+    created_by: null,
+    created_at: "2026-08-15T12:00:00.000Z",
+    updated_at: "2026-08-28T21:05:00.000Z",
+    pet_ids: [demoPets[0].id, demoPets[1].id],
+  },
+  {
+    id: "routine-demo-5",
+    household_id: demoHouseholdId,
+    title: "Hidratar patinhas",
+    icon_key: "droplets",
+    instructions: "Quando estiver ressecado.",
+    recurrence_days: null,
+    preferred_time: null,
+    starts_on: "2026-08-01",
+    active: true,
+    created_by: null,
+    created_at: "2026-08-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+    pet_ids: [demoPets[0].id],
+  },
+  {
+    id: "routine-demo-6",
+    household_id: demoHouseholdId,
+    title: "Banho completo",
+    icon_key: "bath",
+    instructions: null,
+    recurrence_days: 30,
+    preferred_time: "11:00:00",
+    starts_on: "2026-07-01",
+    active: false,
+    created_by: null,
+    created_at: "2026-07-01T12:00:00.000Z",
+    updated_at: "2026-08-01T12:00:00.000Z",
+    pet_ids: [demoPets[1].id],
+  },
+];
+
+export const demoCareRoutineCompletions: CareRoutineCompletion[] = [
+  {
+    id: "completion-demo-1",
+    household_id: demoHouseholdId,
+    routine_id: "routine-demo-4",
+    pet_id: demoPets[0].id,
+    completed_at: "2026-08-28T21:05:00-03:00",
+    completed_by: null,
+    created_at: "2026-08-28T21:05:00-03:00",
+  },
+  {
+    id: "completion-demo-2",
+    household_id: demoHouseholdId,
+    routine_id: "routine-demo-1",
+    pet_id: demoPets[0].id,
+    completed_at: "2026-08-27T21:02:00-03:00",
+    completed_by: null,
+    created_at: "2026-08-27T21:02:00-03:00",
+  },
+  {
+    id: "completion-demo-3",
+    household_id: demoHouseholdId,
+    routine_id: "routine-demo-4",
+    pet_id: demoPets[0].id,
+    completed_at: "2026-08-27T20:52:00-03:00",
+    completed_by: null,
+    created_at: "2026-08-27T20:52:00-03:00",
+  },
+  {
+    id: "completion-demo-4",
+    household_id: demoHouseholdId,
+    routine_id: "routine-demo-4",
+    pet_id: demoPets[1].id,
+    completed_at: "2026-08-27T20:52:00-03:00",
+    completed_by: null,
+    created_at: "2026-08-27T20:52:00-03:00",
+  },
+];
