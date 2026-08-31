@@ -46,7 +46,6 @@ export default async function NeonatalPage({ searchParams }: { searchParams: Pro
       </header>
 
       <div className="mt-5 rounded-[20px] border border-[#e3b6c4] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Identificação automática:</strong> todo filhote com menos de 8 semanas entra neste painel pela data de nascimento e sai dele quando conclui essa fase.</div>
-      {!configured && <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm"><strong>Perfis personalizados.</strong> Os nomes provisórios já estão aplicados; os registros de mamada e higiene abaixo ainda são exemplos.</div>}
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.saved) === 1 ? "1 registro salvo." : `${flags.saved} registros salvos.`}</div>}
       {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}</div>}

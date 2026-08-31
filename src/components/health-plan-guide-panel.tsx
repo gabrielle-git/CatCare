@@ -151,7 +151,7 @@ export function HealthPlanGuidePanel({
             {exampleCounts.map((count) => (
               <div key={count} className="rounded-[18px] border border-[var(--border)] bg-white p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
-                  {activePlans.length > 0 ? "Sua família" : "Exemplo"} — {count} {count === 1 ? "pet" : "pets"}
+                  {activePlans.length > 0 ? "Sua família" : "Estimativa"} — {count} {count === 1 ? "pet" : "pets"}
                 </p>
                 <p className="mt-2 text-xl font-bold tracking-[-0.03em]">
                   {formatCurrency(estimatePetloveLeveMonthlyCents(count, baseMonthlyFeeCents))}

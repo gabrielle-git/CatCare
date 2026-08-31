@@ -83,7 +83,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <div>
           <div className="flex items-center gap-2">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">{formatLongDate()}</p>
-            {!configured && <span className="rounded-full bg-[var(--lavender-soft)] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[var(--lavender-strong)]">Demonstração</span>}
           </div>
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">{greeting()}, família.</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">Um resumo tranquilo do que importa hoje.</p>

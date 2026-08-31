@@ -53,7 +53,6 @@ export default async function AssistantPage() {
 
   return <div className="mx-auto w-full max-w-[900px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-[19px] bg-[var(--lavender-soft)]"><Bot size={22} /></span><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Assistente</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Pergunte aos seus dados</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Respostas rápidas baseadas exclusivamente no histórico do CatCare — sem diagnóstico e sem inventar informações.</p></div></div>
-    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm"><strong>Modo de demonstração.</strong> O assistente fica pausado aqui — <Link href="/login" className="font-bold underline">crie sua conta ou faça login</Link> para perguntar com dados reais.</div>}
     <AssistantPanel answers={answers} demoMode={!configured} />
     <p className="mt-4 flex items-start gap-2 rounded-[18px] bg-[var(--mint-soft)] px-4 py-3 text-xs leading-relaxed text-[var(--muted)]"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--success)]" /> O assistente atual faz consultas locais e previsíveis. Uma IA visual para interpretar fotos será uma integração separada, com consentimento explícito antes de enviar qualquer imagem.</p>
   </div>;

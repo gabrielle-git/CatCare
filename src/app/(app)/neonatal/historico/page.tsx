@@ -56,12 +56,6 @@ export default async function NeonatalHistoryPage() {
         <p className="mt-2 text-sm text-[var(--muted)]">Todos os registros neonatais da ninhada, com filtros e seleção em lote.</p>
       </header>
 
-      {!configured && (
-        <div className="mt-6 rounded-[20px] bg-[var(--rose-soft)] px-4 py-3 text-sm">
-          <strong>Modo de demonstração.</strong> Exemplo com dados fictícios.
-        </div>
-      )}
-
       <section className="mt-8">
         <NeonatalHistoryPanel items={items} petNames={petNames} editable={editable} />
       </section>

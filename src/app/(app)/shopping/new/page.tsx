@@ -44,7 +44,6 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
     <Link href="/shopping" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar às compras</Link>
     <div className="mt-4 flex items-center gap-3"><span className="grid size-11 place-items-center rounded-[18px] bg-[var(--mint-soft)]"><ShoppingBasket size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Preço + experiência</p><h1 className="text-3xl font-bold tracking-[-0.04em]">Registrar compra</h1></div></div>
     <p className="mt-3 text-sm text-[var(--muted)]">Uma única entrada atualiza a comparação de preços e também cria o gasto correspondente.</p>
-    {!configured && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">O formulário está visível para comparação. <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link> para salvar.</div>}
     {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
     <form action={createPurchase} className="mt-6 space-y-5">
