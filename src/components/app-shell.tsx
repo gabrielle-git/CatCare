@@ -10,10 +10,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-svh lg:flex">
       <DesktopSidebar />
-      <main className="min-h-svh min-w-0 flex-1 pb-24 lg:pb-0">
+      <main className="min-h-svh min-w-0 flex-1 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0">
         {showDemoBanner && (
-          <div className="border-b border-[var(--border)] bg-[var(--peach)] px-5 py-3 text-sm md:px-8">
-            <strong>Modo demonstração.</strong> Dados de exemplo — nada é salvo.{" "}
+          <div className="border-b border-[var(--border)] bg-[var(--peach)] px-4 py-3 text-sm sm:px-5 md:px-8">
+            <strong>Modo demonstração.</strong>{" "}
+            <span className="text-pretty">Dados de exemplo — nada é salvo.</span>{" "}
             <Link href="/login" className="font-bold underline">Crie sua conta ou faça login</Link>
             {" · "}
             <Link href="/demo/sair" className="font-bold underline">Sair da demo</Link>
