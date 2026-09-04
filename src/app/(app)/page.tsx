@@ -53,7 +53,7 @@ async function loadDashboard() {
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
       const actionable = firstActionableVaccine(schedule);
-      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel) : null;
+      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/") : null;
       if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due, registerHref });
 
       const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
@@ -63,7 +63,7 @@ async function loadDashboard() {
           petName: pet.name,
           overdue: isDewormingOverdue(dewormingSchedule),
           due: isDewormingDue(dewormingSchedule),
-          registerHref: dewormingAlertHref(pet.id),
+          registerHref: dewormingAlertHref(pet.id, "/"),
         });
       }
     }
@@ -90,7 +90,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
         {editable && (
           <Link
-            href="/records/new"
+            href="/records/new?return_to=%2F"
             className="focus-ring inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 sm:w-auto"
           >
             <Plus size={18} aria-hidden="true" /> Registrar cuidado

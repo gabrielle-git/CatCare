@@ -13,13 +13,13 @@ import {
   parseRecordTypes,
   parseWeightGramsForPet,
   redirectPathWithParam,
-  safeReturnPath,
+  resolveReturnTo,
   value,
 } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
-function fail(petIds: string[], type: string, message: string, returnTo?: string, neonatalContext?: boolean): never {
+function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean): never {
   const params = new URLSearchParams();
   const pet = petIds[0] ?? "";
   if (pet) params.set("pet", pet);
@@ -36,7 +36,8 @@ function redirectAfterSave(returnTo: string | null, petIds: string[], count: num
     redirect(redirectPathWithParam(returnTo, "saved", saved));
   }
   if (petIds.length === 1) redirect(`/pets/${petIds[0]}?saved=1`);
-  redirect(redirectPathWithParam("/", "saved", saved));
+  // Multi-pet without origin: pets list is better than Home as universal fallback.
+  redirect(redirectPathWithParam("/pets", "saved", saved));
 }
 
 function revalidateRecordPaths(petIds: string[]) {
@@ -60,11 +61,10 @@ export async function createRecord(formData: FormData) {
   const petIds = parsePetIds(formData);
   const types = parseRecordTypes(formData);
   const primaryType = types[0] ?? "";
-  const returnToRaw = value(formData, "return_to");
-  const returnTo = returnToRaw ? safeReturnPath(returnToRaw, "") : null;
+  const returnTo = resolveReturnTo(value(formData, "return_to"));
   const neonatalContext = value(formData, "context") === "neonatal";
   const multi = types.length > 1;
-  const failHere = (message: string): never => fail(petIds, primaryType, message, returnTo ?? undefined, neonatalContext);
+  const failHere = (message: string): never => fail(petIds, primaryType, message, returnTo, neonatalContext);
 
   if (petIds.length === 0 || types.length === 0) failHere("Escolha ao menos um pet e o tipo de cuidado.");
 

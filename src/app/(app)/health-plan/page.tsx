@@ -194,6 +194,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
                       </div>
                       {editable && (
                         <form action={deleteHealthPlan.bind(null, plan.id)}>
+                          <input type="hidden" name="return_to" value="/health-plan" />
                           <ConfirmButton
                             message={`Remover o plano de ${pet.name}?`}
                             className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-3.5 py-2.5 text-xs font-bold text-[var(--danger)]"

@@ -20,7 +20,7 @@ function VaccineRow({ vaccine, petId, editable }: { vaccine: ScheduledVaccine; p
   const config = statusConfig[vaccine.status];
   const Icon = config.icon;
   const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
-  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel);
+  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, `/pets/${petId}`);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -96,7 +96,7 @@ export function VaccineScheduleCard({ schedule, petId, petName, editable }: { sc
         </div>
         {editable && (
           <Link
-            href={typedRecordHref(petId, "vaccine")}
+            href={typedRecordHref(petId, "vaccine", `/pets/${petId}`)}
             className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--mint-soft)] px-2.5 py-2 text-[11px] font-bold text-[var(--success)]"
           >
             <Syringe size={13} /> Registrar

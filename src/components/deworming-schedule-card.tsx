@@ -19,7 +19,7 @@ function DewormingRow({ schedule, petId, editable }: { schedule: ScheduledDeworm
   const config = statusConfig[schedule.status === "upcoming" && schedule.appliedAt ? "done" : schedule.status];
   const Icon = config.icon;
   const actionable = schedule.status !== "done";
-  const registerHref = dewormingAlertHref(petId);
+  const registerHref = dewormingAlertHref(petId, `/pets/${petId}`);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -110,7 +110,7 @@ export function DewormingScheduleCard({
         </div>
         {editable && (
           <Link
-            href={typedRecordHref(petId, "deworming")}
+            href={typedRecordHref(petId, "deworming", `/pets/${petId}`)}
             className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[#fbead9] px-2.5 py-2 text-[11px] font-bold"
           >
             <Pill size={13} /> Registrar
