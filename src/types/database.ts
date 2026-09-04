@@ -298,6 +298,35 @@ export type MemoryWithMediaUrl = Memory & {
   pet_ids: string[];
 };
 
+export type CareRoutine = {
+  id: string;
+  household_id: string;
+  title: string;
+  icon_key: string;
+  instructions: string | null;
+  recurrence_days: number | null;
+  preferred_time: string | null;
+  starts_on: string;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CareRoutineCompletion = {
+  id: string;
+  household_id: string;
+  routine_id: string;
+  pet_id: string;
+  completed_at: string;
+  completed_by: string | null;
+  created_at: string;
+};
+
+export type CareRoutineWithPets = CareRoutine & {
+  pet_ids: string[];
+};
+
 export type TimelineTone = "lavender" | "rose" | "mint" | "peach";
 
 export type RecordSource = "weight" | "health" | "neonatal";

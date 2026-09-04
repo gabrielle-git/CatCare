@@ -105,3 +105,38 @@ textarea:disabled {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Emoji Mart dentro do picker de rotinas — uma superfície só, sem card aninhado */
+.routine-emoji-mart {
+  display: flex;
+  justify-content: center;
+  padding-inline: 0.75rem;
+}
+
+.routine-emoji-mart-inner {
+  width: 100%;
+  max-width: 352px;
+  margin-inline: auto;
+}
+
+.routine-emoji-mart em-emoji-picker {
+  width: 100%;
+  max-width: 352px;
+  min-height: min(52vh, 380px);
+  margin-inline: auto;
+  border: none;
+  box-shadow: none;
+  --border-radius: 0;
+  --shadow: none;
+  --rgb-background: 247, 241, 232;
+  --rgb-input: 255, 255, 255;
+  --rgb-color: 41, 33, 48;
+  --rgb-accent: 118, 99, 173;
+  --color-border: rgba(228, 221, 231, 0.65);
+  --font-family: inherit;
+}
+
+.routine-emoji-mart em-emoji-picker::part(picker) {
+  border: none;
+  box-shadow: none;
+}

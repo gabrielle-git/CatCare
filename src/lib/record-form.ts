@@ -1,4 +1,5 @@
-import { APP_TIMEZONE } from "@/lib/format";
+import { WEIGHT_KG_LEGACY_FIELD, weightKgFieldName } from "@/lib/record-field-names";
+import { APP_TIMEZONE, parseWeightKg } from "@/lib/format";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
 export const quickRecordTypes = new Set([
@@ -76,10 +77,19 @@ export function parseRecordTypes(formData: FormData): string[] {
     if (!type || !quickRecordTypes.has(type) || seen.has(type)) continue;
     seen.add(type);
     types.push(type);
-    if (types.length >= 2) break;
   }
   return types;
 }
+
+/** Reads weight for one pet: per-pet field first, legacy `weight_kg` when allowLegacy. */
+export function parseWeightGramsForPet(formData: FormData, petId: string, allowLegacy = false) {
+  const perPet = parseWeightKg(value(formData, weightKgFieldName(petId)));
+  if (perPet != null) return perPet;
+  if (allowLegacy) return parseWeightKg(value(formData, WEIGHT_KG_LEGACY_FIELD));
+  return null;
+}
+
+export { weightKgFieldName, WEIGHT_KG_LEGACY_FIELD };
 
 export function safeReturnPath(raw: string | null | undefined, fallback: string) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;

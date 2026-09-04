@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { parseWeightKg, isNeonatalPet } from "@/lib/format";
+import { isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { parsePetIds } from "@/lib/pet-form";
 import { assertCanEdit } from "@/lib/roles";
@@ -11,6 +11,7 @@ import {
   numberValue,
   parseLocalDateTime,
   parseRecordTypes,
+  parseWeightGramsForPet,
   redirectPathWithParam,
   safeReturnPath,
   value,
@@ -66,7 +67,6 @@ export async function createRecord(formData: FormData) {
   const failHere = (message: string): never => fail(petIds, primaryType, message, returnTo ?? undefined, neonatalContext);
 
   if (petIds.length === 0 || types.length === 0) failHere("Escolha ao menos um pet e o tipo de cuidado.");
-  if (types.length > 2) failHere("Dá para registrar no máximo 2 tipos de uma vez.");
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) failHere("Informe uma data e hora válidas.");
@@ -95,9 +95,14 @@ export async function createRecord(formData: FormData) {
 
   for (const type of types) {
     if (type === "weight") {
-      const grams = parseWeightKg(value(formData, "weight_kg"));
-      if (grams == null) failHere("Informe um peso válido em kg (ex.: 4,2).");
+      const useLegacyField = pets.length === 1;
       for (const pet of pets) {
+        const grams = parseWeightGramsForPet(formData, pet.id, useLegacyField);
+        if (grams == null) {
+          failHere(pets.length === 1
+            ? "Informe um peso válido em kg (ex.: 4,2)."
+            : `Informe um peso válido para ${pet.name}.`);
+        }
         const { error } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, measured_at: occurredAt, notes });
         if (error) failHere(error.message);
         await supabase.from("pets").update({ current_weight_grams: grams, updated_at: new Date().toISOString() }).eq("id", pet.id).eq("household_id", household.id);

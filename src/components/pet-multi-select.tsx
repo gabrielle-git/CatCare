@@ -48,6 +48,8 @@ export function PetMultiSelect({
     onSelectionChange?.([...next]);
   }
 
+  const inputType = multiple ? "checkbox" : "radio";
+
   return (
     <fieldset disabled={disabled}>
       {legend ? (
@@ -57,25 +59,41 @@ export function PetMultiSelect({
       ) : null}
       {multiple && hint ? <p className="mt-1 text-xs text-[var(--muted)]">{hint}</p> : null}
       {!multiple ? <p className="mt-1 text-xs text-[var(--muted)]">Este registro está ligado a um pet.</p> : null}
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {pets.map((pet) => (
-          <label
-            key={pet.id}
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${selected.has(pet.id) ? "border-[var(--lavender)] bg-[var(--lavender-soft)]/50" : "border-[var(--border)] bg-white"}`}
-          >
-            <input
-              type="checkbox"
-              name={name}
-              value={pet.id}
-              checked={selected.has(pet.id)}
-              onChange={() => toggle(pet.id)}
-              disabled={disabled}
-              className="size-4 accent-[var(--lavender)]"
-            />
-            {pet.name}
-            {pet.neonatal ? " • filhote" : ""}
-          </label>
-        ))}
+      <div
+        className="mt-3 grid gap-2 sm:grid-cols-2"
+        role={multiple ? "group" : "radiogroup"}
+        aria-label={legend || "Seleção de pets"}
+      >
+        {pets.map((pet) => {
+          const isSelected = selected.has(pet.id);
+          return (
+            <label
+              key={pet.id}
+              className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                disabled ? "cursor-not-allowed opacity-55" : ""
+              } ${
+                isSelected
+                  ? "border-[var(--lavender)] bg-[var(--lavender-soft)]/50 text-[var(--foreground)]"
+                  : "border-[var(--border)] bg-white text-[var(--muted)]"
+              }`}
+            >
+              <input
+                type={inputType}
+                name={name}
+                value={pet.id}
+                checked={isSelected}
+                onChange={() => toggle(pet.id)}
+                disabled={disabled}
+                required={required && !multiple && selected.size === 0}
+                className="size-4 shrink-0 accent-[var(--lavender)]"
+              />
+              <span className="min-w-0 flex-1">
+                {pet.name}
+                {pet.neonatal ? " • filhote" : ""}
+              </span>
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );
