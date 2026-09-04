@@ -3,7 +3,6 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
 import { Search, X } from "lucide-react";
 import { icons } from "lucide-react";
 import { RoutineIcon } from "@/components/routine-icon";
@@ -17,6 +16,8 @@ import {
 import { searchCuratedLucideIcons } from "@/lib/routine-lucide-curated";
 
 type Tab = "emoji" | "lucide";
+
+type EmojiSelectPayload = { native?: string };
 
 function LucideGridIcon({
   name,
@@ -35,6 +36,47 @@ function LucideGridIcon({
     className: selected ? "text-[var(--lavender-strong)]" : "text-[var(--muted)]",
     "aria-hidden": true,
   });
+}
+
+/** Monta o web component do emoji-mart de forma imperativa (compatível com React 19). */
+function EmojiMartPicker({ onEmojiSelect }: { onEmojiSelect: (emoji: EmojiSelectPayload) => void }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const onEmojiSelectRef = useRef(onEmojiSelect);
+  onEmojiSelectRef.current = onEmojiSelect;
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    let cancelled = false;
+    let pickerEl: HTMLElement | null = null;
+
+    void import("emoji-mart").then(({ Picker }) => {
+      if (cancelled || !hostRef.current) return;
+
+      pickerEl = new Picker({
+        data,
+        locale: "pt",
+        theme: "light",
+        previewPosition: "none",
+        skinTonePosition: "search",
+        maxFrequentRows: 2,
+        onEmojiSelect: (emoji: EmojiSelectPayload) => {
+          onEmojiSelectRef.current(emoji);
+        },
+      }) as unknown as HTMLElement;
+
+      hostRef.current.replaceChildren(pickerEl);
+    });
+
+    return () => {
+      cancelled = true;
+      pickerEl?.remove();
+      host.replaceChildren();
+    };
+  }, []);
+
+  return <div ref={hostRef} />;
 }
 
 export function RoutineIconPicker({
@@ -78,7 +120,7 @@ export function RoutineIconPicker({
     return () => dialog.removeEventListener("cancel", onCancel);
   }, []);
 
-  const selectEmoji = (emoji: { native?: string }) => {
+  const selectEmoji = (emoji: EmojiSelectPayload) => {
     if (!emoji.native) return;
     onChange(serializeEmojiIcon(emoji.native));
     close();
@@ -167,15 +209,7 @@ export function RoutineIconPicker({
         >
           {tab === "emoji" ? (
             <div className="routine-emoji-mart-inner">
-              <Picker
-                data={data}
-                onEmojiSelect={selectEmoji}
-                locale="pt"
-                theme="light"
-                previewPosition="none"
-                skinTonePosition="search"
-                maxFrequentRows={2}
-              />
+              <EmojiMartPicker onEmojiSelect={selectEmoji} />
             </div>
           ) : (
             <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8" role="listbox" aria-label="Ícones Lucide">
