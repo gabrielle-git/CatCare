@@ -24,8 +24,11 @@ async function authContext() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
-  await assertCanEdit(supabase);
-  const household = await ensureHousehold(supabase, data.user.id);
+  // Role check and household bootstrap are independent — run in parallel.
+  const [, household] = await Promise.all([
+    assertCanEdit(supabase),
+    ensureHousehold(supabase, data.user.id),
+  ]);
   return { supabase, household, userId: data.user.id };
 }
 
