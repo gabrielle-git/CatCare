@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-user";
 import { ensureHousehold } from "@/lib/households";
+import { timed, perfLog } from "@/lib/perf";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { Household, HouseholdRole } from "@/types/database";
@@ -22,20 +23,25 @@ export type AuthenticatedContext = {
 };
 
 export const getAuthenticatedContext = cache(async (): Promise<AuthenticatedContext | null> => {
-  const supabase = await createClient();
-  const user = await getAuthUser();
-  if (!user) return null;
+  return timed("getAuthenticatedContext", async () => {
+    const supabase = await timed("createServerSupabaseClient", () => createClient());
+    const user = await getAuthUser();
+    if (!user) {
+      perfLog("getAuthenticatedContext", "no-user");
+      return null;
+    }
 
-  const [household, role] = await Promise.all([
-    ensureHousehold(supabase, user.id),
-    getMyRole(supabase),
-  ]);
+    const [household, role] = await Promise.all([
+      ensureHousehold(supabase, user.id),
+      getMyRole(supabase),
+    ]);
 
-  return {
-    supabase,
-    user,
-    household,
-    role,
-    editable: canEdit(role),
-  };
+    return {
+      supabase,
+      user,
+      household,
+      role,
+      editable: canEdit(role),
+    };
+  });
 });

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-user";
+import { timed } from "@/lib/perf";
 import { createClient } from "@/lib/supabase/server";
 import type { HouseholdRole } from "@/types/database";
 
@@ -33,13 +34,15 @@ export function isOwner(role: HouseholdRole | null) {
 
 /** One role lookup per request — avoids repeated my_household_role RPCs in layout + page + actions. */
 const loadMyRole = cache(async (): Promise<HouseholdRole | null> => {
-  const user = await getAuthUser();
-  if (!user) return null;
-  const client = await createClient();
-  const { data, error } = await client.rpc("my_household_role");
-  // Fail closed: never escalate to owner on RPC/network failure.
-  if (error || !data) return null;
-  return data as HouseholdRole;
+  return timed("getMyRole", async () => {
+    const user = await getAuthUser();
+    if (!user) return null;
+    const client = await createClient();
+    const { data, error } = await timed("rpc.my_household_role", () => client.rpc("my_household_role"));
+    // Fail closed: never escalate to owner on RPC/network failure.
+    if (error || !data) return null;
+    return data as HouseholdRole;
+  });
 });
 
 export async function getMyRole(_supabase?: SupabaseClient): Promise<HouseholdRole | null> {

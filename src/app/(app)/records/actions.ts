@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/auth-user";
 import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
+import { getPerfTraceId, perfLog, timed, timedSync } from "@/lib/perf";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds } from "@/lib/pet-form";
 import { numberValue, parseLocalDateTime, quickRecordTypes, redirectPathWithParam, resolveReturnTo, safeReturnPath, value, type RecordSource } from "@/lib/record-form";
@@ -22,25 +23,24 @@ function fail(recordId: string, source: RecordSource, kind: string, message: str
 }
 
 async function authContext() {
-  const supabase = await createClient();
-  const user = await getAuthUser();
-  if (!user) redirect("/login");
-  // Role check and household bootstrap are independent — run in parallel.
-  const [, household] = await Promise.all([
-    assertCanEdit(supabase),
-    ensureHousehold(supabase, user.id),
-  ]);
-  return { supabase, household, userId: user.id };
+  return timed("updateRecord.authContext", async () => {
+    const supabase = await timed("createServerSupabaseClient", () => createClient());
+    const user = await getAuthUser();
+    if (!user) redirect("/login");
+    const [, household] = await Promise.all([
+      timed("assertCanEdit", () => assertCanEdit(supabase)),
+      ensureHousehold(supabase, user.id),
+    ]);
+    return { supabase, household, userId: user.id };
+  });
 }
 
 function revalidateRecordPaths(petId: string, source: RecordSource = "health") {
-  // Pet profile timeline/schedules always change.
-  revalidatePath(`/pets/${petId}`);
-  // Home timeline + vaccine/deworming alerts depend on health/weight/neonatal records.
-  revalidatePath("/");
-  // Neonatal dashboard only when neonatal records change.
-  if (source === "neonatal") revalidatePath("/neonatal");
-  // Agenda is reminder-driven — record edit does not mutate reminders.
+  timedSync("revalidatePath /pets/:id", () => revalidatePath(`/pets/${petId}`));
+  timedSync("revalidatePath /", () => revalidatePath("/"));
+  if (source === "neonatal") {
+    timedSync("revalidatePath /neonatal", () => revalidatePath("/neonatal"));
+  }
 }
 
 function redirectWithDeleted(returnTo: string, count = 1) {
@@ -56,6 +56,10 @@ function tableForSource(source: RecordSource) {
 }
 
 export async function updateRecord(recordId: string, source: RecordSource, formData: FormData) {
+  const actionStart = performance.now();
+  const trace = getPerfTraceId();
+  perfLog("updateRecord", "start");
+
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
   const type = value(formData, "record_type");
@@ -66,9 +70,12 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) failHere("Informe uma data e hora válidas.");
+  perfLog("updateRecord.parseFormData", `ok source=${source}`);
 
   const { supabase, household } = await authContext();
-  const { data: pet } = await supabase.from("pets").select("id").eq("id", petId).eq("household_id", household.id).is("archived_at", null).maybeSingle();
+  const { data: pet } = await timed("updateRecord.selectPet", () =>
+    supabase.from("pets").select("id").eq("id", petId).eq("household_id", household.id).is("archived_at", null).maybeSingle(),
+  );
   if (!pet) failHere("Pet não encontrado.");
 
   const notes = value(formData, "notes") || null;
@@ -76,7 +83,9 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   if (source === "weight") {
     const grams = parseWeightKg(value(formData, "weight_kg"));
     if (grams == null) failHere("Informe um peso válido em kg (ex.: 4,2).");
-    const { error } = await supabase.from("weight_records").update({ pet_id: petId, weight_grams: grams, measured_at: occurredAt, notes }).eq("id", recordId).eq("household_id", household.id);
+    const { error } = await timed("updateRecord.UPDATE weight_records", () =>
+      supabase.from("weight_records").update({ pet_id: petId, weight_grams: grams, measured_at: occurredAt, notes }).eq("id", recordId).eq("household_id", household.id),
+    );
     if (error) failHere(error.message);
   } else if (source === "neonatal") {
     const neonatalType = type as NeonatalRecordType;
@@ -84,25 +93,35 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     const temperature = numberValue(formData, "temperature_c");
     if (type === "feeding" && (amount == null || amount <= 0 || amount > 1000)) failHere("Informe a quantidade da mamada.");
     if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) failHere("Informe uma temperatura válida.");
-    const { error } = await supabase.from("neonatal_records").update({
-      pet_id: petId, type: neonatalType, occurred_at: occurredAt, amount_ml: amount, temperature_c: temperature,
-      quality: value(formData, "quality") || null, notes,
-    }).eq("id", recordId).eq("household_id", household.id);
+    const { error } = await timed("updateRecord.UPDATE neonatal_records", () =>
+      supabase.from("neonatal_records").update({
+        pet_id: petId, type: neonatalType, occurred_at: occurredAt, amount_ml: amount, temperature_c: temperature,
+        quality: value(formData, "quality") || null, notes,
+      }).eq("id", recordId).eq("household_id", household.id),
+    );
     if (error) failHere(error.message);
   } else {
     const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
     const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
     const title = value(formData, "title") || defaults[healthType];
-    const { error } = await supabase.from("health_records").update({
-      pet_id: petId, type: healthType, title, occurred_at: occurredAt,
-      clinic_or_vet: value(formData, "clinic_or_vet") || null, notes, updated_at: new Date().toISOString(),
-    }).eq("id", recordId).eq("household_id", household.id);
+    const { error } = await timed("updateRecord.UPDATE health_records", () =>
+      supabase.from("health_records").update({
+        pet_id: petId, type: healthType, title, occurred_at: occurredAt,
+        clinic_or_vet: value(formData, "clinic_or_vet") || null, notes, updated_at: new Date().toISOString(),
+      }).eq("id", recordId).eq("household_id", household.id),
+    );
     if (error) failHere(error.message);
   }
 
+  const beforeRevalidate = Math.round(performance.now() - actionStart);
+  perfLog("updateRecord.beforeRevalidate", `total=${beforeRevalidate}ms (UPDATE done — destination RSC not started)`);
+
   revalidateRecordPaths(petId, source);
   const destination = safeReturnPath(returnTo, `/pets/${petId}`);
-  redirect(redirectPathWithParam(destination, "updated", "1"));
+  const destPath = redirectPathWithParam(destination, "updated", "1");
+  const beforeRedirect = Math.round(performance.now() - actionStart);
+  console.log(`[CATCARE_PERF][trace ${trace}][updateRecord.before redirect] total=${beforeRedirect}ms dest=${destPath.split("?")[0]}`);
+  redirect(destPath);
 }
 
 export async function deleteRecord(recordId: string, source: RecordSource, petId: string, formData: FormData) {

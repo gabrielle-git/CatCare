@@ -6,12 +6,17 @@ import { formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, 
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { isLiveData } from "@/lib/demo-mode";
+import { getPerfTraceId, timed } from "@/lib/perf";
 
 async function loadPets() {
-  if (!(await isLiveData())) return { pets: demoPets, configured: false, editable: false };
+  const pageStart = performance.now();
+  const trace = getPerfTraceId();
+  if (!(await timed("/pets.isLiveData", () => isLiveData()))) return { pets: demoPets, configured: false, editable: false };
   const ctx = await getAuthenticatedContext();
   if (!ctx) return { pets: [], configured: true, editable: false };
-  return { pets: await listPets(ctx.supabase, ctx.household.id), configured: true, editable: ctx.editable };
+  const pets = await timed("/pets.listPets", () => listPets(ctx.supabase, ctx.household.id));
+  console.log(`[CATCARE_PERF][trace ${trace}][/pets] total=${Math.round(performance.now() - pageStart)}ms`);
+  return { pets, configured: true, editable: ctx.editable };
 }
 
 export default async function PetsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {

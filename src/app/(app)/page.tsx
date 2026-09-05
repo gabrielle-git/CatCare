@@ -11,6 +11,7 @@ import { listPets } from "@/lib/pets";
 import { listHouseholdPreventiveDoses, listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
 import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
 import { isLiveData } from "@/lib/demo-mode";
+import { getPerfTraceId, timed } from "@/lib/perf";
 import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
 import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
 
@@ -27,17 +28,19 @@ type VaccineAlert = { petId: string; petName: string; overdue: number; due: numb
 type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean; registerHref: string };
 
 async function loadDashboard() {
+  const pageStart = performance.now();
+  const trace = getPerfTraceId();
   const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
-  if (!(await isLiveData())) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
+  if (!(await timed("/.isLiveData", () => isLiveData()))) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
   const ctx = await getAuthenticatedContext();
   if (!ctx) return empty;
   try {
     const { supabase, household, editable } = ctx;
     const [pets, timeline, reminders, preventive] = await Promise.all([
-      listPets(supabase, household.id),
-      listHouseholdTimeline(supabase, household.id, 6),
-      listUpcomingReminders(supabase, household.id, 4),
-      listHouseholdPreventiveDoses(supabase, household.id),
+      timed("/.listPets", () => listPets(supabase, household.id)),
+      timed("/.timeline", () => listHouseholdTimeline(supabase, household.id, 6)),
+      timed("/.reminders", () => listUpcomingReminders(supabase, household.id, 4)),
+      timed("/.preventiveDoses", () => listHouseholdPreventiveDoses(supabase, household.id)),
     ]);
     const vaccineAlerts: VaccineAlert[] = [];
     const dewormingAlerts: DewormingAlert[] = [];
@@ -62,6 +65,7 @@ async function loadDashboard() {
         });
       }
     }
+    console.log(`[CATCARE_PERF][trace ${trace}][/] total=${Math.round(performance.now() - pageStart)}ms pets=${pets.length}`);
     return { pets, timeline, reminders, configured: true, editable, error: null as string | null, vaccineAlerts, dewormingAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";

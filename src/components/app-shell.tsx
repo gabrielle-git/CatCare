@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
+import { PerfNavigationProbe } from "@/components/perf-navigation-probe";
 import { isDemoMode } from "@/lib/demo-mode";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 
@@ -9,6 +10,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-svh lg:flex">
+      <PerfNavigationProbe />
       <DesktopSidebar />
       <main className="min-h-svh min-w-0 flex-1 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0">
         {showDemoBanner && (
