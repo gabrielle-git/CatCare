@@ -52,7 +52,7 @@ export function DesktopSidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-svh w-[272px] shrink-0 overflow-y-auto border-r border-[var(--border)] bg-[rgba(247,241,232,0.86)] px-5 py-5 backdrop-blur lg:flex lg:flex-col">
-      <Link href="/" className="focus-ring flex items-center gap-3 rounded-2xl px-2 py-2">
+      <Link href="/" prefetch={false} className="focus-ring flex items-center gap-3 rounded-2xl px-2 py-2">
         <span className="grid size-11 place-items-center rounded-[18px] bg-[var(--lavender)] text-white shadow-lg shadow-[#8e7dbe]/20">
           <Cat size={23} strokeWidth={2.4} />
         </span>
@@ -73,6 +73,7 @@ export function DesktopSidebar() {
                   <Link
                     key={href}
                     href={href}
+                    prefetch={false}
                     className={`focus-ring flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-[13px] font-bold transition ${
                       active
                         ? "bg-white text-[var(--foreground)] shadow-sm"
@@ -90,7 +91,7 @@ export function DesktopSidebar() {
       </nav>
 
       <div className="mt-5 border-t border-[var(--border)] pt-3">
-        <Link href="/settings" className="focus-ring flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white">
+        <Link href="/settings" prefetch={false} className="focus-ring flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white">
           <span className="grid size-9 shrink-0 place-items-center rounded-[15px] bg-[var(--lavender-soft)]"><UserRound size={17} /></span>
           <span className="min-w-0 flex-1">
             <strong className="block text-[13px]">Conta e família</strong>

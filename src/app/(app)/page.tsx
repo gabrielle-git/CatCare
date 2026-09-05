@@ -4,15 +4,13 @@ import { HomeAgendaPanel } from "@/components/home-agenda-panel";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
 import { HomeFamilyStats } from "@/components/home-family-stats";
 import { PetAvatar } from "@/components/pet-avatar";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
-import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdTimeline, listPetDewormingDoses, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
+import { listHouseholdPreventiveDoses, listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
 import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
-import { canEdit, getMyRole } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
-import { createClient } from "@/lib/supabase/server";
 import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
 import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
 
@@ -31,52 +29,40 @@ type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: b
 async function loadDashboard() {
   const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
   if (!(await isLiveData())) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return empty;
+  const ctx = await getAuthenticatedContext();
+  if (!ctx) return empty;
   try {
-    const [household, role] = await Promise.all([
-      ensureHousehold(supabase, data.user.id),
-      getMyRole(supabase),
-    ]);
-    const [pets, timeline, reminders] = await Promise.all([
+    const { supabase, household, editable } = ctx;
+    const [pets, timeline, reminders, preventive] = await Promise.all([
       listPets(supabase, household.id),
       listHouseholdTimeline(supabase, household.id, 6),
       listUpcomingReminders(supabase, household.id, 4),
+      listHouseholdPreventiveDoses(supabase, household.id),
     ]);
-    // Fetch all pets in parallel — production logs showed ~400ms serial gaps per pet (N+1).
-    const perPetAlerts = await Promise.all(
-      pets.map(async (pet) => {
-        const [doses, dewormingDoses] = await Promise.all([
-          listPetVaccineDoses(supabase, pet.id),
-          listPetDewormingDoses(supabase, pet.id),
-        ]);
-        const schedule = buildVaccineSchedule(pet.birth_date, doses);
-        const overdue = countOverdue(schedule);
-        const due = countDue(schedule);
-        const actionable = firstActionableVaccine(schedule);
-        const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/") : null;
-        const vaccineAlert: VaccineAlert | null =
-          overdue > 0 || due > 0 ? { petId: pet.id, petName: pet.name, overdue, due, registerHref } : null;
+    const vaccineAlerts: VaccineAlert[] = [];
+    const dewormingAlerts: DewormingAlert[] = [];
+    for (const pet of pets) {
+      const doses = preventive.vaccinesByPet.get(pet.id) ?? [];
+      const dewormingDoses = preventive.dewormingByPet.get(pet.id) ?? [];
+      const schedule = buildVaccineSchedule(pet.birth_date, doses);
+      const overdue = countOverdue(schedule);
+      const due = countDue(schedule);
+      const actionable = firstActionableVaccine(schedule);
+      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/") : null;
+      if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due, registerHref });
 
-        const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
-        const dewormingAlert: DewormingAlert | null =
-          isDewormingOverdue(dewormingSchedule) || isDewormingDue(dewormingSchedule)
-            ? {
-                petId: pet.id,
-                petName: pet.name,
-                overdue: isDewormingOverdue(dewormingSchedule),
-                due: isDewormingDue(dewormingSchedule),
-                registerHref: dewormingAlertHref(pet.id, "/"),
-              }
-            : null;
-
-        return { vaccineAlert, dewormingAlert };
-      }),
-    );
-    const vaccineAlerts = perPetAlerts.flatMap((row) => (row.vaccineAlert ? [row.vaccineAlert] : []));
-    const dewormingAlerts = perPetAlerts.flatMap((row) => (row.dewormingAlert ? [row.dewormingAlert] : []));
-    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null, vaccineAlerts, dewormingAlerts };
+      const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
+      if (isDewormingOverdue(dewormingSchedule) || isDewormingDue(dewormingSchedule)) {
+        dewormingAlerts.push({
+          petId: pet.id,
+          petName: pet.name,
+          overdue: isDewormingOverdue(dewormingSchedule),
+          due: isDewormingDue(dewormingSchedule),
+          registerHref: dewormingAlertHref(pet.id, "/"),
+        });
+      }
+    }
+    return { pets, timeline, reminders, configured: true, editable, error: null as string | null, vaccineAlerts, dewormingAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
     return { ...empty, error };

@@ -2,13 +2,12 @@ import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { RecordFields, type RecordFieldDefaults } from "@/components/record-fields";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isNeonatalPet } from "@/lib/format";
-import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
 import type { RecordSource } from "@/lib/record-form";
 import { getEditableRecord } from "@/lib/records";
 import { isLiveData } from "@/lib/demo-mode";
-import { createClient } from "@/lib/supabase/server";
 import { safeReturnPath } from "@/lib/safe-return-path";
 import { deleteRecord, updateRecord } from "../../actions";
 
@@ -20,14 +19,12 @@ export default async function EditRecordPage({ params, searchParams }: { params:
     return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Entre na conta para editar registros.</div>;
+  const ctx = await getAuthenticatedContext();
+  if (!ctx) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Entre na conta para editar registros.</div>;
 
-  const household = await ensureHousehold(supabase, data.user.id);
   const [record, pets] = await Promise.all([
-    getEditableRecord(supabase, household.id, id, source),
-    listPets(supabase, household.id),
+    getEditableRecord(ctx.supabase, ctx.household.id, id, source),
+    listPets(ctx.supabase, ctx.household.id),
   ]);
   if (!record) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
 

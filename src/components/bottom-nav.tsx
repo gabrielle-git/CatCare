@@ -27,6 +27,7 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               className={`focus-ring flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition ${
                 primary
                   ? "bg-[var(--graphite)] text-white shadow-lg shadow-[#2a2230]/15"

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAuthUser } from "@/lib/auth-user";
 import { parseWeightKg } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
@@ -22,21 +23,24 @@ function fail(recordId: string, source: RecordSource, kind: string, message: str
 
 async function authContext() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
+  const user = await getAuthUser();
+  if (!user) redirect("/login");
   // Role check and household bootstrap are independent — run in parallel.
   const [, household] = await Promise.all([
     assertCanEdit(supabase),
-    ensureHousehold(supabase, data.user.id),
+    ensureHousehold(supabase, user.id),
   ]);
-  return { supabase, household, userId: data.user.id };
+  return { supabase, household, userId: user.id };
 }
 
-function revalidateRecordPaths(petId: string) {
-  revalidatePath("/");
-  revalidatePath("/agenda");
-  revalidatePath("/neonatal");
+function revalidateRecordPaths(petId: string, source: RecordSource = "health") {
+  // Pet profile timeline/schedules always change.
   revalidatePath(`/pets/${petId}`);
+  // Home timeline + vaccine/deworming alerts depend on health/weight/neonatal records.
+  revalidatePath("/");
+  // Neonatal dashboard only when neonatal records change.
+  if (source === "neonatal") revalidatePath("/neonatal");
+  // Agenda is reminder-driven — record edit does not mutate reminders.
 }
 
 function redirectWithDeleted(returnTo: string, count = 1) {
@@ -96,7 +100,7 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     if (error) failHere(error.message);
   }
 
-  revalidateRecordPaths(petId);
+  revalidateRecordPaths(petId, source);
   const destination = safeReturnPath(returnTo, `/pets/${petId}`);
   redirect(redirectPathWithParam(destination, "updated", "1"));
 }
@@ -110,7 +114,7 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   if (!data?.length) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado ou sem permissão para apagar."));
 
-  revalidateRecordPaths(petId);
+  revalidateRecordPaths(petId, source);
   redirectWithDeleted(returnTo, 1);
 }
 
@@ -128,6 +132,7 @@ export async function deleteRecords(formData: FormData) {
 
   const { supabase, household } = await authContext();
   const petIds = new Set<string>();
+  const sourcesByPet = new Map<string, Set<RecordSource>>();
   let deleted = 0;
 
   for (const record of records) {
@@ -137,11 +142,18 @@ export async function deleteRecords(formData: FormData) {
     if (data?.length) {
       deleted += data.length;
       petIds.add(record.petId);
+      const sources = sourcesByPet.get(record.petId) ?? new Set<RecordSource>();
+      sources.add(record.source);
+      sourcesByPet.set(record.petId, sources);
     }
   }
 
   if (deleted === 0) redirect(redirectPathWithParam(returnTo, "error", "Nenhum registro foi apagado."));
 
-  for (const petId of petIds) revalidateRecordPaths(petId);
+  for (const petId of petIds) {
+    const sources = sourcesByPet.get(petId);
+    const source: RecordSource = sources?.has("neonatal") ? "neonatal" : sources?.has("weight") ? "weight" : "health";
+    revalidateRecordPaths(petId, source);
+  }
   redirectWithDeleted(returnTo, deleted);
 }

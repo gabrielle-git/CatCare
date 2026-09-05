@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { getAuthUser } from "@/lib/auth-user";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { createClient } from "@/lib/supabase/server";
 
 /** Cookie that unlocks browsing with mock data without login (even when Supabase is configured). */
 export const DEMO_COOKIE = "catcare_demo";
@@ -26,9 +26,7 @@ export function demoCookieOptions(maxAgeSeconds = 60 * 60 * 24 * 7) {
 export const isLiveData = cache(async () => {
   if (!hasSupabaseEnv()) return false;
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (data.user) return true;
+  if (await getAuthUser()) return true;
 
   const jar = await cookies();
   return jar.get(DEMO_COOKIE)?.value !== "1";

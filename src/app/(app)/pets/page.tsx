@@ -1,22 +1,17 @@
 import Link from "next/link";
 import { BadgeCheck, HeartPulse, Plus, Scale } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
-import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { canEdit, getMyRole } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
-import { createClient } from "@/lib/supabase/server";
 
 async function loadPets() {
   if (!(await isLiveData())) return { pets: demoPets, configured: false, editable: false };
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], configured: true, editable: false };
-  const household = await ensureHousehold(supabase, data.user.id);
-  const role = await getMyRole(supabase);
-  return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
+  const ctx = await getAuthenticatedContext();
+  if (!ctx) return { pets: [], configured: true, editable: false };
+  return { pets: await listPets(ctx.supabase, ctx.household.id), configured: true, editable: ctx.editable };
 }
 
 export default async function PetsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {

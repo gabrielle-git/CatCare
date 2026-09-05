@@ -13,9 +13,8 @@ import { isNeonatalTimelineItem, listPetTimeline, listPetDewormingDoses, listPet
 import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
 import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
 import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
-import { canEdit, getMyRole } from "@/lib/roles";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
-import { createClient } from "@/lib/supabase/server";
 import { updatePetDescription } from "../actions";
 
 async function loadPetPage(id: string) {
@@ -23,12 +22,12 @@ async function loadPetPage(id: string) {
     const pet = demoPets.find((item) => item.id === id);
     return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: false, editable: false };
   }
-  const supabase = await createClient();
-  const role = await getMyRole(supabase);
-  const pet = await getPet(supabase, id);
+  const ctx = await getAuthenticatedContext();
+  if (!ctx) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: true, editable: false };
+  const pet = await getPet(ctx.supabase, id);
   if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: true, editable: false };
-  const [timeline, weights, vaccineDoses, dewormingDoses] = await Promise.all([listPetTimeline(supabase, id), listPetWeights(supabase, id), listPetVaccineDoses(supabase, id), listPetDewormingDoses(supabase, id)]);
-  return { pet, timeline, weights, vaccineDoses, dewormingDoses, configured: true, editable: canEdit(role) };
+  const [timeline, weights, vaccineDoses, dewormingDoses] = await Promise.all([listPetTimeline(ctx.supabase, id), listPetWeights(ctx.supabase, id), listPetVaccineDoses(ctx.supabase, id), listPetDewormingDoses(ctx.supabase, id)]);
+  return { pet, timeline, weights, vaccineDoses, dewormingDoses, configured: true, editable: ctx.editable };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string; deleted?: string; error?: string }> }) {
