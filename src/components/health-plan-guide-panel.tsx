@@ -61,6 +61,7 @@ export function HealthPlanGuidePanel({
     : null;
   const paymentNotes = guide.payment_notes ?? defaultPaymentNotes;
   const waitingNotes = guide.waiting_notes ?? defaultWaitingNotes;
+  const returnTo = `/health-plan/guides/${guide.id}`;
 
   return (
     <div className="space-y-8">
@@ -79,6 +80,7 @@ export function HealthPlanGuidePanel({
               {editable && saveBaseFeeAction ? (
                 <form action={saveBaseFeeAction} className="mt-2 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="guide_id" value={guide.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
                   <label className="text-xs font-bold">
                     R$/pet (1º pet)
                     <input
@@ -217,6 +219,7 @@ export function HealthPlanGuidePanel({
                         <td className="px-4 py-3 text-right">
                           <form action={deleteServiceAction.bind(null, service.id)}>
                             <input type="hidden" name="guide_id" value={guide.id} />
+                            <input type="hidden" name="return_to" value={returnTo} />
                             <ConfirmButton message={`Remover "${service.name}" da tabela?`} className="focus-ring inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-[var(--danger)]">
                               <Trash2 size={12} />
                             </ConfirmButton>
@@ -233,7 +236,7 @@ export function HealthPlanGuidePanel({
       ))}
 
       {editable && addServiceAction && (
-        <AddGuideServiceForm guideId={guide.id} services={guide.services} action={addServiceAction} />
+        <AddGuideServiceForm guideId={guide.id} services={guide.services} action={addServiceAction} returnTo={returnTo} />
       )}
 
       <GuideReferenceNotes
@@ -242,6 +245,7 @@ export function HealthPlanGuidePanel({
         waitingNotes={waitingNotes}
         editable={editable}
         saveAction={saveNotesAction}
+        returnTo={returnTo}
         waitingTitle={guide.provider === "petlove" ? "Carências padrão (sem promo)" : "Carências e prazos"}
       />
     </div>

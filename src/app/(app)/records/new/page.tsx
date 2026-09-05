@@ -8,6 +8,7 @@ import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole, requireEditPage } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
+import { resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";
 import { createRecord } from "./actions";
 
 async function loadPetOptions() {
@@ -25,19 +26,18 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
   const query = await searchParams;
   const initialTitle = query.record_title ?? query.suggested_title ?? query.suggestedTitle ?? query.title;
   const neonatalContext = query.context === "neonatal";
-  const returnTo = query.return_to ?? (neonatalContext ? "/neonatal" : undefined);
+  const returnTo = resolveReturnTo(query.return_to) ?? (neonatalContext ? "/neonatal" : undefined);
+  const backFallback = query.pet
+    ? `/pets/${query.pet}`
+    : neonatalContext
+      ? "/neonatal"
+      : "/pets";
+  const backHref = safeReturnPath(returnTo, backFallback);
   const initialTypes = query.types
     ? query.types.split(",").map((item) => item.trim()).filter(Boolean)
     : query.type
       ? [query.type]
       : undefined;
-  const backHref = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-    ? returnTo
-    : query.pet
-      ? `/pets/${query.pet}`
-      : neonatalContext
-        ? "/neonatal"
-        : "/";
   const { pets, configured, editable } = await loadPetOptions();
   const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
 

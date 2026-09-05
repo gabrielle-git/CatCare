@@ -8,10 +8,12 @@ export function AddGuideServiceForm({
   guideId,
   services,
   action,
+  returnTo,
 }: {
   guideId: string;
   services: HealthPlanGuideService[];
   action: (formData: FormData) => void;
+  returnTo?: string;
 }) {
   const groupOptions = buildGroupOptions(services);
   const defaultGroup = groupOptions[0]?.key ?? "consultations";
@@ -25,6 +27,7 @@ export function AddGuideServiceForm({
       <p className="mt-1 text-xs text-[var(--muted)]">Escolha o grupo existente — o procedimento entra na mesma seção, sem duplicar categoria.</p>
       <form action={action} className="mt-4 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="guide_id" value={guideId} />
+        {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
         <label className="text-xs font-bold sm:col-span-2">
           Grupo / categoria
           <select name="group_key" defaultValue={defaultGroup} className="field mt-1.5">

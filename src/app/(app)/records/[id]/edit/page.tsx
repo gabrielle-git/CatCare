@@ -9,6 +9,7 @@ import type { RecordSource } from "@/lib/record-form";
 import { getEditableRecord } from "@/lib/records";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
+import { safeReturnPath } from "@/lib/safe-return-path";
 import { deleteRecord, updateRecord } from "../../actions";
 
 export default async function EditRecordPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ source?: string; kind?: string; return_to?: string; error?: string }> }) {
@@ -30,9 +31,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
   ]);
   if (!record) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
 
-  const returnTo = query.return_to && query.return_to.startsWith("/") && !query.return_to.startsWith("//")
-    ? query.return_to
-    : `/pets/${record.pet_id}`;
+  const returnTo = safeReturnPath(query.return_to, `/pets/${record.pet_id}`);
   const petOptions = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
   const save = updateRecord.bind(null, id, source);
   const remove = deleteRecord.bind(null, id, source, record.pet_id);

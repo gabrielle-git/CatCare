@@ -8,9 +8,10 @@ import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
+import { safeReturnPath } from "@/lib/safe-return-path";
 import { createHealthPlan } from "../actions";
 
-export default async function NewHealthPlanPage({ searchParams }: { searchParams: Promise<{ pet?: string; error?: string }> }) {
+export default async function NewHealthPlanPage({ searchParams }: { searchParams: Promise<{ pet?: string; error?: string; return_to?: string }> }) {
   const flags = await searchParams;
   if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
 
@@ -40,10 +41,11 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
     started_at: plan.started_at,
     created_at: plan.created_at,
   }));
+  const returnTo = safeReturnPath(flags.return_to, "/health-plan");
 
   return (
     <div className="mx-auto w-full max-w-[820px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <Link href="/health-plan" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]">
+      <Link href={returnTo} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]">
         <ArrowLeft size={17} /> Plano de saúde
       </Link>
 
@@ -58,6 +60,7 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
       <form action={createHealthPlan} className="mt-6 space-y-5">
+        <input type="hidden" name="return_to" value={returnTo} />
         <section className="cat-card space-y-4 p-5 md:p-7">
           <h2 className="text-lg font-bold">Dados do plano</h2>
           <HealthPlanFormFields

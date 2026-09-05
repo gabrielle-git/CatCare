@@ -10,6 +10,7 @@ export function GuideReferenceNotes({
   waitingNotes,
   editable,
   saveAction,
+  returnTo,
   paymentTitle = "Como paga a coparticipação",
   waitingTitle = "Carências e prazos",
 }: {
@@ -18,6 +19,7 @@ export function GuideReferenceNotes({
   waitingNotes: string | null;
   editable: boolean;
   saveAction?: (formData: FormData) => void;
+  returnTo?: string;
   paymentTitle?: string;
   waitingTitle?: string;
 }) {
@@ -46,6 +48,7 @@ export function GuideReferenceNotes({
       {editing && saveAction ? (
         <form action={saveAction} className="cat-card grid gap-4 p-5 md:p-6">
           <input type="hidden" name="guide_id" value={guideId} />
+          {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
           <label className="text-sm font-bold">
             {paymentTitle}
             <textarea

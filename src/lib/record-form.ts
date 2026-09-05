@@ -91,14 +91,4 @@ export function parseWeightGramsForPet(formData: FormData, petId: string, allowL
 
 export { weightKgFieldName, WEIGHT_KG_LEGACY_FIELD };
 
-export function safeReturnPath(raw: string | null | undefined, fallback: string) {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
-  return raw;
-}
-
-export function redirectPathWithParam(path: string, key: string, value: string) {
-  const safe = safeReturnPath(path, "/");
-  const url = new URL(safe, "http://local");
-  url.searchParams.set(key, value);
-  return `${url.pathname}${url.search}`;
-}
+export { redirectPathWithParam, resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";

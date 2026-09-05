@@ -23,12 +23,12 @@ const dewormingStatusConfig: Record<DewormingStatus | "done", { label: string; c
   upcoming: { label: "Em breve", className: "bg-[var(--cream)] text-[var(--muted)]", icon: Clock },
 };
 
-function VaccineRow({ vaccine, petId, editable }: { vaccine: ScheduledVaccine; petId: string; editable: boolean }) {
+function VaccineRow({ vaccine, petId, editable, returnTo }: { vaccine: ScheduledVaccine; petId: string; editable: boolean; returnTo: string }) {
   const [open, setOpen] = useState(false);
   const config = vaccineStatusConfig[vaccine.status];
   const Icon = config.icon;
   const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
-  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel);
+  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, returnTo);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -105,10 +105,11 @@ export function PetPreventiveCareCard({
   const hasAlert = vaccineOverdue > 0 || vaccineDue > 0 || dewormingOverdue || dewormingDue;
   const [vaccinesOpen, setVaccinesOpen] = useState(vaccineOverdue > 0 || vaccineDue > 0);
   const firstVaccine = firstActionableVaccine(vaccineSchedule);
-  const firstVaccineHref = firstVaccine ? vaccineAlertHref(petId, firstVaccine.name, firstVaccine.doseLabel) : null;
-  const dewormingAlertLink = dewormingAlertHref(petId);
-  const dewormingRegisterLink = typedRecordHref(petId, "deworming");
-  const vaccineRegisterLink = typedRecordHref(petId, "vaccine");
+  const petReturnTo = `/pets/${petId}`;
+  const firstVaccineHref = firstVaccine ? vaccineAlertHref(petId, firstVaccine.name, firstVaccine.doseLabel, petReturnTo) : null;
+  const dewormingAlertLink = dewormingAlertHref(petId, petReturnTo);
+  const dewormingRegisterLink = typedRecordHref(petId, "deworming", petReturnTo);
+  const vaccineRegisterLink = typedRecordHref(petId, "vaccine", petReturnTo);
 
   return (
     <div className="cat-card p-5">
@@ -172,7 +173,7 @@ export function PetPreventiveCareCard({
           {vaccinesOpen && (
             <div className="space-y-2 border-t border-[var(--border)] bg-white px-3.5 py-3">
               {vaccineSchedule.map((vaccine, i) => (
-                <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} />
+                <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} returnTo={petReturnTo} />
               ))}
               {editable && (
                 <Link href={vaccineRegisterLink} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--mint-soft)] px-3 py-2 text-[11px] font-bold text-[var(--success)]">

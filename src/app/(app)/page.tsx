@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ChevronRight, HeartPulse, Plus, Sparkles } from "lucide-react";
+import { ChevronRight, HeartPulse, Plus } from "lucide-react";
 import { HomeAgendaPanel } from "@/components/home-agenda-panel";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
 import { HomeFamilyStats } from "@/components/home-family-stats";
@@ -53,7 +53,7 @@ async function loadDashboard() {
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
       const actionable = firstActionableVaccine(schedule);
-      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel) : null;
+      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/") : null;
       if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due, registerHref });
 
       const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
@@ -63,7 +63,7 @@ async function loadDashboard() {
           petName: pet.name,
           overdue: isDewormingOverdue(dewormingSchedule),
           due: isDewormingDue(dewormingSchedule),
-          registerHref: dewormingAlertHref(pet.id),
+          registerHref: dewormingAlertHref(pet.id, "/"),
         });
       }
     }
@@ -90,7 +90,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
         {editable && (
           <Link
-            href="/records/new"
+            href="/records/new?return_to=%2F"
             className="focus-ring inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 sm:w-auto"
           >
             <Plus size={18} aria-hidden="true" /> Registrar cuidado
@@ -115,30 +115,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
       <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.75fr)]">
         <div className="flex min-w-0 flex-col gap-5">
-          <section className="min-w-0 overflow-hidden rounded-[26px] bg-[var(--lavender)] text-white shadow-xl shadow-[#8e7dbe]/15">
-            <div className="flex min-w-0 flex-col gap-5 p-5 sm:p-6 md:p-7">
-              <div className="min-w-0">
-                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-white/75">
-                  <Sparkles size={15} aria-hidden="true" /> Registro rápido
-                </p>
-                <h2 className="mt-3 text-balance text-xl font-bold tracking-[-0.03em] sm:text-2xl">
-                  Quanto menos passos, mais completo fica o histórico.
-                </h2>
-                <p className="mt-2 text-pretty text-sm leading-relaxed text-white/80">
-                  Anote uma pesagem, vacina, mamada ou medicamento em menos de um minuto.
-                </p>
-              </div>
-              {editable && (
-                <Link
-                  href="/records/new"
-                  className="focus-ring inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-3 text-sm font-bold text-[var(--lavender-strong)] sm:w-fit"
-                >
-                  Abrir registro rápido <ArrowRight size={18} aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-          </section>
-
           {babies.length > 0 && (
             <Link
               href="/neonatal"

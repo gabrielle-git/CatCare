@@ -6,6 +6,7 @@ import { HEALTH_COPAY_SERVICES } from "@/lib/health-plan";
 import { syncTemplateCoverageToPlans, upsertHealthPlanTemplate } from "@/lib/health-plan-templates";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
+import { redirectPathWithParam, resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";
 import { createClient } from "@/lib/supabase/server";
 import type { BenefitMembershipKind, HealthCopayServiceType, HealthPlanCoverageStatus, HealthPlanProvider } from "@/types/database";
 
@@ -28,6 +29,16 @@ async function authContext() {
   await assertCanEdit(supabase);
   const household = await ensureHousehold(supabase, data.user.id);
   return { supabase, household };
+}
+
+function formReturnTo(formData: FormData, fallback: string) {
+  return safeReturnPath(value(formData, "return_to"), fallback);
+}
+
+function redirectFail(path: string, message: string, returnTo: string | null): never {
+  const params = new URLSearchParams({ error: message });
+  if (returnTo) params.set("return_to", returnTo);
+  redirect(`${path}?${params.toString()}`);
 }
 
 function parseServiceRules(formData: FormData) {
@@ -71,19 +82,26 @@ export async function createHealthPlan(formData: FormData) {
   const provider = value(formData, "provider") as HealthPlanProvider;
   const planName = value(formData, "plan_name");
   const startedAt = value(formData, "started_at") || null;
-  if (!petId || !providers.has(provider) || !planName) redirect("/health-plan/new?error=Preencha%20pet%2C%20operadora%20e%20nome%20do%20plano.");
+  const returnTo = resolveReturnTo(value(formData, "return_to"));
+  const fail = (message: string): never => redirectFail("/health-plan/new", message, returnTo);
+
+  if (!petId || !providers.has(provider) || !planName) fail("Preencha pet, operadora e nome do plano.");
 
   const monthlyRaw = value(formData, "monthly_fee");
   const monthlyFeeCents = monthlyRaw ? moneyToCents(monthlyRaw) : null;
-  if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) redirect("/health-plan/new?error=Mensalidade%20inv%C3%A1lida.");
+  if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) fail("Mensalidade inválida.");
 
   const serviceRules = parseServiceRules(formData);
-  if (serviceRules.some((rule) => rule === null)) redirect("/health-plan/new?error=Confira%20os%20valores%20de%20coparticipa%C3%A7%C3%A3o.");
+  if (serviceRules.some((rule) => rule === null)) fail("Confira os valores de coparticipação.");
 
   const { supabase, household } = await authContext();
 
   const existing = await supabase.from("health_plans").select("id").eq("pet_id", petId).eq("household_id", household.id).maybeSingle();
-  if (existing.data) redirect(`/health-plan/${existing.data.id}/edit?error=Este%20pet%20j%C3%A1%20tem%20plano.%20Edite%20o%20existente.`);
+  if (existing.data) {
+    const params = new URLSearchParams({ error: "Este pet já tem plano. Edite o existente." });
+    if (returnTo) params.set("return_to", returnTo);
+    redirect(`/health-plan/${existing.data.id}/edit?${params.toString()}`);
+  }
 
   const coverageSummary = value(formData, "coverage_summary") || null;
   const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
@@ -103,34 +121,38 @@ export async function createHealthPlan(formData: FormData) {
     coverage_summary: resolvedCoverage,
     ...parsePromoFields(formData),
   }).select("id").single();
-  if (error) redirect(`/health-plan/new?error=${encodeURIComponent(error.message)}`);
+  const createdPlanId = plan?.id;
+  if (error || !createdPlanId) fail(error?.message ?? "Não foi possível criar o plano.");
 
-  const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: plan.id }));
+  const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: createdPlanId }));
   if (rows.length) {
     const { error: copayError } = await supabase.from("health_plan_copay_rules").insert(rows);
     if (copayError) {
-      await supabase.from("health_plans").delete().eq("id", plan.id);
-      redirect(`/health-plan/new?error=${encodeURIComponent(copayError.message)}`);
+      await supabase.from("health_plans").delete().eq("id", createdPlanId);
+      fail(copayError.message);
     }
   }
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
-  redirect("/health-plan?saved=1");
+  redirect(redirectPathWithParam(safeReturnPath(returnTo, "/health-plan"), "saved", "1"));
 }
 
 export async function updateHealthPlan(planId: string, formData: FormData) {
   const provider = value(formData, "provider") as HealthPlanProvider;
   const planName = value(formData, "plan_name");
   const startedAt = value(formData, "started_at") || null;
-  if (!providers.has(provider) || !planName) redirect(`/health-plan/${planId}/edit?error=Preencha%20operadora%20e%20nome%20do%20plano.`);
+  const returnTo = resolveReturnTo(value(formData, "return_to"));
+  const fail = (message: string): never => redirectFail(`/health-plan/${planId}/edit`, message, returnTo);
+
+  if (!providers.has(provider) || !planName) fail("Preencha operadora e nome do plano.");
 
   const monthlyRaw = value(formData, "monthly_fee");
   const monthlyFeeCents = monthlyRaw ? moneyToCents(monthlyRaw) : null;
-  if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) redirect(`/health-plan/${planId}/edit?error=Mensalidade%20inv%C3%A1lida.`);
+  if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) fail("Mensalidade inválida.");
 
   const serviceRules = parseServiceRules(formData);
-  if (serviceRules.some((rule) => rule === null)) redirect(`/health-plan/${planId}/edit?error=Confira%20os%20valores%20de%20coparticipa%C3%A7%C3%A3o.`);
+  if (serviceRules.some((rule) => rule === null)) fail("Confira os valores de coparticipação.");
 
   const { supabase, household } = await authContext();
 
@@ -151,28 +173,28 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
     ...parsePromoFields(formData),
     updated_at: new Date().toISOString(),
   }).eq("id", planId).eq("household_id", household.id);
-  if (error) redirect(`/health-plan/${planId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (error) fail(error.message);
 
   await supabase.from("health_plan_copay_rules").delete().eq("health_plan_id", planId);
   const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: planId }));
   if (rows.length) {
     const { error: copayError } = await supabase.from("health_plan_copay_rules").insert(rows);
-    if (copayError) redirect(`/health-plan/${planId}/edit?error=${encodeURIComponent(copayError.message)}`);
+    if (copayError) fail(copayError.message);
   }
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
-  redirect("/health-plan?saved=1");
+  redirect(redirectPathWithParam(safeReturnPath(returnTo, "/health-plan"), "saved", "1"));
 }
 
-export async function deleteHealthPlan(planId: string) {
+export async function deleteHealthPlan(planId: string, formData?: FormData) {
+  const returnTo = formReturnTo(formData ?? new FormData(), "/health-plan");
   const { supabase, household } = await authContext();
   const { error } = await supabase.from("health_plans").delete().eq("id", planId).eq("household_id", household.id);
-  if (error) redirect(`/health-plan?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
-  revalidatePath("/health-plan/guides");
-  redirect("/health-plan?deleted=1");
+  redirect(redirectPathWithParam(returnTo, "deleted", "1"));
 }
 
 export async function savePetloveLeveBaseFee(formData: FormData) {
@@ -184,8 +206,10 @@ export async function saveGuideBaseFee(formData: FormData) {
   const monthlyRaw = value(formData, "base_monthly_fee");
   const monthlyFeeCents = monthlyRaw ? moneyToCents(monthlyRaw) : null;
   if (!guideId) redirect("/health-plan/guides?error=Guia%20inv%C3%A1lido.");
+  const guideFallback = `/health-plan/guides/${guideId}`;
+  const returnTo = formReturnTo(formData, guideFallback);
   if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) {
-    redirect(`/health-plan/guides/${guideId}?error=Mensalidade%20base%20inv%C3%A1lida.`);
+    redirect(redirectPathWithParam(returnTo, "error", "Mensalidade base inválida."));
   }
 
   const { supabase, household } = await authContext();
@@ -194,11 +218,11 @@ export async function saveGuideBaseFee(formData: FormData) {
     .update({ base_monthly_fee_cents: monthlyFeeCents, updated_at: new Date().toISOString() })
     .eq("id", guideId)
     .eq("household_id", household.id);
-  if (error) redirect(`/health-plan/guides/${guideId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
 
   revalidatePath("/health-plan/guides");
   revalidatePath(`/health-plan/guides/${guideId}`);
-  redirect(`/health-plan/guides/${guideId}?saved=1`);
+  redirect(redirectPathWithParam(returnTo, "saved", "1"));
 }
 
 export async function createHealthPlanGuide(formData: FormData) {
@@ -245,6 +269,7 @@ export async function createHealthPlanGuide(formData: FormData) {
 export async function saveGuideNotes(formData: FormData) {
   const guideId = value(formData, "guide_id");
   if (!guideId) redirect("/health-plan/guides?error=Guia%20inv%C3%A1lido.");
+  const returnTo = formReturnTo(formData, `/health-plan/guides/${guideId}`);
 
   const { supabase, household } = await authContext();
   const { error } = await supabase
@@ -256,10 +281,10 @@ export async function saveGuideNotes(formData: FormData) {
     })
     .eq("id", guideId)
     .eq("household_id", household.id);
-  if (error) redirect(`/health-plan/guides/${guideId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
 
   revalidatePath(`/health-plan/guides/${guideId}`);
-  redirect(`/health-plan/guides/${guideId}?saved=1`);
+  redirect(redirectPathWithParam(returnTo, "saved", "1"));
 }
 
 export async function addGuideService(formData: FormData) {
@@ -267,14 +292,15 @@ export async function addGuideService(formData: FormData) {
   const name = value(formData, "name");
   const groupKey = value(formData, "group_key");
   if (!guideId || !name || !groupKey) redirect("/health-plan/guides?error=Preencha%20grupo%20e%20procedimento.");
+  const returnTo = formReturnTo(formData, `/health-plan/guides/${guideId}`);
 
   const copayRaw = value(formData, "copay");
   const copayCents = copayRaw ? moneyToCents(copayRaw) : 0;
-  if (copayRaw && !Number.isFinite(copayCents)) redirect(`/health-plan/guides/${guideId}?error=Coparticipa%C3%A7%C3%A3o%20inv%C3%A1lida.`);
+  if (copayRaw && !Number.isFinite(copayCents)) redirect(redirectPathWithParam(returnTo, "error", "Coparticipação inválida."));
 
   const waitingRaw = value(formData, "waiting_days") || "0";
   const waitingDays = Number(waitingRaw);
-  if (!Number.isFinite(waitingDays) || waitingDays < 0) redirect(`/health-plan/guides/${guideId}?error=Car%C3%AAncia%20inv%C3%A1lida.`);
+  if (!Number.isFinite(waitingDays) || waitingDays < 0) redirect(redirectPathWithParam(returnTo, "error", "Carência inválida."));
 
   const { supabase, household } = await authContext();
   const guide = await supabase.from("health_plan_guides").select("id").eq("id", guideId).eq("household_id", household.id).maybeSingle();
@@ -304,25 +330,26 @@ export async function addGuideService(formData: FormData) {
     notes: value(formData, "notes") || null,
     sort_order: count ?? 999,
   });
-  if (error) redirect(`/health-plan/guides/${guideId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
 
   revalidatePath(`/health-plan/guides/${guideId}`);
-  redirect(`/health-plan/guides/${guideId}?saved=1`);
+  redirect(redirectPathWithParam(returnTo, "saved", "1"));
 }
 
 export async function deleteGuideService(serviceId: string, formData: FormData) {
   const guideId = value(formData, "guide_id");
   if (!guideId) redirect("/health-plan/guides?error=Guia%20inv%C3%A1lido.");
+  const returnTo = formReturnTo(formData, `/health-plan/guides/${guideId}`);
 
   const { supabase, household } = await authContext();
   const guide = await supabase.from("health_plan_guides").select("id").eq("id", guideId).eq("household_id", household.id).maybeSingle();
   if (!guide.data) redirect("/health-plan/guides?error=Guia%20n%C3%A3o%20encontrado.");
 
   const { error } = await supabase.from("health_plan_guide_services").delete().eq("id", serviceId).eq("guide_id", guideId);
-  if (error) redirect(`/health-plan/guides/${guideId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
 
   revalidatePath(`/health-plan/guides/${guideId}`);
-  redirect(`/health-plan/guides/${guideId}?deleted=1`);
+  redirect(redirectPathWithParam(returnTo, "deleted", "1"));
 }
 
 export async function deleteHealthPlanGuide(guideId: string) {
