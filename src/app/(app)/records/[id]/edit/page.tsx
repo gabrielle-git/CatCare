@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { RecordFields, type RecordFieldDefaults } from "@/components/record-fields";
-import { RecordMutationForm } from "@/components/record-mutation-form";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isNeonatalPet } from "@/lib/format";
 import { listPets } from "@/lib/pets";
@@ -48,9 +47,11 @@ export default async function EditRecordPage({ params, searchParams }: { params:
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Editar registro</h1>
       </header>
-      <RecordMutationForm action={save} className="cat-card mt-6 p-5 md:p-7" initialError={query.error ?? null}>
+      {query.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{query.error}</div>}
+      {/* Same wiring as create: native <form action={serverAction}> + redirect() inside the action. */}
+      <form action={save} className="cat-card mt-6 p-5 md:p-7">
         <RecordFields pets={petOptions} mode="edit" returnTo={returnTo} defaultValues={{ ...record, record_type: record.kind as RecordFieldDefaults["record_type"] }} submitLabel="Salvar alterações" />
-      </RecordMutationForm>
+      </form>
       <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
         <h2 className="font-bold">Apagar registro</h2>
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Remove este cuidado do histórico permanentemente.</p>
