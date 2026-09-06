@@ -52,7 +52,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
   const age = formatPetAge(pet.birth_date, pet.birth_date_estimated);
   const humanAge = formatHumanEquivalentAge(pet.birth_date);
   const birthDate = formatBirthDate(pet.birth_date, pet.birth_date_estimated);
-  const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses);
+  const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses, { species: pet.species });
   const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
   const suggestedDescription = [
     `${pet.name} ${age ? `tem ${age}` : "faz parte da família"}${pet.color ? ` e tem pelagem ${pet.color.toLocaleLowerCase("pt-BR")}` : ""}.`,

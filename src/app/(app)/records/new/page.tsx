@@ -39,7 +39,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       ? [query.type]
       : undefined;
   const { pets, configured, editable } = await loadPetOptions();
-  const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
+  const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet), species: pet.species }));
 
   return (
     <div className="mx-auto w-full max-w-[860px] px-5 pb-8 pt-7 md:px-8 lg:py-10">

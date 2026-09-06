@@ -19,7 +19,7 @@ import type { QuickRecordType } from "@/components/record-fields-types";
 
 export type { QuickRecordType } from "@/components/record-fields-types";
 
-type PetOption = { id: string; name: string; neonatal: boolean };
+type PetOption = { id: string; name: string; neonatal: boolean; species?: string | null };
 type RecordOption = { value: QuickRecordType; label: string; shortLabel: string; icon: LucideIcon; neonatal?: boolean };
 
 const options: RecordOption[] = [
@@ -188,11 +188,6 @@ export function RecordFields({
   const activeTypes = lockedType ? [validInitial] : selectedTypes;
   const primaryType = activeTypes[0] ?? fallbackType;
   const multiType = activeTypes.length > 1;
-  const selectableVaccines = useMemo(() => listSelectableVaccines("v4"), []);
-  const vaccineDoseOptions = useMemo(
-    () => (isProtocolVaccineKey(vaccineKey) ? dosesForVaccineKey(vaccineKey) : []),
-    [vaccineKey],
-  );
 
   const restrictToNeonatal = neonatalContext || activeTypes.some(isNeonatalCareType);
   const hasExplicitPet = Boolean(initialPetId || defaultValues?.pet_id);
@@ -220,6 +215,22 @@ export function RecordFields({
   const visibleSelectedIds = useMemo(
     () => selectedPetIds.filter((id) => visiblePets.some((pet) => pet.id === id)),
     [selectedPetIds, visiblePets],
+  );
+
+  const vaccineFormSpecies = useMemo(() => {
+    const selected = pets.filter((pet) => visibleSelectedIds.includes(pet.id));
+    if (selected.length === 0) return "cat";
+    const normalized = selected.map((pet) => (pet.species ?? "cat").trim().toLowerCase() || "cat");
+    const first = normalized[0];
+    return normalized.every((value) => value === first) ? first : null;
+  }, [pets, visibleSelectedIds]);
+  const selectableVaccines = useMemo(
+    () => listSelectableVaccines({ species: vaccineFormSpecies, coreVaccineKey: "v4" }),
+    [vaccineFormSpecies],
+  );
+  const vaccineDoseOptions = useMemo(
+    () => (isProtocolVaccineKey(vaccineKey) ? dosesForVaccineKey(vaccineKey) : []),
+    [vaccineKey],
   );
 
   const droppedPetNames = useMemo(() => {

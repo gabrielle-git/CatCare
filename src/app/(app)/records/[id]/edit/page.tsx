@@ -34,7 +34,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
   if (!record) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
 
   const returnTo = safeReturnPath(query.return_to, `/pets/${record.pet_id}`);
-  const petOptions = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet) }));
+  const petOptions = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet), species: pet.species }));
   const save = updateRecord.bind(null, id, source);
   const remove = deleteRecord.bind(null, id, source, record.pet_id);
 
