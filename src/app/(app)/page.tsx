@@ -47,7 +47,7 @@ async function loadDashboard() {
     for (const pet of pets) {
       const doses = preventive.vaccinesByPet.get(pet.id) ?? [];
       const dewormingDoses = preventive.dewormingByPet.get(pet.id) ?? [];
-      const schedule = buildVaccineSchedule(pet.birth_date, doses);
+      const schedule = buildVaccineSchedule(pet.birth_date, doses, { species: pet.species });
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
       const actionable = firstActionableVaccine(schedule);

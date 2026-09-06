@@ -74,6 +74,7 @@ function VaccineRow({ vaccine, petId, editable, returnTo }: { vaccine: Scheduled
 }
 
 function vaccineSummary(schedule: ScheduledVaccine[]) {
+  if (schedule.length === 0) return "Sem protocolo vacinal para esta espécie";
   const overdue = schedule.filter((v) => v.status === "overdue").length;
   const due = schedule.filter((v) => v.status === "due").length;
   if (overdue > 0) return `${overdue} atrasada${overdue > 1 ? "s" : ""}`;
@@ -172,9 +173,15 @@ export function PetPreventiveCareCard({
           </button>
           {vaccinesOpen && (
             <div className="space-y-2 border-t border-[var(--border)] bg-white px-3.5 py-3">
-              {vaccineSchedule.map((vaccine, i) => (
-                <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} returnTo={petReturnTo} />
-              ))}
+              {vaccineSchedule.length === 0 ? (
+                <p className="text-xs leading-relaxed text-[var(--muted)]">
+                  Ainda não há calendário preventivo de vacinas para esta espécie. Você pode registrar vacinas no histórico sem baixa automática de protocolo.
+                </p>
+              ) : (
+                vaccineSchedule.map((vaccine, i) => (
+                  <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} returnTo={petReturnTo} />
+                ))
+              )}
               {editable && (
                 <Link href={vaccineRegisterLink} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--mint-soft)] px-3 py-2 text-[11px] font-bold text-[var(--success)]">
                   <Syringe size={13} /> Registrar vacina
