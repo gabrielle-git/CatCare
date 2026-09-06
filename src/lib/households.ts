@@ -1,4 +1,7 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { timed } from "@/lib/perf";
+import { createClient } from "@/lib/supabase/server";
 import type { Household } from "@/types/database";
 
 const BOOTSTRAP_HINT = "Rode o arquivo supabase/migrations/0005_household_bootstrap.sql no SQL Editor do Supabase e recarregue.";
@@ -11,8 +14,11 @@ function asHousehold(value: unknown): Household | null {
   return row as Household;
 }
 
-export async function ensureHousehold(supabase: SupabaseClient, userId: string): Promise<Household> {
-  const { data: bootstrapped, error: rpcError } = await supabase.rpc("ensure_my_household");
+/** One household bootstrap per request — production logs showed 4–7 duplicate RPCs per navigation. */
+const loadHousehold = cache(async (userId: string): Promise<Household> => {
+  return timed("ensureHousehold", async () => {
+  const supabase = await createClient();
+  const { data: bootstrapped, error: rpcError } = await timed("rpc.ensure_my_household", () => supabase.rpc("ensure_my_household"));
   const fromRpc = asHousehold(bootstrapped);
   if (fromRpc) return fromRpc;
 
@@ -41,4 +47,9 @@ export async function ensureHousehold(supabase: SupabaseClient, userId: string):
 
   const detail = rpcError?.message || error?.message || "new row violates row-level security policy";
   throw new Error(`Não foi possível criar a família (${detail}). ${BOOTSTRAP_HINT}`);
+  });
+});
+
+export async function ensureHousehold(_supabase: SupabaseClient, userId: string): Promise<Household> {
+  return loadHousehold(userId);
 }

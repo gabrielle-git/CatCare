@@ -4,15 +4,14 @@ import { HomeAgendaPanel } from "@/components/home-agenda-panel";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
 import { HomeFamilyStats } from "@/components/home-family-stats";
 import { PetAvatar } from "@/components/pet-avatar";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
-import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdTimeline, listPetDewormingDoses, listPetVaccineDoses, listUpcomingReminders } from "@/lib/records";
+import { listHouseholdPreventiveDoses, listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
 import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
-import { canEdit, getMyRole } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
-import { createClient } from "@/lib/supabase/server";
+import { getPerfTraceId, timed } from "@/lib/perf";
 import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
 import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
 
@@ -29,26 +28,25 @@ type VaccineAlert = { petId: string; petName: string; overdue: number; due: numb
 type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean; registerHref: string };
 
 async function loadDashboard() {
+  const pageStart = performance.now();
+  const trace = getPerfTraceId();
   const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
-  if (!(await isLiveData())) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return empty;
+  if (!(await timed("/.isLiveData", () => isLiveData()))) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
+  const ctx = await getAuthenticatedContext();
+  if (!ctx) return empty;
   try {
-    const household = await ensureHousehold(supabase, data.user.id);
-    const role = await getMyRole(supabase);
-    const [pets, timeline, reminders] = await Promise.all([
-      listPets(supabase, household.id),
-      listHouseholdTimeline(supabase, household.id, 6),
-      listUpcomingReminders(supabase, household.id, 4),
+    const { supabase, household, editable } = ctx;
+    const [pets, timeline, reminders, preventive] = await Promise.all([
+      timed("/.listPets", () => listPets(supabase, household.id)),
+      timed("/.timeline", () => listHouseholdTimeline(supabase, household.id, 6)),
+      timed("/.reminders", () => listUpcomingReminders(supabase, household.id, 4)),
+      timed("/.preventiveDoses", () => listHouseholdPreventiveDoses(supabase, household.id)),
     ]);
     const vaccineAlerts: VaccineAlert[] = [];
     const dewormingAlerts: DewormingAlert[] = [];
     for (const pet of pets) {
-      const [doses, dewormingDoses] = await Promise.all([
-        listPetVaccineDoses(supabase, pet.id),
-        listPetDewormingDoses(supabase, pet.id),
-      ]);
+      const doses = preventive.vaccinesByPet.get(pet.id) ?? [];
+      const dewormingDoses = preventive.dewormingByPet.get(pet.id) ?? [];
       const schedule = buildVaccineSchedule(pet.birth_date, doses);
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
@@ -67,7 +65,8 @@ async function loadDashboard() {
         });
       }
     }
-    return { pets, timeline, reminders, configured: true, editable: canEdit(role), error: null as string | null, vaccineAlerts, dewormingAlerts };
+    console.log(`[CATCARE_PERF][trace ${trace}][/] total=${Math.round(performance.now() - pageStart)}ms pets=${pets.length}`);
+    return { pets, timeline, reminders, configured: true, editable, error: null as string | null, vaccineAlerts, dewormingAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
     return { ...empty, error };

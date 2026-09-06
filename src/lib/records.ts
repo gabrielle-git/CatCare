@@ -106,6 +106,42 @@ export async function listPetDewormingDoses(supabase: SupabaseClient, petId: str
   return (data ?? []).map((row) => ({ title: row.title as string, occurredAt: row.occurred_at as string }));
 }
 
+/** One round-trip for all vaccine + deworming doses in a household (Home alerts). */
+export async function listHouseholdPreventiveDoses(supabase: SupabaseClient, householdId: string) {
+  const { data, error } = await supabase
+    .from("health_records")
+    .select("pet_id, type, title, occurred_at")
+    .eq("household_id", householdId)
+    .in("type", ["vaccine", "deworming"])
+    .order("occurred_at", { ascending: true });
+  if (error) throw error;
+
+  const vaccinesByPet = new Map<string, { vaccineTitle: string; occurredAt: string }[]>();
+  const dewormingByPet = new Map<string, { title: string; occurredAt: string }[]>();
+
+  for (const row of data ?? []) {
+    const petId = row.pet_id as string;
+    const occurredAt = row.occurred_at as string;
+    const title = row.title as string;
+    if (row.type === "vaccine") {
+      const list = vaccinesByPet.get(petId) ?? [];
+      list.push({ vaccineTitle: title, occurredAt });
+      vaccinesByPet.set(petId, list);
+    } else if (row.type === "deworming") {
+      const list = dewormingByPet.get(petId) ?? [];
+      list.push({ title, occurredAt });
+      dewormingByPet.set(petId, list);
+    }
+  }
+
+  // Deworming schedule expects newest-first (matches listPetDewormingDoses).
+  for (const [petId, list] of dewormingByPet) {
+    dewormingByPet.set(petId, [...list].reverse());
+  }
+
+  return { vaccinesByPet, dewormingByPet };
+}
+
 export function listHouseholdTimeline(supabase: SupabaseClient, householdId: string, limit = 12) {
   return loadTimeline(supabase, "household_id", householdId, limit);
 }

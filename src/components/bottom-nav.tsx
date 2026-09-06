@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, Cat, Home, Menu, Plus } from "lucide-react";
+import { isRecordEditPath } from "@/lib/record-edit-nav";
 
 const items = [
   { href: "/", label: "Início", icon: Home },
@@ -14,6 +15,7 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const forceDocumentNav = isRecordEditPath(pathname);
 
   return (
     <nav
@@ -23,20 +25,30 @@ export function BottomNav() {
       <div className="mx-auto grid max-w-[520px] grid-cols-5 gap-1">
         {items.map(({ href, label, icon: Icon, primary }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`focus-ring flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition ${
-                primary
-                  ? "bg-[var(--graphite)] text-white shadow-lg shadow-[#2a2230]/15"
-                  : active
-                    ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                    : "text-[var(--muted)]"
-              }`}
-            >
+          const className = `focus-ring flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition ${
+            primary
+              ? "bg-[var(--graphite)] text-white shadow-lg shadow-[#2a2230]/15"
+              : active
+                ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
+                : "text-[var(--muted)]"
+          }`;
+          const content = (
+            <>
               <Icon size={primary ? 21 : 19} strokeWidth={active || primary ? 2.5 : 2} aria-hidden="true" />
               <span>{label}</span>
+            </>
+          );
+          // On record edit: native <a> so leave-without-save is not stuck in soft-nav.
+          if (forceDocumentNav) {
+            return (
+              <a key={href} href={href} className={className}>
+                {content}
+              </a>
+            );
+          }
+          return (
+            <Link key={href} href={href} prefetch={false} className={className}>
+              {content}
             </Link>
           );
         })}
