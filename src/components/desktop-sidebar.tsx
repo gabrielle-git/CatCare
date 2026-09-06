@@ -17,6 +17,7 @@ import {
   Shield,
   UserRound,
 } from "lucide-react";
+import { isRecordEditPath } from "@/lib/record-edit-nav";
 
 const sections = [
   {
@@ -47,12 +48,40 @@ const sections = [
   },
 ];
 
+function SidebarLink({
+  href,
+  className,
+  forceDocumentNav,
+  children,
+}: {
+  href: string;
+  className: string;
+  forceDocumentNav: boolean;
+  children: React.ReactNode;
+}) {
+  // On record edit: native <a> bypasses App Router soft-nav hangs when leaving.
+  // Future: gate here with unsaved-changes confirm before navigating.
+  if (forceDocumentNav) {
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} prefetch={false} className={className}>
+      {children}
+    </Link>
+  );
+}
+
 export function DesktopSidebar() {
   const pathname = usePathname();
+  const forceDocumentNav = isRecordEditPath(pathname);
 
   return (
     <aside className="sticky top-0 hidden h-svh w-[272px] shrink-0 overflow-y-auto border-r border-[var(--border)] bg-[rgba(247,241,232,0.86)] px-5 py-5 backdrop-blur lg:flex lg:flex-col">
-      <Link href="/" prefetch={false} className="focus-ring flex items-center gap-3 rounded-2xl px-2 py-2">
+      <SidebarLink href="/" forceDocumentNav={forceDocumentNav} className="focus-ring flex items-center gap-3 rounded-2xl px-2 py-2">
         <span className="grid size-11 place-items-center rounded-[18px] bg-[var(--lavender)] text-white shadow-lg shadow-[#8e7dbe]/20">
           <Cat size={23} strokeWidth={2.4} />
         </span>
@@ -60,7 +89,7 @@ export function DesktopSidebar() {
           <strong className="block text-xl tracking-[-0.04em]">CatCare</strong>
           <span className="text-[11px] text-[var(--muted)]">Nossa família de pets</span>
         </span>
-      </Link>
+      </SidebarLink>
 
       <nav aria-label="Navegação principal" className="mt-6 flex-1 space-y-5">
         {sections.map((section) => (
@@ -70,10 +99,10 @@ export function DesktopSidebar() {
               {section.items.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
                 return (
-                  <Link
+                  <SidebarLink
                     key={href}
                     href={href}
-                    prefetch={false}
+                    forceDocumentNav={forceDocumentNav}
                     className={`focus-ring flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-[13px] font-bold transition ${
                       active
                         ? "bg-white text-[var(--foreground)] shadow-sm"
@@ -82,7 +111,7 @@ export function DesktopSidebar() {
                   >
                     <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                     {label}
-                  </Link>
+                  </SidebarLink>
                 );
               })}
             </div>
@@ -91,14 +120,14 @@ export function DesktopSidebar() {
       </nav>
 
       <div className="mt-5 border-t border-[var(--border)] pt-3">
-        <Link href="/settings" prefetch={false} className="focus-ring flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white">
+        <SidebarLink href="/settings" forceDocumentNav={forceDocumentNav} className="focus-ring flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white">
           <span className="grid size-9 shrink-0 place-items-center rounded-[15px] bg-[var(--lavender-soft)]"><UserRound size={17} /></span>
           <span className="min-w-0 flex-1">
             <strong className="block text-[13px]">Conta e família</strong>
             <span className="block truncate text-[10px] text-[var(--muted)]">Entrar ou gerenciar dados</span>
           </span>
           <Settings size={16} className="text-[var(--muted)]" />
-        </Link>
+        </SidebarLink>
       </div>
     </aside>
   );

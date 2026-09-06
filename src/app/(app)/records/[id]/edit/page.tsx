@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { EditRecordForm } from "@/components/edit-record-form";
@@ -43,7 +42,8 @@ export default async function EditRecordPage({ params, searchParams }: { params:
 
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <Link href={returnTo} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</Link>
+      {/* Native <a>: leaving edit via soft-nav can hang; document navigation is reliable. */}
+      <a href={returnTo} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</a>
       <header className="mt-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Editar registro</h1>
