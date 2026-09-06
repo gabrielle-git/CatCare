@@ -28,7 +28,7 @@ function VaccineRow({ vaccine, petId, editable, returnTo }: { vaccine: Scheduled
   const config = vaccineStatusConfig[vaccine.status];
   const Icon = config.icon;
   const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
-  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, returnTo);
+  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, returnTo, vaccine.key);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
@@ -106,7 +106,7 @@ export function PetPreventiveCareCard({
   const [vaccinesOpen, setVaccinesOpen] = useState(vaccineOverdue > 0 || vaccineDue > 0);
   const firstVaccine = firstActionableVaccine(vaccineSchedule);
   const petReturnTo = `/pets/${petId}`;
-  const firstVaccineHref = firstVaccine ? vaccineAlertHref(petId, firstVaccine.name, firstVaccine.doseLabel, petReturnTo) : null;
+  const firstVaccineHref = firstVaccine ? vaccineAlertHref(petId, firstVaccine.name, firstVaccine.doseLabel, petReturnTo, firstVaccine.key) : null;
   const dewormingAlertLink = dewormingAlertHref(petId, petReturnTo);
   const dewormingRegisterLink = typedRecordHref(petId, "deworming", petReturnTo);
   const vaccineRegisterLink = typedRecordHref(petId, "vaccine", petReturnTo);

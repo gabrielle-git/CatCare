@@ -51,7 +51,7 @@ async function loadDashboard() {
       const overdue = countOverdue(schedule);
       const due = countDue(schedule);
       const actionable = firstActionableVaccine(schedule);
-      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/") : null;
+      const registerHref = actionable ? vaccineAlertHref(pet.id, actionable.name, actionable.doseLabel, "/", actionable.key) : null;
       if (overdue > 0 || due > 0) vaccineAlerts.push({ petId: pet.id, petName: pet.name, overdue, due, registerHref });
 
       const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);

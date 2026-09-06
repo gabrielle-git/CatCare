@@ -21,7 +21,7 @@ async function loadPetOptions() {
   return { pets: await listPets(supabase, household.id), configured: true, editable: canEdit(role) };
 }
 
-export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; types?: string; lock_type?: string; return_to?: string; context?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string }> }) {
+export default async function NewRecordPage({ searchParams }: { searchParams: Promise<{ pet?: string; type?: string; types?: string; lock_type?: string; return_to?: string; context?: string; error?: string; record_title?: string; suggested_title?: string; title?: string; suggestedTitle?: string; vaccine_key?: string; dose_label?: string }> }) {
   if (await isLiveData()) await requireEditPage("/");
   const query = await searchParams;
   const initialTitle = query.record_title ?? query.suggested_title ?? query.suggestedTitle ?? query.title;
@@ -57,13 +57,15 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       ) : (
         <form action={createRecord} className="cat-card mt-6 p-5 md:p-7">
           <RecordFields
-            key={`${query.pet ?? ""}-${query.type ?? ""}-${query.types ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`}
+            key={`${query.pet ?? ""}-${query.type ?? ""}-${query.types ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${query.vaccine_key ?? ""}-${query.dose_label ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`}
             pets={options}
             initialPetId={query.pet}
             initialType={query.type}
             initialTypes={initialTypes}
             initialTitle={initialTitle}
             initialLockType={query.lock_type}
+            initialVaccineKey={query.vaccine_key}
+            initialDoseLabel={query.dose_label}
             returnTo={returnTo}
             neonatalContext={neonatalContext}
             disabled={!configured}

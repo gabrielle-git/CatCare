@@ -20,7 +20,7 @@ function VaccineRow({ vaccine, petId, editable }: { vaccine: ScheduledVaccine; p
   const config = statusConfig[vaccine.status];
   const Icon = config.icon;
   const actionable = vaccine.status !== "done" && vaccine.status !== "not_applicable";
-  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, `/pets/${petId}`);
+  const registerHref = vaccineAlertHref(petId, vaccine.name, vaccine.doseLabel, `/pets/${petId}`, vaccine.key);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white">
