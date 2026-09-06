@@ -3,6 +3,7 @@ import type { WeightChartPoint } from "@/components/weight-chart";
 import { formatWeight } from "@/lib/format";
 import type { RecordSource } from "@/types/database";
 import { recordKindFromHealth, recordKindFromNeonatal } from "@/lib/record-form";
+import { formatVaccineRecordTitle, isProtocolVaccineKey, vaccineDisplayName } from "@/lib/vaccine-schedule";
 import type { HealthRecord, NeonatalRecord, Reminder, TimelineItem, TimelineTone, WeightRecord } from "@/types/database";
 
 const healthLabels: Record<HealthRecord["type"], string> = {
@@ -85,14 +86,52 @@ export async function listPetWeights(supabase: SupabaseClient, petId: string, li
 }
 
 export async function listPetVaccineDoses(supabase: SupabaseClient, petId: string) {
-  const { data, error } = await supabase
-    .from("health_records")
-    .select("title, occurred_at")
-    .eq("pet_id", petId)
-    .eq("type", "vaccine")
-    .order("occurred_at", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row) => ({ vaccineTitle: row.title as string, occurredAt: row.occurred_at as string }));
+  const [structured, legacy] = await Promise.all([
+    supabase
+      .from("vaccine_doses")
+      .select("id, vaccine_name, dose_label, administered_at, health_record_id")
+      .eq("pet_id", petId)
+      .order("administered_at", { ascending: true }),
+    supabase
+      .from("health_records")
+      .select("id, title, occurred_at")
+      .eq("pet_id", petId)
+      .eq("type", "vaccine")
+      .order("occurred_at", { ascending: true }),
+  ]);
+  if (structured.error) throw structured.error;
+  if (legacy.error) throw legacy.error;
+
+  const fromStructured = (structured.data ?? []).map((row) => {
+    const key = row.vaccine_name as string;
+    const doseLabel = (row.dose_label as string | null) ?? null;
+    const title = doseLabel
+      ? formatVaccineRecordTitle(key, doseLabel)
+      : vaccineDisplayName(key);
+    return {
+      vaccineTitle: title,
+      occurredAt: row.administered_at as string,
+      vaccineKey: isProtocolVaccineKey(key) ? key : null,
+      doseLabel,
+    };
+  });
+
+  const linkedHealthIds = new Set(
+    (structured.data ?? [])
+      .map((row) => row.health_record_id as string | null)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const fromLegacy = (legacy.data ?? [])
+    .filter((row) => !linkedHealthIds.has(row.id as string))
+    .map((row) => ({
+      vaccineTitle: row.title as string,
+      occurredAt: row.occurred_at as string,
+      vaccineKey: null as string | null,
+      doseLabel: null as string | null,
+    }));
+
+  return [...fromStructured, ...fromLegacy];
 }
 
 export async function listPetDewormingDoses(supabase: SupabaseClient, petId: string) {
@@ -108,24 +147,52 @@ export async function listPetDewormingDoses(supabase: SupabaseClient, petId: str
 
 /** One round-trip for all vaccine + deworming doses in a household (Home alerts). */
 export async function listHouseholdPreventiveDoses(supabase: SupabaseClient, householdId: string) {
-  const { data, error } = await supabase
-    .from("health_records")
-    .select("pet_id, type, title, occurred_at")
-    .eq("household_id", householdId)
-    .in("type", ["vaccine", "deworming"])
-    .order("occurred_at", { ascending: true });
-  if (error) throw error;
+  const [health, structured] = await Promise.all([
+    supabase
+      .from("health_records")
+      .select("id, pet_id, type, title, occurred_at")
+      .eq("household_id", householdId)
+      .in("type", ["vaccine", "deworming"])
+      .order("occurred_at", { ascending: true }),
+    supabase
+      .from("vaccine_doses")
+      .select("pet_id, vaccine_name, dose_label, administered_at, health_record_id")
+      .eq("household_id", householdId)
+      .order("administered_at", { ascending: true }),
+  ]);
+  if (health.error) throw health.error;
+  if (structured.error) throw structured.error;
 
-  const vaccinesByPet = new Map<string, { vaccineTitle: string; occurredAt: string }[]>();
+  const vaccinesByPet = new Map<string, { vaccineTitle: string; occurredAt: string; vaccineKey: string | null; doseLabel: string | null }[]>();
   const dewormingByPet = new Map<string, { title: string; occurredAt: string }[]>();
+  const linkedHealthIds = new Set(
+    (structured.data ?? [])
+      .map((row) => row.health_record_id as string | null)
+      .filter((id): id is string => Boolean(id)),
+  );
 
-  for (const row of data ?? []) {
+  for (const row of structured.data ?? []) {
+    const petId = row.pet_id as string;
+    const key = row.vaccine_name as string;
+    const doseLabel = (row.dose_label as string | null) ?? null;
+    const list = vaccinesByPet.get(petId) ?? [];
+    list.push({
+      vaccineTitle: doseLabel ? formatVaccineRecordTitle(key, doseLabel) : vaccineDisplayName(key),
+      occurredAt: row.administered_at as string,
+      vaccineKey: isProtocolVaccineKey(key) ? key : null,
+      doseLabel,
+    });
+    vaccinesByPet.set(petId, list);
+  }
+
+  for (const row of health.data ?? []) {
     const petId = row.pet_id as string;
     const occurredAt = row.occurred_at as string;
     const title = row.title as string;
     if (row.type === "vaccine") {
+      if (linkedHealthIds.has(row.id as string)) continue;
       const list = vaccinesByPet.get(petId) ?? [];
-      list.push({ vaccineTitle: title, occurredAt });
+      list.push({ vaccineTitle: title, occurredAt, vaccineKey: null, doseLabel: null });
       vaccinesByPet.set(petId, list);
     } else if (row.type === "deworming") {
       const list = dewormingByPet.get(petId) ?? [];

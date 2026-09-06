@@ -18,8 +18,10 @@ import {
 } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
+import { findExistingVaccineDose, insertVaccineDose } from "@/lib/vaccine-doses";
+import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
 
-function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean): never {
+function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
   const pet = petIds[0] ?? "";
   if (pet) params.set("pet", pet);
@@ -27,6 +29,9 @@ function fail(petIds: string[], type: string, message: string, returnTo?: string
   params.set("error", message);
   if (returnTo) params.set("return_to", returnTo);
   if (neonatalContext) params.set("context", "neonatal");
+  if (extras?.vaccineKey) params.set("vaccine_key", extras.vaccineKey);
+  if (extras?.doseLabel) params.set("dose_label", extras.doseLabel);
+  if (extras?.title) params.set("record_title", extras.title);
   redirect(`/records/new?${params.toString()}`);
 }
 
@@ -64,7 +69,13 @@ export async function createRecord(formData: FormData) {
   const returnTo = resolveReturnTo(value(formData, "return_to"));
   const neonatalContext = value(formData, "context") === "neonatal";
   const multi = types.length > 1;
-  const failHere = (message: string): never => fail(petIds, primaryType, message, returnTo, neonatalContext);
+  const vaccineKeyEarly = value(formData, "vaccine_key");
+  const doseLabelEarly = value(formData, "dose_label");
+  const failHere = (message: string): never => fail(petIds, primaryType, message, returnTo, neonatalContext, {
+    vaccineKey: vaccineKeyEarly || undefined,
+    doseLabel: doseLabelEarly || undefined,
+    title: value(formData, "title") || undefined,
+  });
 
   if (petIds.length === 0 || types.length === 0) failHere("Escolha ao menos um pet e o tipo de cuidado.");
 
@@ -146,9 +157,36 @@ export async function createRecord(formData: FormData) {
       allergy: "Alergia",
       surgery: "Cirurgia",
     };
-    const title = titleForType(formData, type, multi, defaults[healthType]);
+
+    const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
+    const doseLabel = type === "vaccine" ? value(formData, "dose_label") : "";
+    if (type === "vaccine") {
+      if (!vaccineKey) failHere("Escolha qual vacina foi aplicada.");
+      if (vaccineKey === "other") {
+        // Free-form vaccine — history only, no protocol reconciliation.
+      } else if (!isProtocolVaccineKey(vaccineKey)) {
+        failHere("Vacina inválida.");
+      } else if (!doseLabel) {
+        failHere("Escolha a dose aplicada.");
+      } else if (!dosesForVaccineKey(vaccineKey).includes(doseLabel)) {
+        failHere("Dose inválida para esta vacina.");
+      }
+    }
+
+    const title = type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
+      ? formatVaccineRecordTitle(vaccineKey, doseLabel)
+      : titleForType(formData, type, multi, defaults[healthType]);
+    if (type === "vaccine" && vaccineKey === "other" && !title.trim()) {
+      failHere("Informe o nome da vacina.");
+    }
+
     const clinicOrVet = value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {
+      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
+        const existing = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
+        if (existing) failHere("Esta dose já está registrada como aplicada.");
+      }
+
       const { data, error } = await supabase.from("health_records").insert({
         household_id: household.id,
         pet_id: pet.id,
@@ -160,6 +198,26 @@ export async function createRecord(formData: FormData) {
       }).select("id").single();
       if (error) failHere(error.message);
       created += 1;
+
+      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel && data) {
+        try {
+          await insertVaccineDose(supabase, {
+            householdId: household.id,
+            petId: pet.id,
+            healthRecordId: data.id,
+            vaccineKey,
+            doseLabel,
+            administeredAt: occurredAt as string,
+            clinicOrVet,
+            notes,
+          });
+        } catch (cause) {
+          await supabase.from("health_records").delete().eq("id", data.id).eq("household_id", household.id);
+          const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
+          failHere(message);
+        }
+      }
+
       if (reminderAt && data && !multi) {
         const prefix = reminderTitles[type] ?? "Cuidado de";
         await supabase.from("reminders").insert({

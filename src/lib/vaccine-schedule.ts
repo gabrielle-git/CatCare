@@ -2,8 +2,11 @@ import { getPetAgeDays } from "@/lib/format";
 
 export type VaccineStatus = "done" | "due" | "overdue" | "upcoming" | "not_applicable";
 
+export type ProtocolVaccineKey = "v3" | "v4" | "v5" | "rabies";
+export type VaccineKey = ProtocolVaccineKey | "other";
+
 export type ScheduledVaccine = {
-  key: string;
+  key: ProtocolVaccineKey;
   name: string;
   doseLabel: string;
   /** Minimum age in days to receive this dose */
@@ -15,7 +18,7 @@ export type ScheduledVaccine = {
 };
 
 type DoseSpec = {
-  key: string;
+  key: ProtocolVaccineKey;
   name: string;
   doses: { label: string; minWeeks: number; overdueWeeks: number }[];
 };
@@ -56,10 +59,41 @@ const SCHEDULE: DoseSpec[] = [
   },
 ];
 
+const PROTOCOL_KEYS = new Set<string>(["v3", "v4", "v5", "rabies"]);
+
 export type AppliedDose = {
   vaccineTitle: string;
   occurredAt: string;
+  /** Structured key when known (from vaccine_doses.vaccine_name). */
+  vaccineKey?: string | null;
+  /** Structured dose label when known (from vaccine_doses.dose_label). */
+  doseLabel?: string | null;
 };
+
+export function isProtocolVaccineKey(value: string | null | undefined): value is ProtocolVaccineKey {
+  return Boolean(value && PROTOCOL_KEYS.has(value));
+}
+
+export function vaccineDisplayName(key: string): string {
+  return SCHEDULE.find((spec) => spec.key === key)?.name ?? key;
+}
+
+export function dosesForVaccineKey(key: string): string[] {
+  return SCHEDULE.find((spec) => spec.key === key)?.doses.map((dose) => dose.label) ?? [];
+}
+
+/** Vaccines offered in the current household protocol (default V4 + rabies). */
+export function listSelectableVaccines(protocol: "v3" | "v4" | "v5" = "v4"): { key: ProtocolVaccineKey; name: string; doses: string[] }[] {
+  return SCHEDULE.filter((spec) => spec.key === protocol || spec.key === "rabies").map((spec) => ({
+    key: spec.key,
+    name: spec.name,
+    doses: spec.doses.map((dose) => dose.label),
+  }));
+}
+
+export function formatVaccineRecordTitle(vaccineKey: string, doseLabel: string): string {
+  return `${vaccineDisplayName(vaccineKey)} — ${doseLabel}`;
+}
 
 function matchesVaccine(title: string, key: string): boolean {
   const t = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -70,18 +104,29 @@ function matchesVaccine(title: string, key: string): boolean {
   return false;
 }
 
-function matchesDose(title: string, label: string): boolean {
-  const t = title.toLowerCase();
+function matchesDoseLegacy(title: string, label: string): boolean {
+  const t = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (/1[ªa]\s*dose|primeira\s*dose/.test(t) && label === "1ª dose") return true;
   if (/2[ªa]\s*dose|segunda\s*dose/.test(t) && label === "2ª dose") return true;
   if (/3[ªa]\s*dose|terceira\s*dose/.test(t) && label === "3ª dose") return true;
-  if (label === "Dose única") return true;
+  if (label === "Dose única") {
+    // Prefer explicit "dose única"; also accept antirabies titles without a numbered dose.
+    if (/dose\s*unica/.test(t)) return true;
+    if (!/[123][ªa]\s*dose|primeira|segunda|terceira/.test(t)) return true;
+  }
   return false;
+}
+
+function doseMatches(applied: AppliedDose, vaccineKey: ProtocolVaccineKey, doseLabel: string): boolean {
+  if (applied.vaccineKey && isProtocolVaccineKey(applied.vaccineKey) && applied.doseLabel) {
+    return applied.vaccineKey === vaccineKey && applied.doseLabel === doseLabel;
+  }
+  return matchesVaccine(applied.vaccineTitle, vaccineKey) && matchesDoseLegacy(applied.vaccineTitle, doseLabel);
 }
 
 /**
  * Build the vaccine schedule for a pet given their birth_date and applied doses.
- * The `protocol` param picks which polyvalent vaccine the family uses (default v4).
+ * Prefers structured vaccineKey/doseLabel; falls back to legacy title matching.
  */
 export function buildVaccineSchedule(
   birthDate: string | null,
@@ -90,23 +135,29 @@ export function buildVaccineSchedule(
 ): ScheduledVaccine[] {
   const ageDays = getPetAgeDays(birthDate);
   const specs = SCHEDULE.filter((s) => s.key === protocol || s.key === "rabies");
+  const used = new Set<number>();
 
-  return specs.flatMap((spec) => {
-    let appliedCount = 0;
-    return spec.doses.map((dose): ScheduledVaccine => {
+  return specs.flatMap((spec) =>
+    spec.doses.map((dose): ScheduledVaccine => {
       const minAgeDays = dose.minWeeks * 7;
       const overdueDays = dose.overdueWeeks * 7;
 
-      const applied = appliedDoses.find(
-        (d) => matchesVaccine(d.vaccineTitle, spec.key) && matchesDose(d.vaccineTitle, dose.label),
+      const appliedIdx = appliedDoses.findIndex(
+        (entry, index) => !used.has(index) && doseMatches(entry, spec.key, dose.label),
       );
-
-      if (!applied && appliedCount < appliedDoses.filter((d) => matchesVaccine(d.vaccineTitle, spec.key)).length) {
-        appliedCount++;
-      }
+      const applied = appliedIdx >= 0 ? appliedDoses[appliedIdx] : null;
+      if (appliedIdx >= 0) used.add(appliedIdx);
 
       if (applied) {
-        return { key: spec.key, name: spec.name, doseLabel: dose.label, minAgeDays, overdueDays, status: "done", appliedAt: applied.occurredAt };
+        return {
+          key: spec.key,
+          name: spec.name,
+          doseLabel: dose.label,
+          minAgeDays,
+          overdueDays,
+          status: "done",
+          appliedAt: applied.occurredAt,
+        };
       }
 
       if (ageDays == null) {
@@ -122,8 +173,8 @@ export function buildVaccineSchedule(
       }
 
       return { key: spec.key, name: spec.name, doseLabel: dose.label, minAgeDays, overdueDays, status: "due", appliedAt: null };
-    });
-  });
+    }),
+  );
 }
 
 export function countOverdue(schedule: ScheduledVaccine[]): number {

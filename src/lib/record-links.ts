@@ -43,8 +43,19 @@ export function dewormingAlertHref(petId: string, returnTo?: string) {
   return newRecordHref(petId, "deworming", DEWORMING_TITLE, returnTo);
 }
 
-export function vaccineAlertHref(petId: string, vaccineName: string, doseLabel: string, returnTo?: string) {
-  return newRecordHref(petId, "vaccine", `${vaccineName} — ${doseLabel}`, returnTo);
+export function vaccineAlertHref(
+  petId: string,
+  vaccineName: string,
+  doseLabel: string,
+  returnTo?: string,
+  vaccineKey?: string,
+) {
+  const params = new URLSearchParams({ pet: petId, type: "vaccine" });
+  params.set("record_title", `${vaccineName} — ${doseLabel}`);
+  params.set("dose_label", doseLabel);
+  if (vaccineKey) params.set("vaccine_key", vaccineKey);
+  if (returnTo) params.set("return_to", returnTo);
+  return `/records/new?${params.toString()}`;
 }
 
 export { DEWORMING_TITLE };
