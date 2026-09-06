@@ -5,8 +5,9 @@
  * - dose_label = schedule label ("1ª dose", "Dose única", …)
  * - health_record_id = owning health_records row (required for validity)
  *
- * FK ON DELETE is SET NULL — application MUST delete linked doses before/with
- * the health record, and readers MUST ignore orphans (null health_record_id).
+ * FK ON DELETE CASCADE removes linked doses when the health record is deleted.
+ * Orphans (null health_record_id) may still exist from before CASCADE; readers
+ * MUST ignore them. UPDATE still uses reconcileVaccineDoseForHealthRecord.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";

@@ -12,7 +12,6 @@ import { numberValue, parseLocalDateTime, quickRecordTypes, redirectPathWithPara
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 import {
-  deleteVaccineDosesForHealthRecord,
   findExistingVaccineDose,
   reconcileVaccineDoseForHealthRecord,
 } from "@/lib/vaccine-doses";
@@ -178,16 +177,7 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   const { supabase, household } = await authContext();
   const table = tableForSource(source);
 
-  // Delete linked structured doses BEFORE health_records (FK is ON DELETE SET NULL).
-  if (source === "health") {
-    try {
-      await deleteVaccineDosesForHealthRecord(supabase, recordId, household.id);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
-      redirect(redirectPathWithParam(returnTo, "error", message));
-    }
-  }
-
+  // Linked vaccine_doses are removed by FK ON DELETE CASCADE on health_record_id.
   const { data, error } = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id).select("id");
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   if (!data?.length) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado ou sem permissão para apagar."));
@@ -214,14 +204,7 @@ export async function deleteRecords(formData: FormData) {
   let deleted = 0;
 
   for (const record of records) {
-    if (record.source === "health") {
-      try {
-        await deleteVaccineDosesForHealthRecord(supabase, record.id, household.id);
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
-        redirect(redirectPathWithParam(returnTo, "error", message));
-      }
-    }
+    // Linked vaccine_doses cascade-delete with health_records (FK ON DELETE CASCADE).
     const table = tableForSource(record.source);
     const { data, error } = await supabase.from(table).delete().eq("id", record.id).eq("household_id", household.id).select("id");
     if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
