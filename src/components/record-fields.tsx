@@ -98,6 +98,8 @@ export type RecordFieldDefaults = {
   amount_ml?: number | null;
   temperature_c?: number | null;
   quality?: string | null;
+  vaccine_key?: string | null;
+  dose_label?: string | null;
 };
 
 export function RecordFields({
@@ -113,6 +115,7 @@ export function RecordFields({
   neonatalContext = false,
   disabled = false,
   mode = "create",
+  allowTypeChange = false,
   defaultValues,
   submitLabel = "Salvar registro",
 }: {
@@ -128,6 +131,8 @@ export function RecordFields({
   neonatalContext?: boolean;
   disabled?: boolean;
   mode?: "create" | "edit";
+  /** When true in edit mode, user can change the care type (health records only). */
+  allowTypeChange?: boolean;
   defaultValues?: RecordFieldDefaults;
   submitLabel?: string;
 }) {
@@ -159,12 +164,15 @@ export function RecordFields({
   const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
   const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
   const [vaccineKey, setVaccineKey] = useState(() => {
-    if (initialVaccineKey && (isProtocolVaccineKey(initialVaccineKey) || initialVaccineKey === "other")) {
-      return initialVaccineKey;
-    }
+    const fromDefaults = defaultValues?.vaccine_key;
+    const fromUrl = initialVaccineKey;
+    const candidate = fromUrl || fromDefaults || "";
+    if (candidate && (isProtocolVaccineKey(candidate) || candidate === "other")) return candidate;
+    // Legacy vaccine edit without structured link — treat as free-form, do not invent a protocol dose.
+    if (mode === "edit" && (defaultValues?.record_type === "vaccine" || validInitial === "vaccine")) return "other";
     return "";
   });
-  const [doseLabel, setDoseLabel] = useState(initialDoseLabel ?? "");
+  const [doseLabel, setDoseLabel] = useState(initialDoseLabel ?? defaultValues?.dose_label ?? "");
   const [weightKg, setWeightKg] = useState(() =>
     defaultValues?.weight_grams != null ? gramsToKgInput(defaultValues.weight_grams) : "",
   );
@@ -175,7 +183,7 @@ export function RecordFields({
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const lockVaccineFromUrl = mode === "create" && isProtocolVaccineKey(initialVaccineKey ?? "") && Boolean(initialDoseLabel);
   const lockTypeFromUrl = mode === "create" && (initialLockType === "1" || initialLockType === "true" || lockTitleFromUrl || lockVaccineFromUrl);
-  const lockedType = mode === "edit" || lockTypeFromUrl;
+  const lockedType = lockTypeFromUrl || (mode === "edit" && !allowTypeChange);
   const allowMultiType = mode === "create" && !lockedType;
   const activeTypes = lockedType ? [validInitial] : selectedTypes;
   const primaryType = activeTypes[0] ?? fallbackType;
@@ -253,6 +261,11 @@ export function RecordFields({
       if (vaccineKey !== "other" && !doseLabel) return "Escolha a dose aplicada.";
       if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
     }
+    if (mode === "edit" && activeTypes.includes("vaccine")) {
+      if (!vaccineKey) return "Escolha qual vacina foi aplicada.";
+      if (vaccineKey !== "other" && !doseLabel) return "Escolha a dose aplicada.";
+      if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
+    }
     return null;
   }, [activeTypes, amountMl, doseLabel, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
 
@@ -294,6 +307,14 @@ export function RecordFields({
 
   const toggleType = (value: QuickRecordType) => {
     if (disabled) return;
+    if (mode === "edit" || !allowMultiType) {
+      setSelectedTypes([value]);
+      if (value !== "vaccine") {
+        setVaccineKey("");
+        setDoseLabel("");
+      }
+      return;
+    }
     setSelectedTypes((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
   };
 
@@ -533,7 +554,7 @@ export function RecordFields({
                     defaultValue={defaultValues?.quality}
                   />
                 )}
-                {type === "vaccine" && mode === "create" && (
+                {type === "vaccine" && (mode === "create" || mode === "edit") && (
                   lockVaccineFromUrl ? (
                     <div className="block space-y-2 sm:col-span-2">
                       <p className="text-sm font-bold">Vacina e dose</p>
@@ -653,18 +674,6 @@ export function RecordFields({
                       )}
                     </label>
                   )
-                )}
-                {healthType && type === "vaccine" && mode === "edit" && (
-                  <label className="block text-sm font-bold sm:col-span-2">
-                    Título
-                    <input
-                      disabled={disabled}
-                      name="title"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      className="field mt-2"
-                    />
-                  </label>
                 )}
                 {(type === "vaccine" || type === "deworming" || type === "consultation") && !multiType && (
                   <label className="block text-sm font-bold sm:col-span-2">

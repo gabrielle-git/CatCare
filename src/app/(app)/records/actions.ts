@@ -11,6 +11,12 @@ import { parsePetIds } from "@/lib/pet-form";
 import { numberValue, parseLocalDateTime, quickRecordTypes, redirectPathWithParam, resolveReturnTo, safeReturnPath, value, type RecordSource } from "@/lib/record-form";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
+import {
+  deleteVaccineDosesForHealthRecord,
+  findExistingVaccineDose,
+  reconcileVaccineDoseForHealthRecord,
+} from "@/lib/vaccine-doses";
+import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
 
 export type UpdateRecordResult =
   | { ok: true; redirectTo: string }
@@ -97,14 +103,61 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   } else {
     const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
     const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
-    const title = value(formData, "title") || defaults[healthType];
+
+    const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
+    const doseLabel = type === "vaccine" ? value(formData, "dose_label") : "";
+    if (type === "vaccine") {
+      if (!vaccineKey) return failHere("Escolha qual vacina foi aplicada.");
+      if (vaccineKey === "other") {
+        // history only
+      } else if (!isProtocolVaccineKey(vaccineKey)) {
+        return failHere("Vacina inválida.");
+      } else if (!doseLabel) {
+        return failHere("Escolha a dose aplicada.");
+      } else if (!dosesForVaccineKey(vaccineKey).includes(doseLabel)) {
+        return failHere("Dose inválida para esta vacina.");
+      }
+    }
+
+    const title = type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
+      ? formatVaccineRecordTitle(vaccineKey, doseLabel)
+      : value(formData, "title") || defaults[healthType];
+    if (type === "vaccine" && vaccineKey === "other" && !title.trim()) {
+      return failHere("Informe o nome da vacina.");
+    }
+
+    const clinicOrVet = value(formData, "clinic_or_vet") || null;
+
+    if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
+      const existing = await findExistingVaccineDose(supabase, petId, vaccineKey, doseLabel);
+      if (existing && existing.health_record_id !== recordId) {
+        return failHere("Esta dose já está registrada como aplicada.");
+      }
+    }
+
     const { error } = await timed("updateRecord.UPDATE health_records", () =>
       supabase.from("health_records").update({
         pet_id: petId, type: healthType, title, occurred_at: occurredAt,
-        clinic_or_vet: value(formData, "clinic_or_vet") || null, notes, updated_at: new Date().toISOString(),
+        clinic_or_vet: clinicOrVet, notes, updated_at: new Date().toISOString(),
       }).eq("id", recordId).eq("household_id", household.id),
     );
     if (error) return failHere(error.message);
+
+    try {
+      await reconcileVaccineDoseForHealthRecord(supabase, {
+        householdId: household.id,
+        petId,
+        healthRecordId: recordId,
+        vaccineKey: type === "vaccine" && isProtocolVaccineKey(vaccineKey) ? vaccineKey : null,
+        doseLabel: type === "vaccine" && isProtocolVaccineKey(vaccineKey) ? doseLabel : null,
+        administeredAt: occurredAt as string,
+        clinicOrVet,
+        notes,
+      });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
+      return failHere(message);
+    }
   }
 
   const beforeRevalidate = Math.round(performance.now() - actionStart);
@@ -124,6 +177,17 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   const returnTo = safeReturnPath(value(formData, "return_to"), `/pets/${petId}`);
   const { supabase, household } = await authContext();
   const table = tableForSource(source);
+
+  // Delete linked structured doses BEFORE health_records (FK is ON DELETE SET NULL).
+  if (source === "health") {
+    try {
+      await deleteVaccineDosesForHealthRecord(supabase, recordId, household.id);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
+      redirect(redirectPathWithParam(returnTo, "error", message));
+    }
+  }
+
   const { data, error } = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id).select("id");
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   if (!data?.length) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado ou sem permissão para apagar."));
@@ -150,6 +214,14 @@ export async function deleteRecords(formData: FormData) {
   let deleted = 0;
 
   for (const record of records) {
+    if (record.source === "health") {
+      try {
+        await deleteVaccineDosesForHealthRecord(supabase, record.id, household.id);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
+        redirect(redirectPathWithParam(returnTo, "error", message));
+      }
+    }
     const table = tableForSource(record.source);
     const { data, error } = await supabase.from(table).delete().eq("id", record.id).eq("household_id", household.id).select("id");
     if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));

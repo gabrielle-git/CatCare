@@ -102,7 +102,9 @@ export async function listPetVaccineDoses(supabase: SupabaseClient, petId: strin
   if (structured.error) throw structured.error;
   if (legacy.error) throw legacy.error;
 
-  const fromStructured = (structured.data ?? []).map((row) => {
+  const fromStructured = (structured.data ?? [])
+    .filter((row) => Boolean(row.health_record_id))
+    .map((row) => {
     const key = row.vaccine_name as string;
     const doseLabel = (row.dose_label as string | null) ?? null;
     const title = doseLabel
@@ -172,6 +174,7 @@ export async function listHouseholdPreventiveDoses(supabase: SupabaseClient, hou
   );
 
   for (const row of structured.data ?? []) {
+    if (!row.health_record_id) continue;
     const petId = row.pet_id as string;
     const key = row.vaccine_name as string;
     const doseLabel = (row.dose_label as string | null) ?? null;
@@ -288,6 +291,8 @@ export type EditableRecord = {
   amount_ml?: number | null;
   temperature_c?: number | null;
   quality?: string | null;
+  vaccine_key?: string | null;
+  dose_label?: string | null;
 };
 
 export async function getEditableRecord(supabase: SupabaseClient, householdId: string, id: string, source: RecordSource): Promise<EditableRecord | null> {
@@ -299,7 +304,32 @@ export async function getEditableRecord(supabase: SupabaseClient, householdId: s
   if (source === "health") {
     const row = await getHealthRecord(supabase, householdId, id);
     if (!row) return null;
-    return { source, id: row.id, pet_id: row.pet_id, kind: recordKindFromHealth(row.type), occurred_at: row.occurred_at, notes: row.notes, title: row.title, clinic_or_vet: row.clinic_or_vet };
+    let vaccineKey: string | null = null;
+    let doseLabel: string | null = null;
+    if (row.type === "vaccine") {
+      const { data: linked } = await supabase
+        .from("vaccine_doses")
+        .select("vaccine_name, dose_label")
+        .eq("household_id", householdId)
+        .eq("health_record_id", row.id)
+        .maybeSingle();
+      if (linked) {
+        vaccineKey = (linked.vaccine_name as string) ?? null;
+        doseLabel = (linked.dose_label as string | null) ?? null;
+      }
+    }
+    return {
+      source,
+      id: row.id,
+      pet_id: row.pet_id,
+      kind: recordKindFromHealth(row.type),
+      occurred_at: row.occurred_at,
+      notes: row.notes,
+      title: row.title,
+      clinic_or_vet: row.clinic_or_vet,
+      vaccine_key: vaccineKey,
+      dose_label: doseLabel,
+    };
   }
   const row = await getNeonatalRecord(supabase, householdId, id);
   if (!row) return null;

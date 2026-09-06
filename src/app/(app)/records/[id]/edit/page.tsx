@@ -49,7 +49,19 @@ export default async function EditRecordPage({ params, searchParams }: { params:
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Editar registro</h1>
       </header>
       <EditRecordForm action={save} className="cat-card mt-6 p-5 md:p-7" initialError={query.error ?? null}>
-        <RecordFields pets={petOptions} mode="edit" returnTo={returnTo} defaultValues={{ ...record, record_type: record.kind as RecordFieldDefaults["record_type"] }} submitLabel="Salvar alterações" />
+        <RecordFields
+          pets={petOptions}
+          mode="edit"
+          allowTypeChange={source === "health"}
+          returnTo={returnTo}
+          defaultValues={{
+            ...record,
+            record_type: record.kind as RecordFieldDefaults["record_type"],
+            vaccine_key: record.vaccine_key,
+            dose_label: record.dose_label,
+          }}
+          submitLabel="Salvar alterações"
+        />
       </EditRecordForm>
       <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
         <h2 className="font-bold">Apagar registro</h2>
