@@ -16,6 +16,7 @@ import {
   resolveReturnTo,
   value,
 } from "@/lib/record-form";
+import { validateFactualInstant } from "@/lib/factual-datetime";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 import { findExistingVaccineDose, insertVaccineDose } from "@/lib/vaccine-doses";
@@ -81,6 +82,8 @@ export async function createRecord(formData: FormData) {
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) failHere("Informe uma data e hora válidas.");
+  const occurredCheck = validateFactualInstant(occurredAt);
+  if (!occurredCheck.ok) failHere(occurredCheck.message);
 
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();

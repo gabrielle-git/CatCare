@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ShoppingBasket, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { FactualDateInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { listActiveMembershipsForShopping, membershipLabel } from "@/lib/benefit-memberships";
 import { getProduct, getPurchase } from "@/lib/commerce";
@@ -47,7 +48,7 @@ export default async function EditPurchasePage({ params, searchParams }: { param
           <label className="text-sm font-bold">Canal<select required name="channel" defaultValue={purchase.channel} className="field mt-2"><option value="physical_store">Loja física</option><option value="online_store">Loja online</option><option value="marketplace">Marketplace</option><option value="delivery">Aplicativo / delivery</option><option value="veterinary">Clínica veterinária</option><option value="other">Outro</option></select></label>
           <label className="text-sm font-bold">Valor pago (R$)<input required name="amount" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={(purchase.amount_cents / 100).toFixed(2)} className="field mt-2" /></label>
           <label className="text-sm font-bold">Quantidade de pacotes<input required name="quantity" type="number" min="0.01" step="0.01" defaultValue={purchase.quantity} className="field mt-2" /></label>
-          <label className="text-sm font-bold">Data<input required name="purchased_on" type="date" defaultValue={purchase.purchased_at.slice(0, 10)} className="field mt-2" /></label>
+          <label className="text-sm font-bold">Data<FactualDateInput required name="purchased_on" defaultValue={purchase.purchased_at.slice(0, 10)} className="field mt-2" /></label>
         </div>
         <div className="rounded-[20px] bg-[var(--cream)] p-4">
           <p className="text-xs font-bold">Cupom e desconto</p>

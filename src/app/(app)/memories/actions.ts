@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureHousehold } from "@/lib/households";
+import { validateFactualDateTimeLocal } from "@/lib/factual-datetime";
 import { assertCanEdit } from "@/lib/roles";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 import { createClient } from "@/lib/supabase/server";
@@ -34,6 +35,8 @@ function readFields(formData: FormData) {
   const occurredAt = value(formData, "occurred_at");
   const petIds = [...new Set(formData.getAll("pet_ids").map((entry) => String(entry).trim()).filter(Boolean))];
   if (!memoryTypes.has(type) || !title || title.length > 120 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(occurredAt) || petIds.length === 0) throw new Error("Confira o tipo, título, data e escolha ao menos um pet.");
+  const occurredCheck = validateFactualDateTimeLocal(occurredAt);
+  if (!occurredCheck.ok) throw new Error(occurredCheck.message);
   const body = value(formData, "body");
   if (body.length > 2000) throw new Error("O texto da memória está muito longo.");
   return { type, title, body: body || null, occurred_at: `${occurredAt}:00-03:00`, petIds };

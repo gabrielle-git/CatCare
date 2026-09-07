@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ArrowLeft, ShoppingBasket, Star } from "lucide-react";
+import { FactualDateInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { StarRating } from "@/components/star-rating";
 import { listActiveMembershipsForShopping, membershipLabel } from "@/lib/benefit-memberships";
 import { listCommerce } from "@/lib/commerce";
+import { civilDateInAppTz } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoPets, demoProducts } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -53,7 +55,7 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
       </section>
 
       <section className="cat-card p-5 md:p-7"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">2. Compra</p><h2 className="mt-1 text-xl font-bold">Preço e onde encontrou</h2>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Loja ou vendedor<input disabled={!configured} required name="store_name" className="field mt-2" placeholder="Ex.: Cobasi" /></label><label className="text-sm font-bold">Canal<select disabled={!configured} required name="channel" className="field mt-2"><option value="physical_store">Loja física</option><option value="online_store">Loja online</option><option value="marketplace">Marketplace</option><option value="delivery">Aplicativo / delivery</option><option value="veterinary">Clínica veterinária</option><option value="other">Outro</option></select></label><label className="text-sm font-bold">Valor pago (R$)<input disabled={!configured} required name="amount" type="number" min="0" step="0.01" inputMode="decimal" className="field mt-2" placeholder="0,00" /></label><label className="text-sm font-bold">Quantidade de pacotes<input disabled={!configured} required name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" className="field mt-2" /></label><label className="text-sm font-bold">Data<input disabled={!configured} required name="purchased_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="field mt-2" /></label></div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Loja ou vendedor<input disabled={!configured} required name="store_name" className="field mt-2" placeholder="Ex.: Cobasi" /></label><label className="text-sm font-bold">Canal<select disabled={!configured} required name="channel" className="field mt-2"><option value="physical_store">Loja física</option><option value="online_store">Loja online</option><option value="marketplace">Marketplace</option><option value="delivery">Aplicativo / delivery</option><option value="veterinary">Clínica veterinária</option><option value="other">Outro</option></select></label><label className="text-sm font-bold">Valor pago (R$)<input disabled={!configured} required name="amount" type="number" min="0" step="0.01" inputMode="decimal" className="field mt-2" placeholder="0,00" /></label><label className="text-sm font-bold">Quantidade de pacotes<input disabled={!configured} required name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" className="field mt-2" /></label><label className="text-sm font-bold">Data<FactualDateInput disabled={!configured} required name="purchased_on" defaultValue={civilDateInAppTz()} className="field mt-2" /></label></div>
         <div className="mt-4 rounded-[20px] bg-[var(--cream)] p-4">
           <p className="text-xs font-bold">Cupom e desconto (opcional)</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">

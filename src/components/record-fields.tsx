@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
@@ -719,7 +720,7 @@ export function RecordFields({
       <section className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-bold">
           Quando?
-          <input disabled={disabled} required type="datetime-local" name="occurred_at" defaultValue={occurredDefault} className="field mt-2" />
+          <FactualDateTimeInput disabled={disabled} required name="occurred_at" defaultValue={occurredDefault} className="field mt-2" />
         </label>
         {mode === "create" && hasReminderType && (
           <label className="block text-sm font-bold">

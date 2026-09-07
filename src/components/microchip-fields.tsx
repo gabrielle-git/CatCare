@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Pet } from "@/types/database";
+import { FactualDateInput } from "@/components/factual-datetime-input";
 
 export function MicrochipFields({ defaultValues, disabled = false }: { defaultValues?: Partial<Pet>; disabled?: boolean }) {
   const [enabled, setEnabled] = useState(defaultValues?.has_microchip ?? false);
@@ -35,9 +36,8 @@ export function MicrochipFields({ defaultValues, disabled = false }: { defaultVa
           </label>
           <label className="block text-sm font-bold">
             Data de implantação
-            <input
+            <FactualDateInput
               disabled={disabled}
-              type="date"
               name="microchip_implanted_at"
               defaultValue={defaultValues?.microchip_implanted_at ?? ""}
               className="field mt-2"
