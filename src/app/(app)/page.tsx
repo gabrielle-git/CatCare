@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ChevronRight, HeartPulse, Plus } from "lucide-react";
-import { HomeAgendaPanel } from "@/components/home-agenda-panel";
+import { HomeAssistantCard } from "@/components/home-assistant-card";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
-import { PetAvatar } from "@/components/pet-avatar";
 import { getAuthenticatedContext } from "@/lib/auth-context";
-import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
-import { demoPets, demoReminders, demoTimeline } from "@/lib/mock-data";
+import { formatDateTime, formatLongDate, isNeonatalPet } from "@/lib/format";
+import { HOME_ACTIVITY_PREVIEW_LIMIT } from "@/lib/family-history";
+import { demoPets, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdPreventiveDoses, listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
+import { listHouseholdPreventiveDoses, listHouseholdTimeline } from "@/lib/records";
 import { buildDewormingSchedule, isDewormingDue, isDewormingOverdue } from "@/lib/deworming-schedule";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPerfTraceId, timed } from "@/lib/perf";
@@ -29,16 +29,25 @@ type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: b
 async function loadDashboard() {
   const pageStart = performance.now();
   const trace = getPerfTraceId();
-  const empty = { pets: [] as typeof demoPets, timeline: [] as typeof demoTimeline, reminders: [] as typeof demoReminders, configured: true, editable: false, error: null as string | null, vaccineAlerts: [] as VaccineAlert[], dewormingAlerts: [] as DewormingAlert[] };
-  if (!(await timed("/.isLiveData", () => isLiveData()))) return { ...empty, pets: demoPets, timeline: demoTimeline, reminders: demoReminders, configured: false };
+  const empty = {
+    pets: [] as typeof demoPets,
+    timeline: [] as typeof demoTimeline,
+    configured: true,
+    editable: false,
+    error: null as string | null,
+    vaccineAlerts: [] as VaccineAlert[],
+    dewormingAlerts: [] as DewormingAlert[],
+  };
+  if (!(await timed("/.isLiveData", () => isLiveData()))) {
+    return { ...empty, pets: demoPets, timeline: demoTimeline, configured: false };
+  }
   const ctx = await getAuthenticatedContext();
   if (!ctx) return empty;
   try {
     const { supabase, household, editable } = ctx;
-    const [pets, timeline, reminders, preventive] = await Promise.all([
+    const [pets, timeline, preventive] = await Promise.all([
       timed("/.listPets", () => listPets(supabase, household.id)),
-      timed("/.timeline", () => listHouseholdTimeline(supabase, household.id, 6)),
-      timed("/.reminders", () => listUpcomingReminders(supabase, household.id, 4)),
+      timed("/.timeline", () => listHouseholdTimeline(supabase, household.id, HOME_ACTIVITY_PREVIEW_LIMIT)),
       timed("/.preventiveDoses", () => listHouseholdPreventiveDoses(supabase, household.id)),
     ]);
     const vaccineAlerts: VaccineAlert[] = [];
@@ -65,7 +74,7 @@ async function loadDashboard() {
       }
     }
     console.log(`[CATCARE_PERF][trace ${trace}][/] total=${Math.round(performance.now() - pageStart)}ms pets=${pets.length}`);
-    return { pets, timeline, reminders, configured: true, editable, error: null as string | null, vaccineAlerts, dewormingAlerts };
+    return { pets, timeline, configured: true, editable, error: null as string | null, vaccineAlerts, dewormingAlerts };
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "Não foi possível carregar os dados da família.";
     return { ...empty, error };
@@ -74,17 +83,18 @@ async function loadDashboard() {
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string; joined?: string }> }) {
   const flags = await searchParams;
-  const { pets, timeline, reminders, configured, editable, error, vaccineAlerts, dewormingAlerts } = await loadDashboard();
+  const { pets, timeline, configured, editable, error, vaccineAlerts, dewormingAlerts } = await loadDashboard();
   const petNames = new Map(pets.map((pet) => [pet.id, pet.name]));
   const babies = pets.filter(isNeonatalPet);
+  const preview = timeline.slice(0, HOME_ACTIVITY_PREVIEW_LIMIT);
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-[1180px] px-4 pb-8 pt-6 sm:px-5 md:px-8 lg:px-10 lg:py-10">
+    <div className="mx-auto w-full min-w-0 max-w-[860px] px-4 pb-8 pt-6 sm:px-5 md:px-8 lg:px-10 lg:py-10">
       <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">{formatLongDate()}</p>
           <h1 className="mt-2 text-[1.65rem] font-bold leading-tight tracking-[-0.04em] sm:text-3xl md:text-4xl">{greeting()}, família.</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Um resumo tranquilo do que importa hoje.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">O que precisa de você agora — e o que aconteceu por aqui.</p>
         </div>
         {editable && (
           <Link
@@ -109,112 +119,65 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
+      <HomeAssistantCard />
+
       <HomeCareAlerts vaccineAlerts={vaccineAlerts} dewormingAlerts={dewormingAlerts} />
 
-      <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.75fr)]">
-        <div className="flex min-w-0 flex-col gap-5">
-          {babies.length > 0 && (
-            <Link
-              href="/neonatal"
-              className="focus-ring flex min-w-0 items-center justify-between gap-3 rounded-[24px] border border-[#e3b6c4] bg-[var(--rose-soft)] p-4 sm:gap-4 sm:p-5"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-[18px] bg-[var(--rose)]">
-                  <HeartPulse size={20} aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-balance font-bold">
-                    {babies.length === 1 ? "1 filhote em acompanhamento" : `${babies.length} filhotes em acompanhamento`}
-                  </h2>
-                  <p className="mt-1 text-pretty text-xs text-[var(--muted)]">Alimentação, peso e eliminações em um painel próprio.</p>
-                </div>
-              </div>
-              <ChevronRight size={19} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
-            </Link>
-          )}
-
-          <section className="cat-card min-w-0 p-5 md:p-6">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Família</p>
-                <h2 className="mt-1 text-xl font-bold">Meus pets</h2>
-              </div>
-              <Link href="/pets" className="focus-ring shrink-0 rounded-xl px-2 py-1 text-xs font-bold text-[var(--lavender-strong)]">
-                Ver todos
-              </Link>
+      {babies.length > 0 && (
+        <Link
+          href="/neonatal"
+          className="focus-ring mt-5 flex min-w-0 items-center justify-between gap-3 rounded-[20px] border border-[#e3b6c4] bg-[var(--rose-soft)] px-4 py-3"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-[14px] bg-[var(--rose)]">
+              <HeartPulse size={17} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold">Filhotes em acompanhamento</p>
+              <p className="text-xs text-[var(--muted)]">
+                {babies.length === 1 ? "1 filhote" : `${babies.length} filhotes`} · Abrir neonatal
+              </p>
             </div>
-            {pets.length === 0 ? (
-              <div className="mt-4 rounded-[20px] border border-dashed border-[var(--border)] p-6 text-center">
-                <p className="text-sm font-bold">Nenhum pet cadastrado.</p>
-                {editable && (
-                  <Link href="/pets/new" className="mt-3 inline-flex text-xs font-bold text-[var(--lavender-strong)]">
-                    Adicionar o primeiro
-                  </Link>
-                )}
-              </div>
-            ) : (
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {pets.slice(0, 4).map((pet) => (
-                  <Link
-                    key={pet.id}
-                    href={`/pets/${pet.id}`}
-                    className="focus-ring flex min-w-0 items-center gap-3 rounded-[20px] border border-[var(--border)] bg-white p-3.5 transition hover:-translate-y-0.5"
-                  >
-                    <PetAvatar name={pet.name} photoUrl={pet.photo_url} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold">{pet.name}</p>
-                      <p className="mt-0.5 text-pretty text-xs text-[var(--muted)]">
-                        {formatWeight(pet.current_weight_grams)} • {formatPetAge(pet.birth_date, pet.birth_date_estimated) ?? "idade não informada"}
-                      </p>
-                      {formatHumanEquivalentAge(pet.birth_date) && (
-                        <p className="mt-0.5 text-pretty text-[10px] text-[var(--muted)]">{formatHumanEquivalentAge(pet.birth_date)}</p>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="xl:hidden">
-            <HomeAgendaPanel reminders={reminders} petNames={petNames} />
           </div>
+          <ChevronRight size={18} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
+        </Link>
+      )}
 
-          <section className="cat-card min-w-0 p-5 md:p-6">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
-              <h2 className="mt-1 text-xl font-bold">Últimos cuidados</h2>
-            </div>
-            <div className="mt-4 space-y-2.5">
-              {timeline.length === 0 ? (
-                <p className="rounded-[18px] border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">
-                  Os registros recentes aparecerão aqui.
-                </p>
-              ) : (
-                timeline.map((item) => (
-                  <Link
-                    key={`${item.kind}-${item.id}`}
-                    href={`/pets/${item.pet_id}`}
-                    className="focus-ring flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3 sm:gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-pretty text-sm font-bold">
-                        {item.title} <span className="font-normal text-[var(--muted)]">• {petNames.get(item.pet_id) ?? "Pet"}</span>
-                      </p>
-                      <p className="mt-0.5 text-pretty text-xs text-[var(--muted)]">{item.detail || "Sem observações"}</p>
-                    </div>
-                    <time className="shrink-0 text-[10px] text-[var(--muted)]">{formatDateTime(item.occurred_at)}</time>
-                  </Link>
-                ))
-              )}
-            </div>
-          </section>
+      <section className="cat-card mt-5 min-w-0 p-5 md:p-6">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Atividade</p>
+            <h2 className="mt-1 text-xl font-bold">O que aconteceu por aqui</h2>
+          </div>
+          <Link href="/historico" className="focus-ring shrink-0 rounded-xl px-2 py-1 text-xs font-bold text-[var(--lavender-strong)]">
+            Ver histórico completo
+          </Link>
         </div>
-
-        <aside className="hidden min-w-0 flex-col gap-5 xl:flex">
-          <HomeAgendaPanel reminders={reminders} petNames={petNames} />
-        </aside>
-      </div>
+        <div className="mt-4 space-y-2.5">
+          {preview.length === 0 ? (
+            <p className="rounded-[18px] border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">
+              Quando você registrar um cuidado, ele aparece aqui.
+            </p>
+          ) : (
+            preview.map((item) => (
+              <Link
+                key={`${item.kind}-${item.id}`}
+                href={`/pets/${item.pet_id}`}
+                className="focus-ring flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3 sm:gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-pretty text-sm font-bold">
+                    {item.title}{" "}
+                    <span className="font-normal text-[var(--muted)]">• {petNames.get(item.pet_id) ?? "Pet"}</span>
+                  </p>
+                  <p className="mt-0.5 text-pretty text-xs text-[var(--muted)]">{item.detail || "Sem observações"}</p>
+                </div>
+                <time className="shrink-0 text-[10px] text-[var(--muted)]">{formatDateTime(item.occurred_at)}</time>
+              </Link>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }
