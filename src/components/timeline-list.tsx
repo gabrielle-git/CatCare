@@ -18,7 +18,7 @@ const toneClasses = {
 
 const neonatalFilters = [
   { value: "all", label: "Todos" },
-  { value: "feeding", label: "Mamada" },
+  { value: "feeding", label: "Alimentação" },
   { value: "urine", label: "Xixi" },
   { value: "stool", label: "Cocô" },
   { value: "temperature", label: "Temp." },
@@ -74,7 +74,7 @@ export function TimelineList({
   editable?: boolean;
   returnTo?: string;
   filterMode?: "neonatal" | "all" | "adult";
-  /** When set, shows "Mamada · Luna" style labels (for multi-pet lists like neonatal). */
+  /** When set, shows "Alimentação · Luna" style labels (for multi-pet lists like neonatal). */
   petNames?: Record<string, string>;
   /** Pre-fills pet on "Novo registro" (e.g. pet profile). */
   newRecordPetId?: string;

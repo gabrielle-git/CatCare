@@ -22,6 +22,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 import { findExistingVaccineDose, insertVaccineDose } from "@/lib/vaccine-doses";
 import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
+import {
+  isFeedingSubtype,
+  notesFieldNameForPet,
+  parseFeedingAmountValue,
+  resolveFeedingUnitFromForm,
+  resolvePetNotes,
+} from "@/lib/neonatal-feeding";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
@@ -98,7 +105,7 @@ export async function createRecord(formData: FormData) {
   if (types.some(isNeonatalCareType)) {
     const invalid = pets.filter((pet) => !isNeonatalPet(pet));
     if (invalid.length > 0) {
-      failHere("Mamada, xixi, cocô e temperatura são só para filhotes com até 8 semanas.");
+      failHere("Alimentação, xixi, cocô e temperatura são só para filhotes com até 8 semanas.");
     }
   }
 
@@ -109,7 +116,7 @@ export async function createRecord(formData: FormData) {
     }
   }
 
-  const notes = value(formData, "notes") || null;
+  const notesShared = value(formData, "notes") || null;
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
   const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
@@ -125,7 +132,8 @@ export async function createRecord(formData: FormData) {
             ? "Informe um peso válido em kg (ex.: 4,2)."
             : `Informe um peso válido para ${pet.name}.`);
         }
-        const { error } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, measured_at: occurredAt, notes });
+        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        const { error } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, measured_at: occurredAt, notes: petNotes });
         if (error) failHere(error.message);
         await supabase.from("pets").update({ current_weight_grams: grams, updated_at: new Date().toISOString() }).eq("id", pet.id).eq("household_id", household.id);
         created += 1;
@@ -135,21 +143,42 @@ export async function createRecord(formData: FormData) {
 
     if (isNeonatalCareType(type)) {
       const neonatalType = type as NeonatalRecordType;
-      const amount = numberValue(formData, "amount_ml");
       const temperature = numberValue(formData, "temperature_c");
-      if (type === "feeding" && (amount == null || amount <= 0 || amount > 1000)) failHere("Informe a quantidade da mamada.");
       if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) failHere("Informe uma temperatura válida.");
+
+      let feedingSubtype: string | null = null;
+      let feedingAmountValue: number | null = null;
+      let feedingAmountUnit: string | null = null;
+      if (type === "feeding") {
+        const subtypeRaw = value(formData, "feeding_subtype");
+        if (!isFeedingSubtype(subtypeRaw)) failHere("Escolha o tipo de alimentação.");
+        feedingSubtype = subtypeRaw;
+        feedingAmountValue = parseFeedingAmountValue(value(formData, "feeding_amount_value"));
+        feedingAmountUnit = resolveFeedingUnitFromForm(
+          value(formData, "feeding_amount_unit_preset"),
+          value(formData, "feeding_amount_unit_other"),
+        );
+        if (feedingAmountValue == null) failHere("Informe a quantidade da alimentação.");
+        if (!feedingAmountUnit) failHere("Informe a unidade da quantidade.");
+      }
+
       const quality = qualityForType(formData, type, multi);
-      const results = await Promise.all(pets.map((pet) => supabase.from("neonatal_records").insert({
-        household_id: household.id,
-        pet_id: pet.id,
-        type: neonatalType,
-        occurred_at: occurredAt,
-        amount_ml: type === "feeding" ? amount : null,
-        temperature_c: type === "temperature" ? temperature : null,
-        quality: type === "feeding" || type === "urine" || type === "stool" ? quality : null,
-        notes,
-      })));
+      const results = await Promise.all(pets.map((pet) => {
+        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        return supabase.from("neonatal_records").insert({
+          household_id: household.id,
+          pet_id: pet.id,
+          type: neonatalType,
+          occurred_at: occurredAt,
+          amount_ml: null,
+          feeding_subtype: type === "feeding" ? feedingSubtype : null,
+          feeding_amount_value: type === "feeding" ? feedingAmountValue : null,
+          feeding_amount_unit: type === "feeding" ? feedingAmountUnit : null,
+          temperature_c: type === "temperature" ? temperature : null,
+          quality: type === "feeding" || type === "urine" || type === "stool" ? quality : null,
+          notes: petNotes,
+        });
+      }));
       const failed = results.find((result) => result.error);
       if (failed?.error) failHere(failed.error.message);
       created += pets.length;
@@ -157,16 +186,22 @@ export async function createRecord(formData: FormData) {
     }
 
     if (shouldSaveObservationAsNeonatal(type, pets, neonatalContext, isNeonatalPet)) {
-      const results = await Promise.all(pets.map((pet) => supabase.from("neonatal_records").insert({
-        household_id: household.id,
-        pet_id: pet.id,
-        type: "observation",
-        occurred_at: occurredAt,
-        amount_ml: null,
-        temperature_c: null,
-        quality: null,
-        notes,
-      })));
+      const results = await Promise.all(pets.map((pet) => {
+        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        return supabase.from("neonatal_records").insert({
+          household_id: household.id,
+          pet_id: pet.id,
+          type: "observation",
+          occurred_at: occurredAt,
+          amount_ml: null,
+          feeding_subtype: null,
+          feeding_amount_value: null,
+          feeding_amount_unit: null,
+          temperature_c: null,
+          quality: null,
+          notes: petNotes,
+        });
+      }));
       const failed = results.find((result) => result.error);
       if (failed?.error) failHere(failed.error.message);
       created += pets.length;
@@ -215,6 +250,7 @@ export async function createRecord(formData: FormData) {
         if (existing) failHere("Esta dose já está registrada como aplicada.");
       }
 
+      const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
       const { data, error } = await supabase.from("health_records").insert({
         household_id: household.id,
         pet_id: pet.id,
@@ -222,7 +258,7 @@ export async function createRecord(formData: FormData) {
         title,
         occurred_at: occurredAt,
         clinic_or_vet: clinicOrVet,
-        notes,
+        notes: petNotes,
       }).select("id").single();
       if (error) failHere(error.message);
       created += 1;
@@ -237,7 +273,7 @@ export async function createRecord(formData: FormData) {
             doseLabel,
             administeredAt: occurredAt as string,
             clinicOrVet,
-            notes,
+            notes: petNotes,
           });
         } catch (cause) {
           await supabase.from("health_records").delete().eq("id", data.id).eq("household_id", household.id);

@@ -178,7 +178,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]">Arquivo neonatal</p>
               <h2 className="mt-1 text-lg font-bold">Ver histórico neonatal</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">Mamadas, xixi e cocô registrados quando {pet.name} ainda era filhote.</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">Alimentação, xixi e cocô registrados quando {pet.name} ainda era filhote.</p>
             </div>
             <HeartPulse className="shrink-0 text-[var(--rose)]" size={24} />
           </Link>

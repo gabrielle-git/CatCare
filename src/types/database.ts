@@ -86,7 +86,11 @@ export type NeonatalRecord = {
   pet_id: string;
   type: NeonatalRecordType;
   occurred_at: string;
+  /** Legacy feeding quantity in ml. Prefer feeding_amount_value + feeding_amount_unit for new rows. */
   amount_ml: number | null;
+  feeding_subtype: string | null;
+  feeding_amount_value: number | null;
+  feeding_amount_unit: string | null;
   weight_grams: number | null;
   temperature_c: number | null;
   quality: string | null;

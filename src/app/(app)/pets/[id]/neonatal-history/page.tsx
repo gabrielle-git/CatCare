@@ -45,7 +45,7 @@ export default async function PetNeonatalHistoryPage({ params }: { params: Promi
           <HeartPulse size={15} /> Fase neonatal
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Histórico neonatal de {pet.name}</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">Mamadas, xixi, cocô e demais cuidados registrados enquanto {pet.name} era filhote.</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">Alimentação, xixi, cocô e demais cuidados registrados enquanto {pet.name} era filhote.</p>
       </header>
 
       <section className="mt-8">

@@ -3,6 +3,7 @@ import type { WeightChartPoint } from "@/components/weight-chart";
 import { formatWeight } from "@/lib/format";
 import type { RecordSource } from "@/types/database";
 import { recordKindFromHealth, recordKindFromNeonatal } from "@/lib/record-form";
+import { getFeedingDisplay } from "@/lib/neonatal-feeding";
 import { formatVaccineRecordTitle, isProtocolVaccineKey, vaccineDisplayName } from "@/lib/vaccine-schedule";
 import type { HealthRecord, NeonatalRecord, Reminder, TimelineItem, TimelineTone, WeightRecord } from "@/types/database";
 
@@ -19,7 +20,7 @@ const healthLabels: Record<HealthRecord["type"], string> = {
 };
 
 const neonatalLabels: Record<NeonatalRecord["type"], string> = {
-  feeding: "Mamada",
+  feeding: "Alimentação",
   weight: "Pesagem neonatal",
   urine: "Fez xixi",
   stool: "Fez cocô",
@@ -42,14 +43,25 @@ function mapHealth(row: HealthRecord): TimelineItem {
 }
 
 function mapNeonatal(row: NeonatalRecord): TimelineItem {
-  const metric = row.type === "feeding" && row.amount_ml != null
-    ? `${row.amount_ml} ml`
-    : row.type === "temperature" && row.temperature_c != null
-      ? `${row.temperature_c.toLocaleString("pt-BR")} °C`
-      : row.weight_grams != null
-        ? formatWeight(row.weight_grams)
-        : row.quality;
-  return { id: row.id, pet_id: row.pet_id, source: "neonatal", kind: recordKindFromNeonatal(row.type), title: neonatalLabels[row.type], detail: [metric, row.notes].filter(Boolean).join(" • ") || null, occurred_at: row.occurred_at, tone: row.type === "feeding" ? "rose" : "peach" };
+  if (row.type === "feeding") {
+    const display = getFeedingDisplay(row);
+    return {
+      id: row.id,
+      pet_id: row.pet_id,
+      source: "neonatal",
+      kind: recordKindFromNeonatal(row.type),
+      title: display.title,
+      detail: display.detailParts.join(" • ") || null,
+      occurred_at: row.occurred_at,
+      tone: "rose",
+    };
+  }
+  const metric = row.type === "temperature" && row.temperature_c != null
+    ? `${row.temperature_c.toLocaleString("pt-BR")} °C`
+    : row.weight_grams != null
+      ? formatWeight(row.weight_grams)
+      : row.quality;
+  return { id: row.id, pet_id: row.pet_id, source: "neonatal", kind: recordKindFromNeonatal(row.type), title: neonatalLabels[row.type], detail: [metric, row.notes].filter(Boolean).join(" • ") || null, occurred_at: row.occurred_at, tone: "peach" };
 }
 
 async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "household_id", value: string, limit: number) {
@@ -289,6 +301,9 @@ export type EditableRecord = {
   clinic_or_vet?: string | null;
   weight_grams?: number;
   amount_ml?: number | null;
+  feeding_subtype?: string | null;
+  feeding_amount_value?: number | null;
+  feeding_amount_unit?: string | null;
   temperature_c?: number | null;
   quality?: string | null;
   vaccine_key?: string | null;
@@ -333,5 +348,5 @@ export async function getEditableRecord(supabase: SupabaseClient, householdId: s
   }
   const row = await getNeonatalRecord(supabase, householdId, id);
   if (!row) return null;
-  return { source, id: row.id, pet_id: row.pet_id, kind: recordKindFromNeonatal(row.type), occurred_at: row.occurred_at, notes: row.notes, amount_ml: row.amount_ml, temperature_c: row.temperature_c, quality: row.quality, weight_grams: row.weight_grams ?? undefined };
+  return { source, id: row.id, pet_id: row.pet_id, kind: recordKindFromNeonatal(row.type), occurred_at: row.occurred_at, notes: row.notes, amount_ml: row.amount_ml, feeding_subtype: row.feeding_subtype, feeding_amount_value: row.feeding_amount_value, feeding_amount_unit: row.feeding_amount_unit, temperature_c: row.temperature_c, quality: row.quality, weight_grams: row.weight_grams ?? undefined };
 }

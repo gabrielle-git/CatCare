@@ -31,7 +31,7 @@ function FeedingAlert({ stats }: { stats: NeonatalPetSummary }) {
   if (hoursSince < 4) return null;
   return (
     <p className="mt-2 rounded-xl border border-[#e3b6c4] bg-white/80 px-2.5 py-1.5 text-[10px] font-semibold text-[#9a536c]">
-      Sem mamada nova há {Math.floor(hoursSince)} h — vale registrar se alimentou.
+      Sem alimentação nova há {Math.floor(hoursSince)} h — vale registrar se alimentou.
     </p>
   );
 }
@@ -43,11 +43,11 @@ function LastLines({ stats }: { stats: NeonatalPetSummary }) {
         <Milk size={12} className="mt-0.5 shrink-0 text-[var(--rose)]" />
         {stats.lastFeedingAt ? (
           <span>
-            Última mamada {formatTimeAgo(stats.lastFeedingAt)}
-            {stats.lastFeedingMl != null ? ` · ${stats.lastFeedingMl.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ml` : ""}
+            Última alimentação {formatTimeAgo(stats.lastFeedingAt)}
+            {stats.lastFeedingAmountLabel ? ` · ${stats.lastFeedingAmountLabel}` : ""}
           </span>
         ) : (
-          <span>Nenhuma mamada registrada</span>
+          <span>Nenhuma alimentação registrada</span>
         )}
       </li>
       <li className="flex items-start gap-1.5">
@@ -120,7 +120,7 @@ export function NeonatalDashboard({
               </div>
               {editable ? (
                 <div className="grid grid-cols-2 gap-2 p-4">
-                  <Link href={preselectRecordHref({ pet: pet.id, type: "feeding", returnTo: "/neonatal", neonatal: true })} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--rose-soft)] px-3 py-3 text-xs font-bold"><Milk size={17} /> Mamada</Link>
+                  <Link href={preselectRecordHref({ pet: pet.id, type: "feeding", returnTo: "/neonatal", neonatal: true })} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--rose-soft)] px-3 py-3 text-xs font-bold"><Milk size={17} /> Alimentação</Link>
                   <Link href={preselectRecordHref({ pet: pet.id, type: "weight", returnTo: "/neonatal", neonatal: true })} className="focus-ring flex items-center justify-center gap-2 rounded-[18px] bg-[var(--lavender-soft)] px-3 py-3 text-xs font-bold"><Scale size={17} /> Peso</Link>
                   <Link href={preselectRecordHref({ pet: pet.id, type: "urine", returnTo: "/neonatal", neonatal: true })} className="focus-ring rounded-[18px] border border-[var(--border)] px-3 py-3 text-center text-xs font-bold">Xixi</Link>
                   <Link href={preselectRecordHref({ pet: pet.id, type: "stool", returnTo: "/neonatal", neonatal: true })} className="focus-ring rounded-[18px] border border-[var(--border)] px-3 py-3 text-center text-xs font-bold">Cocô</Link>
