@@ -68,6 +68,7 @@ export function TimelineList({
   showNewRecord = false,
   limit,
   fullHistoryHref,
+  showTypeFilters = true,
 }: {
   items: TimelineItem[];
   emptyText?: string;
@@ -82,6 +83,8 @@ export function TimelineList({
   /** Caps how many items are shown; use with fullHistoryHref for a compact preview. */
   limit?: number;
   fullHistoryHref?: string;
+  /** When false, parent owns type filtering (e.g. URL filters on /historico). */
+  showTypeFilters?: boolean;
 }) {
   const totalCount = items.length;
   const visibleItems = limit ? items.slice(0, limit) : items;
@@ -141,18 +144,20 @@ export function TimelineList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {filters.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setFilter(value)}
-            className={`focus-ring rounded-full px-3 py-1.5 text-[11px] font-bold transition ${filter === value ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {showTypeFilters && (
+        <div className="flex flex-wrap gap-2">
+          {filters.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilter(value)}
+              className={`focus-ring rounded-full px-3 py-1.5 text-[11px] font-bold transition ${filter === value ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] text-[var(--muted)]">
