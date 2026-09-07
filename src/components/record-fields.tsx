@@ -16,6 +16,19 @@ import {
   listSelectableVaccines,
   vaccineDisplayName,
 } from "@/lib/vaccine-schedule";
+import {
+  FEEDING_SUBTYPES,
+  FEEDING_SUBTYPE_LABELS,
+  FEEDING_UNIT_PRESET_LABELS,
+  FEEDING_UNIT_PRESETS,
+  isLegacyFeedingAmount,
+  notesFieldNameForPet,
+  notesTargetPetFieldName,
+  resolveFeedingAmount,
+  showPerPetNotesToggle,
+  syncPerPetNotesTargets,
+  type FeedingUnitPreset,
+} from "@/lib/neonatal-feeding";
 import type { QuickRecordType } from "@/components/record-fields-types";
 
 export type { QuickRecordType } from "@/components/record-fields-types";
@@ -25,7 +38,7 @@ type RecordOption = { value: QuickRecordType; label: string; shortLabel: string;
 
 const options: RecordOption[] = [
   { value: "weight", label: "Pesagem", shortLabel: "Peso", icon: Scale },
-  { value: "feeding", label: "Mamada", shortLabel: "Mamada", icon: Milk, neonatal: true },
+  { value: "feeding", label: "Alimentação", shortLabel: "Alim.", icon: Milk, neonatal: true },
   { value: "urine", label: "Xixi", shortLabel: "Xixi", icon: Droplets, neonatal: true },
   { value: "stool", label: "Cocô", shortLabel: "Cocô", icon: Droplets, neonatal: true },
   { value: "temperature", label: "Temperatura", shortLabel: "Temp.", icon: Thermometer, neonatal: true },
@@ -97,11 +110,45 @@ export type RecordFieldDefaults = {
   clinic_or_vet?: string | null;
   weight_grams?: number;
   amount_ml?: number | null;
+  feeding_subtype?: string | null;
+  feeding_amount_value?: number | null;
+  feeding_amount_unit?: string | null;
   temperature_c?: number | null;
   quality?: string | null;
   vaccine_key?: string | null;
   dose_label?: string | null;
 };
+
+function initialFeedingFormState(defaults?: RecordFieldDefaults) {
+  const resolved = defaults
+    ? resolveFeedingAmount({
+        type: "feeding",
+        amount_ml: defaults.amount_ml ?? null,
+        feeding_subtype: defaults.feeding_subtype ?? null,
+        feeding_amount_value: defaults.feeding_amount_value ?? null,
+        feeding_amount_unit: defaults.feeding_amount_unit ?? null,
+      })
+    : null;
+  const unit = resolved?.unit ?? "";
+  const preset: FeedingUnitPreset =
+    unit === "ml" || unit === "g" || unit === "spoon" ? unit : unit ? "other" : "ml";
+  return {
+    subtype: defaults?.feeding_subtype ?? "",
+    amount: resolved != null ? String(resolved.value) : "",
+    unitPreset: preset,
+    unitOther: preset === "other" ? unit : "",
+    legacyWithoutSubtype: Boolean(
+      defaults
+      && isLegacyFeedingAmount({
+        type: "feeding",
+        amount_ml: defaults.amount_ml ?? null,
+        feeding_subtype: defaults.feeding_subtype ?? null,
+        feeding_amount_value: defaults.feeding_amount_value ?? null,
+        feeding_amount_unit: defaults.feeding_amount_unit ?? null,
+      }),
+    ),
+  };
+}
 
 export function RecordFields({
   pets,
@@ -178,8 +225,15 @@ export function RecordFields({
     defaultValues?.weight_grams != null ? gramsToKgInput(defaultValues.weight_grams) : "",
   );
   const [weightKgByPetId, setWeightKgByPetId] = useState<Record<string, string>>({});
-  const [amountMl, setAmountMl] = useState(defaultValues?.amount_ml?.toString() ?? "");
+  const initialFeeding = useMemo(() => initialFeedingFormState(defaultValues), [defaultValues]);
+  const [feedingSubtype, setFeedingSubtype] = useState(initialFeeding.subtype);
+  const [feedingAmountValue, setFeedingAmountValue] = useState(initialFeeding.amount);
+  const [feedingUnitPreset, setFeedingUnitPreset] = useState<FeedingUnitPreset>(initialFeeding.unitPreset);
+  const [feedingUnitOther, setFeedingUnitOther] = useState(initialFeeding.unitOther);
   const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
+  const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
+  const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
+  const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
 
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const lockVaccineFromUrl = mode === "create" && isProtocolVaccineKey(initialVaccineKey ?? "") && Boolean(initialDoseLabel);
@@ -263,7 +317,11 @@ export function RecordFields({
       types: activeTypes,
       weightKg,
       weightKgByPetId,
-      amountMl,
+      feedingSubtype,
+      feedingAmountValue,
+      feedingUnitPreset,
+      feedingUnitOther,
+      allowLegacyFeedingWithoutSubtype: mode === "edit" && initialFeeding.legacyWithoutSubtype && !feedingSubtype,
       temperatureC,
       petNames,
     });
@@ -279,7 +337,7 @@ export function RecordFields({
       if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
     }
     return null;
-  }, [activeTypes, amountMl, doseLabel, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
+  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
 
   const submitBlocked = disabled || visiblePets.length === 0 || validationMessage !== null;
 
@@ -316,6 +374,24 @@ export function RecordFields({
       return next;
     });
   }, [visibleSelectedIds]);
+
+  useEffect(() => {
+    if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
+      setPerPetNotesEnabled(false);
+      setPerPetNotesTargets([]);
+      setPerPetNotesDraft({});
+      return;
+    }
+    setPerPetNotesTargets((prev) => syncPerPetNotesTargets(visibleSelectedIds, prev));
+    setPerPetNotesDraft((prev) => {
+      const allowed = new Set(visibleSelectedIds);
+      const next: Record<string, string> = {};
+      for (const [id, text] of Object.entries(prev)) {
+        if (allowed.has(id)) next[id] = text;
+      }
+      return next;
+    });
+  }, [mode, visibleSelectedIds]);
 
   const toggleType = (value: QuickRecordType) => {
     if (disabled) return;
@@ -426,7 +502,7 @@ export function RecordFields({
         </div>
         {droppedPetNames.length > 0 && (
           <p className="mt-2 text-xs font-semibold text-[#9a536c]" role="status">
-            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — mamada, xixi, cocô e temperatura só valem para filhotes.
+            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — alimentação, xixi, cocô e temperatura só valem para filhotes.
           </p>
         )}
         {mode === "create" && recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
@@ -521,23 +597,81 @@ export function RecordFields({
               <div className="grid gap-4 sm:grid-cols-2">
                 {type === "weight" && renderWeightFields()}
                 {type === "feeding" && (
-                  <label className="block text-sm font-bold">
-                    Quantidade em ml
-                    <input
-                      disabled={disabled}
-                      type="number"
-                      name="amount_ml"
-                      min="0.1"
-                      max="1000"
-                      step="0.1"
-                      inputMode="decimal"
-                      value={amountMl}
-                      onChange={(event) => setAmountMl(event.target.value)}
-                      className="field mt-2"
-                      placeholder="Ex.: 8"
-                      aria-required="true"
-                    />
-                  </label>
+                  <>
+                    <label className="block text-sm font-bold sm:col-span-2">
+                      Tipo de alimentação
+                      <select
+                        disabled={disabled}
+                        name="feeding_subtype"
+                        value={feedingSubtype}
+                        onChange={(event) => setFeedingSubtype(event.target.value)}
+                        className="field mt-2"
+                        aria-required={mode === "create" || !initialFeeding.legacyWithoutSubtype}
+                      >
+                        {mode === "edit" && initialFeeding.legacyWithoutSubtype ? (
+                          <option value="">Alimentação (sem subtipo — legado)</option>
+                        ) : (
+                          <option value="" disabled>
+                            Escolha…
+                          </option>
+                        )}
+                        {FEEDING_SUBTYPES.map((subtype) => (
+                          <option key={subtype} value={subtype}>
+                            {FEEDING_SUBTYPE_LABELS[subtype]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-bold">
+                      Quantidade
+                      <input
+                        disabled={disabled}
+                        type="number"
+                        name="feeding_amount_value"
+                        min="0.1"
+                        max="1000"
+                        step="0.1"
+                        inputMode="decimal"
+                        value={feedingAmountValue}
+                        onChange={(event) => setFeedingAmountValue(event.target.value)}
+                        className="field mt-2"
+                        placeholder="Ex.: 18"
+                        aria-required="true"
+                      />
+                    </label>
+                    <label className="block text-sm font-bold">
+                      Unidade
+                      <select
+                        disabled={disabled}
+                        name="feeding_amount_unit_preset"
+                        value={feedingUnitPreset}
+                        onChange={(event) => setFeedingUnitPreset(event.target.value as FeedingUnitPreset)}
+                        className="field mt-2"
+                        aria-required="true"
+                      >
+                        {FEEDING_UNIT_PRESETS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {FEEDING_UNIT_PRESET_LABELS[unit]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {feedingUnitPreset === "other" && (
+                      <label className="block text-sm font-bold sm:col-span-2">
+                        Qual unidade?
+                        <input
+                          disabled={disabled}
+                          name="feeding_amount_unit_other"
+                          value={feedingUnitOther}
+                          onChange={(event) => setFeedingUnitOther(event.target.value)}
+                          className="field mt-2"
+                          placeholder="Ex.: sachê, gotas…"
+                          maxLength={32}
+                          aria-required="true"
+                        />
+                      </label>
+                    )}
+                  </>
                 )}
                 {type === "temperature" && (
                   <label className="block text-sm font-bold">
@@ -731,16 +865,118 @@ export function RecordFields({
       </section>
 
       <label className="mt-5 block text-sm font-bold">
-        Observações
+        {showPerPetNotesToggle(mode, visibleSelectedIds.length) ? "Observação para todos (opcional)" : "Observação (opcional)"}
         <textarea
           disabled={disabled}
           name="notes"
           rows={3}
           defaultValue={defaultValues?.notes ?? ""}
           className="field mt-2 resize-none"
-          placeholder={recordCount > 1 ? `Opcional — vale para os ${recordCount} registros` : "Opcional — qualquer detalhe que ajude depois"}
+          placeholder={
+            showPerPetNotesToggle(mode, visibleSelectedIds.length)
+              ? "Opcional — vale para todos os pets deste lançamento"
+              : "Opcional — qualquer detalhe que ajude depois"
+          }
         />
       </label>
+
+      {showPerPetNotesToggle(mode, visibleSelectedIds.length) && (
+        <div className="mt-4 space-y-3">
+          <label className="flex cursor-pointer items-start gap-3 text-sm font-bold">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[var(--graphite)]"
+              disabled={disabled}
+              checked={perPetNotesEnabled}
+              name={perPetNotesEnabled ? "include_per_pet_notes" : undefined}
+              value="1"
+              onChange={(event) => {
+                const next = event.target.checked;
+                setPerPetNotesEnabled(next);
+                if (!next) {
+                  setPerPetNotesTargets([]);
+                  setPerPetNotesDraft({});
+                }
+              }}
+            />
+            <span>
+              Quer adicionar uma observação individual?
+              <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">
+                Por padrão não — só a observação para todos é usada.
+              </span>
+            </span>
+          </label>
+
+          {perPetNotesEnabled && (
+            <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4" aria-label="Observações individuais">
+              <fieldset disabled={disabled} className="min-w-0">
+                <legend className="text-sm font-bold">Para qual pet?</legend>
+                <p className="mt-1 text-xs text-[var(--muted)]">Pode escolher um ou mais — só eles ganham campo próprio.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visibleSelectedIds.map((petId) => {
+                    const checked = perPetNotesTargets.includes(petId);
+                    return (
+                      <label
+                        key={petId}
+                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                          checked
+                            ? "border-[var(--graphite)] bg-[var(--graphite)] text-white"
+                            : "border-[var(--border)] bg-white text-[var(--graphite)]"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          name={notesTargetPetFieldName()}
+                          value={petId}
+                          checked={checked}
+                          onChange={() => {
+                            setPerPetNotesTargets((prev) => {
+                              if (prev.includes(petId)) {
+                                setPerPetNotesDraft((draft) => {
+                                  const next = { ...draft };
+                                  delete next[petId];
+                                  return next;
+                                });
+                                return prev.filter((id) => id !== petId);
+                              }
+                              return [...prev, petId];
+                            });
+                          }}
+                        />
+                        {petNames.get(petId) ?? "Pet"}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              {perPetNotesTargets.length > 0 && (
+                <div className="space-y-3 border-t border-[var(--border)] pt-3">
+                  <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
+                  {perPetNotesTargets.map((petId) => (
+                    <label key={petId} className="block text-sm font-bold">
+                      {petNames.get(petId) ?? "Pet"}
+                      <textarea
+                        disabled={disabled}
+                        name={notesFieldNameForPet(petId)}
+                        rows={2}
+                        className="field mt-2 resize-none"
+                        placeholder="Opcional — só para este pet"
+                        value={perPetNotesDraft[petId] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setPerPetNotesDraft((prev) => ({ ...prev, [petId]: value }));
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
 
       {validationMessage && (
         <p className="mt-5 text-sm font-semibold text-[var(--danger)]" role="alert">

@@ -17,6 +17,13 @@ import {
   reconcileVaccineDoseForHealthRecord,
 } from "@/lib/vaccine-doses";
 import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
+import {
+  isFeedingSubtype,
+  parseFeedingAmountValue,
+  resolveFeedingUnitFromForm,
+  shouldPreserveLegacyFeedingAmount,
+} from "@/lib/neonatal-feeding";
+import { getNeonatalRecord } from "@/lib/records";
 
 export type UpdateRecordResult =
   | { ok: true; redirectTo: string }
@@ -91,14 +98,67 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     if (error) return failHere(error.message);
   } else if (source === "neonatal") {
     const neonatalType = type as NeonatalRecordType;
-    const amount = numberValue(formData, "amount_ml");
     const temperature = numberValue(formData, "temperature_c");
-    if (type === "feeding" && (amount == null || amount <= 0 || amount > 1000)) return failHere("Informe a quantidade da mamada.");
-    if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) return failHere("Informe uma temperatura válida.");
+    if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) {
+      return failHere("Informe uma temperatura válida.");
+    }
+
+    const existing = type === "feeding"
+      ? await timed("updateRecord.selectNeonatal", () => getNeonatalRecord(supabase, household.id, recordId))
+      : null;
+    if (type === "feeding" && !existing) return failHere("Registro não encontrado.");
+
+    let amountMl: number | null = null;
+    let feedingSubtype: string | null = null;
+    let feedingAmountValue: number | null = null;
+    let feedingAmountUnit: string | null = null;
+
+    if (type === "feeding" && existing) {
+      const subtypeRaw = value(formData, "feeding_subtype");
+      const nextSubtype = subtypeRaw && isFeedingSubtype(subtypeRaw) ? subtypeRaw : null;
+      const nextValue = parseFeedingAmountValue(value(formData, "feeding_amount_value"));
+      const nextUnit = resolveFeedingUnitFromForm(
+        value(formData, "feeding_amount_unit_preset"),
+        value(formData, "feeding_amount_unit_other"),
+      );
+      if (nextValue == null) return failHere("Informe a quantidade da alimentação.");
+      if (!nextUnit) return failHere("Informe a unidade da quantidade.");
+
+      if (
+        shouldPreserveLegacyFeedingAmount({
+          existing,
+          nextSubtype,
+          nextValue,
+          nextUnit,
+        })
+      ) {
+        // Notes/quality/time-only edit on legacy: keep amount_ml, leave feeding_* null.
+        amountMl = Number(existing.amount_ml);
+        feedingSubtype = null;
+        feedingAmountValue = null;
+        feedingAmountUnit = null;
+      } else {
+        // New structured amount, or explicit conversion from legacy.
+        if (!nextSubtype) return failHere("Escolha o tipo de alimentação.");
+        amountMl = null;
+        feedingSubtype = nextSubtype;
+        feedingAmountValue = nextValue;
+        feedingAmountUnit = nextUnit;
+      }
+    }
+
     const { error } = await timed("updateRecord.UPDATE neonatal_records", () =>
       supabase.from("neonatal_records").update({
-        pet_id: petId, type: neonatalType, occurred_at: occurredAt, amount_ml: amount, temperature_c: temperature,
-        quality: value(formData, "quality") || null, notes,
+        pet_id: petId,
+        type: neonatalType,
+        occurred_at: occurredAt,
+        amount_ml: type === "feeding" ? amountMl : null,
+        feeding_subtype: type === "feeding" ? feedingSubtype : null,
+        feeding_amount_value: type === "feeding" ? feedingAmountValue : null,
+        feeding_amount_unit: type === "feeding" ? feedingAmountUnit : null,
+        temperature_c: type === "temperature" ? temperature : null,
+        quality: value(formData, "quality") || null,
+        notes,
       }).eq("id", recordId).eq("household_id", household.id),
     );
     if (error) return failHere(error.message);

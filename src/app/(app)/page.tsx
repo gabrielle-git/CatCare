@@ -127,7 +127,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   <h2 className="text-balance font-bold">
                     {babies.length === 1 ? "1 filhote em acompanhamento" : `${babies.length} filhotes em acompanhamento`}
                   </h2>
-                  <p className="mt-1 text-pretty text-xs text-[var(--muted)]">Mamada, peso e eliminações em um painel próprio.</p>
+                  <p className="mt-1 text-pretty text-xs text-[var(--muted)]">Alimentação, peso e eliminações em um painel próprio.</p>
                 </div>
               </div>
               <ChevronRight size={19} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />

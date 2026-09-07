@@ -1,10 +1,9 @@
 import type { QuickRecordType } from "@/components/record-fields-types";
 import { parseWeightKg } from "@/lib/format";
+import { isFeedingSubtype, parseFeedingAmountValue, resolveFeedingUnitFromForm } from "@/lib/neonatal-feeding";
 
 export function parseAmountMl(raw: string) {
-  const parsed = Number(raw.trim().replace(",", "."));
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1000) return null;
-  return parsed;
+  return parseFeedingAmountValue(raw);
 }
 
 export function parseTemperatureC(raw: string) {
@@ -18,7 +17,12 @@ type ValidateInput = {
   types: QuickRecordType[];
   weightKg: string;
   weightKgByPetId: Record<string, string>;
-  amountMl: string;
+  feedingSubtype: string;
+  feedingAmountValue: string;
+  feedingUnitPreset: string;
+  feedingUnitOther: string;
+  /** Edit of legacy feeding may omit subtype while preserving amount_ml. */
+  allowLegacyFeedingWithoutSubtype?: boolean;
   temperatureC: string;
   petNames: Map<string, string>;
 };
@@ -43,8 +47,17 @@ export function validateCreateRecordForm(input: ValidateInput): string | null {
     }
   }
 
-  if (input.types.includes("feeding") && parseAmountMl(input.amountMl) == null) {
-    return "Informe a quantidade da mamada.";
+  if (input.types.includes("feeding")) {
+    const hasSubtype = isFeedingSubtype(input.feedingSubtype);
+    if (!hasSubtype && !input.allowLegacyFeedingWithoutSubtype) {
+      return "Escolha o tipo de alimentação.";
+    }
+    if (parseFeedingAmountValue(input.feedingAmountValue) == null) {
+      return "Informe a quantidade da alimentação.";
+    }
+    if (!resolveFeedingUnitFromForm(input.feedingUnitPreset, input.feedingUnitOther)) {
+      return "Informe a unidade da quantidade.";
+    }
   }
 
   if (input.types.includes("temperature") && parseTemperatureC(input.temperatureC) == null) {

@@ -1,5 +1,6 @@
 import type { NeonatalRecord } from "@/types/database";
 import { APP_TIMEZONE, formatDateTime, formatTime } from "@/lib/format";
+import { feedingAmountInMl, formatFeedingAmountFromRow } from "@/lib/neonatal-feeding";
 
 export type NeonatalDailyStats = {
   petId: string;
@@ -11,7 +12,10 @@ export type NeonatalDailyStats = {
 
 export type NeonatalPetSummary = NeonatalDailyStats & {
   lastFeedingAt: string | null;
+  /** Millilitres of the last feeding only when that feeding is actually in ml. */
   lastFeedingMl: number | null;
+  /** Human label for the last feeding amount (any unit), e.g. "20 g" or "18 ml". */
+  lastFeedingAmountLabel: string | null;
   lastStoolAt: string | null;
   lastUrineAt: string | null;
 };
@@ -72,6 +76,7 @@ export function computeNeonatalSummaries(
         urineCount: 0,
         lastFeedingAt: null,
         lastFeedingMl: null,
+        lastFeedingAmountLabel: null,
         lastStoolAt: null,
         lastUrineAt: null,
       },
@@ -87,7 +92,8 @@ export function computeNeonatalSummaries(
     if (record.type === "feeding") {
       if (!entry.lastFeedingAt || new Date(record.occurred_at) > new Date(entry.lastFeedingAt)) {
         entry.lastFeedingAt = record.occurred_at;
-        entry.lastFeedingMl = record.amount_ml != null ? Number(record.amount_ml) : null;
+        entry.lastFeedingMl = feedingAmountInMl(record);
+        entry.lastFeedingAmountLabel = formatFeedingAmountFromRow(record);
       }
     }
     if (record.type === "stool" && (!entry.lastStoolAt || new Date(record.occurred_at) > new Date(entry.lastStoolAt))) {
@@ -106,7 +112,8 @@ export function computeNeonatalSummaries(
 
     if (record.type === "feeding") {
       entry.feedingCount += 1;
-      if (record.amount_ml != null) entry.totalMl += Number(record.amount_ml);
+      const ml = feedingAmountInMl(record);
+      if (ml != null) entry.totalMl += ml;
     }
     if (record.type === "stool") entry.stoolCount += 1;
     if (record.type === "urine") entry.urineCount += 1;
@@ -128,7 +135,7 @@ export function aggregateHouseholdSummary(summaries: Map<string, NeonatalPetSumm
 
 export function formatNeonatalDailyStats(stats: Pick<NeonatalDailyStats, "totalMl" | "feedingCount" | "stoolCount" | "urineCount">) {
   const ml = `${stats.totalMl.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ml`;
-  const feedings = `${stats.feedingCount} mamada${stats.feedingCount === 1 ? "" : "s"}`;
+  const feedings = `${stats.feedingCount} alimentaç${stats.feedingCount === 1 ? "ão" : "ões"}`;
   const stools = `${stats.stoolCount} cocô${stats.stoolCount === 1 ? "" : "s"}`;
   const urines = `${stats.urineCount} xixi${stats.urineCount === 1 ? "" : "s"}`;
   return `${ml} · ${feedings} · ${stools} · ${urines}`;
