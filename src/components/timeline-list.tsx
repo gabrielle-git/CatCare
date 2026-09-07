@@ -23,6 +23,7 @@ const neonatalFilters = [
   { value: "stool", label: "Cocô" },
   { value: "temperature", label: "Temp." },
   { value: "weight", label: "Peso" },
+  { value: "observation", label: "Nota" },
 ] as const;
 
 const adultFilters = [

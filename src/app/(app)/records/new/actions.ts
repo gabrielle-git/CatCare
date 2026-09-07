@@ -14,6 +14,7 @@ import {
   parseWeightGramsForPet,
   redirectPathWithParam,
   resolveReturnTo,
+  shouldSaveObservationAsNeonatal,
   value,
 } from "@/lib/record-form";
 import { validateFactualInstant } from "@/lib/factual-datetime";
@@ -101,6 +102,13 @@ export async function createRecord(formData: FormData) {
     }
   }
 
+  if (types.includes("observation") && shouldSaveObservationAsNeonatal("observation", pets, neonatalContext, isNeonatalPet)) {
+    const invalid = pets.filter((pet) => !isNeonatalPet(pet));
+    if (invalid.length > 0) {
+      failHere("Nota neonatal é só para filhotes com até 8 semanas.");
+    }
+  }
+
   const notes = value(formData, "notes") || null;
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
@@ -140,6 +148,23 @@ export async function createRecord(formData: FormData) {
         amount_ml: type === "feeding" ? amount : null,
         temperature_c: type === "temperature" ? temperature : null,
         quality: type === "feeding" || type === "urine" || type === "stool" ? quality : null,
+        notes,
+      })));
+      const failed = results.find((result) => result.error);
+      if (failed?.error) failHere(failed.error.message);
+      created += pets.length;
+      continue;
+    }
+
+    if (shouldSaveObservationAsNeonatal(type, pets, neonatalContext, isNeonatalPet)) {
+      const results = await Promise.all(pets.map((pet) => supabase.from("neonatal_records").insert({
+        household_id: household.id,
+        pet_id: pet.id,
+        type: "observation",
+        occurred_at: occurredAt,
+        amount_ml: null,
+        temperature_c: null,
+        quality: null,
         notes,
       })));
       const failed = results.find((result) => result.error);

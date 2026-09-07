@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { NeonatalHistoryPanel } from "@/components/neonatal-history-panel";
-import { TimelineList } from "@/components/timeline-list";
 import { isNeonatalPet } from "@/lib/format";
+import {
+  isNeonatalHistoryKind,
+  resolveNeonatalHistoryRange,
+  sortNeonatalTimelineItems,
+} from "@/lib/neonatal-history";
+import { todayIsoDate } from "@/lib/neonatal-stats";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -17,7 +22,7 @@ async function loadHistory() {
   if (!(await isLiveData())) {
     const babies = demoPets.filter(isNeonatalPet);
     const babyIds = new Set(babies.map((pet) => pet.id));
-    const items = demoTimeline.filter((item) => babyIds.has(item.pet_id));
+    const items = demoTimeline.filter((item) => babyIds.has(item.pet_id) && isNeonatalHistoryKind(item.kind));
     return { babies, items, configured: false, editable: false };
   }
 
@@ -33,14 +38,21 @@ async function loadHistory() {
   ]);
   const babies = pets.filter(isNeonatalPet);
   const babyIds = new Set(babies.map((pet) => pet.id));
-  const items = timeline.filter((item) => babyIds.has(item.pet_id) && ["feeding", "urine", "stool", "temperature", "weight"].includes(item.kind));
+  // Include observation (Nota): may live on neonatal_records or legacy health/other.
+  const items = timeline.filter((item) => babyIds.has(item.pet_id) && isNeonatalHistoryKind(item.kind));
 
   return { babies, items, configured: true, editable: canEdit(role) };
 }
 
-export default async function NeonatalHistoryPage() {
-  const { babies, items, configured, editable } = await loadHistory();
+export default async function NeonatalHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const [{ babies, items, editable }, flags] = await Promise.all([loadHistory(), searchParams]);
   const petNames = Object.fromEntries(babies.map((pet) => [pet.id, pet.name]));
+  const range = resolveNeonatalHistoryRange(flags.from, flags.to, todayIsoDate());
+  const sorted = sortNeonatalTimelineItems(items, petNames);
 
   return (
     <div className="mx-auto w-full max-w-[860px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -57,7 +69,13 @@ export default async function NeonatalHistoryPage() {
       </header>
 
       <section className="mt-8">
-        <NeonatalHistoryPanel items={items} petNames={petNames} editable={editable} />
+        <NeonatalHistoryPanel
+          items={sorted}
+          petNames={petNames}
+          editable={editable}
+          initialFrom={range.from}
+          initialTo={range.to}
+        />
       </section>
     </div>
   );
