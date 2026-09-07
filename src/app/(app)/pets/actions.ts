@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseWeightKg } from "@/lib/format";
+import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
@@ -32,6 +33,18 @@ function readFields(formData: FormData) {
   const neuteredAt = value(formData, "neutered_at");
   const neuteredPlace = value(formData, "neutered_place");
   if (hasMicrochip && !microchipNumber) throw new Error("Informe o número do microchip.");
+  if (birthDate) {
+    const birthCheck = validateFactualCivilDate(birthDate);
+    if (!birthCheck.ok) throw new Error(birthCheck.message);
+  }
+  if (hasMicrochip && microchipDate) {
+    const chipCheck = validateFactualCivilDate(microchipDate);
+    if (!chipCheck.ok) throw new Error(chipCheck.message);
+  }
+  if (isNeutered && neuteredAt) {
+    const neuterCheck = validateFactualCivilDate(neuteredAt);
+    if (!neuterCheck.ok) throw new Error(neuterCheck.message);
+  }
   return {
     name: value(formData, "name"),
     sex,

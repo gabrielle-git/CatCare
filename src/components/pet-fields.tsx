@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Pet } from "@/types/database";
+import { FactualDateInput } from "@/components/factual-datetime-input";
 import { MicrochipFields } from "@/components/microchip-fields";
 
 export function PetFields({ defaultValues, includeInitialWeight = false, disabled = false }: { defaultValues?: Partial<Pet>; includeInitialWeight?: boolean; disabled?: boolean }) {
@@ -25,7 +26,7 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
         </label>
         <label className="block text-sm font-bold">
           Nascimento
-          <input disabled={disabled} type="date" name="birth_date" defaultValue={defaultValues?.birth_date ?? ""} className="field mt-2" />
+          <FactualDateInput disabled={disabled} name="birth_date" defaultValue={defaultValues?.birth_date ?? ""} className="field mt-2" />
         </label>
       </div>
 
@@ -68,7 +69,7 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
         <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2">
           <label className="block text-sm font-bold">
             Quando castrou?
-            <input disabled={disabled} type="date" name="neutered_at" defaultValue={defaultValues?.neutered_at ?? ""} className="field mt-2" />
+            <FactualDateInput disabled={disabled} name="neutered_at" defaultValue={defaultValues?.neutered_at ?? ""} className="field mt-2" />
           </label>
           <label className="block text-sm font-bold">
             Onde castrou?

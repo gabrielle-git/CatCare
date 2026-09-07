@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
+import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
@@ -38,6 +39,8 @@ export async function createExpense(formData: FormData) {
   const amountCents = moneyToCents(value(formData, "amount"));
   const date = value(formData, "occurred_on");
   if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) redirect("/expenses/new?error=Confira%20os%20campos%20obrigat%C3%B3rios.");
+  const dateCheck = validateFactualCivilDate(date);
+  if (!dateCheck.ok) redirect(`/expenses/new?error=${encodeURIComponent(dateCheck.message)}`);
 
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);
@@ -71,6 +74,8 @@ export async function updateExpense(expenseId: string, formData: FormData) {
   const amountCents = moneyToCents(value(formData, "amount"));
   const date = value(formData, "occurred_on");
   if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) redirect(`/expenses/${expenseId}/edit?error=Confira%20os%20campos%20obrigat%C3%B3rios.`);
+  const dateCheck = validateFactualCivilDate(date);
+  if (!dateCheck.ok) redirect(`/expenses/${expenseId}/edit?error=${encodeURIComponent(dateCheck.message)}`);
 
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);

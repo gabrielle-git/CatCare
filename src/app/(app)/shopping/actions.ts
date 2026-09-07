@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
+import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
@@ -66,6 +67,8 @@ export async function createPurchase(formData: FormData) {
   const purchasedOn = value(formData, "purchased_on");
   const channel = value(formData, "channel") as PurchaseChannel;
   if (!pricing || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect("/shopping/new?error=Confira%20os%20dados%20da%20compra.");
+  const purchasedCheck = validateFactualCivilDate(purchasedOn);
+  if (!purchasedCheck.ok) redirect(`/shopping/new?error=${encodeURIComponent(purchasedCheck.message)}`);
   const { amount_cents: amountCents, subtotal_cents: subtotalCents, discount_cents: discountCents } = pricing;
   const extras = purchaseExtras(formData);
 
@@ -159,6 +162,8 @@ export async function updatePurchase(purchaseId: string, formData: FormData) {
   const purchasedOn = value(formData, "purchased_on");
   const channel = value(formData, "channel") as PurchaseChannel;
   if (!pricing || !Number.isFinite(quantity) || quantity <= 0 || !storeName || !purchasedOn || !purchaseChannels.has(channel)) redirect(`/shopping/purchases/${purchaseId}/edit?error=Confira%20os%20dados%20da%20compra.`);
+  const purchasedCheck = validateFactualCivilDate(purchasedOn);
+  if (!purchasedCheck.ok) redirect(`/shopping/purchases/${purchaseId}/edit?error=${encodeURIComponent(purchasedCheck.message)}`);
   const { amount_cents: amountCents, subtotal_cents: subtotalCents, discount_cents: discountCents } = pricing;
   const extras = purchaseExtras(formData);
 

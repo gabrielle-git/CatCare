@@ -9,6 +9,7 @@ import { getPerfTraceId, perfLog, timed, timedSync } from "@/lib/perf";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds } from "@/lib/pet-form";
 import { numberValue, parseLocalDateTime, quickRecordTypes, redirectPathWithParam, resolveReturnTo, safeReturnPath, value, type RecordSource } from "@/lib/record-form";
+import { validateFactualInstant } from "@/lib/factual-datetime";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 import {
@@ -69,6 +70,8 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
 
   const occurredAt = parseLocalDateTime(value(formData, "occurred_at"));
   if (!occurredAt) return failHere("Informe uma data e hora válidas.");
+  const occurredCheck = validateFactualInstant(occurredAt);
+  if (!occurredCheck.ok) return failHere(occurredCheck.message);
   perfLog("updateRecord.parseFormData", `ok source=${source}`);
 
   const { supabase, household } = await authContext();
