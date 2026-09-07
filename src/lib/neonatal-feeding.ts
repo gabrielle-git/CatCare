@@ -158,6 +158,23 @@ export function notesFieldNameForPet(petId: string) {
   return `notes__${petId}`;
 }
 
+/** Create multi-pet only: show the compact “individual notes?” control. */
+export function showPerPetNotesToggle(mode: "create" | "edit", selectedPetCount: number): boolean {
+  return mode === "create" && selectedPetCount > 1;
+}
+
+/**
+ * When the per-pet notes control is off, ignore any individual draft values
+ * (do not submit / do not apply them).
+ */
+export function resolvePetNotesForCreate(args: {
+  shared: string | null | undefined;
+  individual: string | null | undefined;
+  perPetNotesEnabled: boolean;
+}): string | null {
+  return resolvePetNotes(args.shared, args.perPetNotesEnabled ? args.individual : null);
+}
+
 export function isLegacyFeedingAmount(row: FeedingRowLike): boolean {
   return row.type === "feeding" && row.amount_ml != null && row.feeding_amount_value == null;
 }

@@ -8,7 +8,9 @@ import {
   getFeedingDisplay,
   resolveFeedingAmount,
   resolvePetNotes,
+  resolvePetNotesForCreate,
   shouldPreserveLegacyFeedingAmount,
+  showPerPetNotesToggle,
 } from "./neonatal-feeding";
 import { computeNeonatalSummaries } from "./neonatal-stats";
 import { compareNeonatalTimelineItems } from "./neonatal-history";
@@ -104,6 +106,37 @@ describe("neonatal feeding helpers", () => {
     assert.equal(resolvePetNotes("aceitaram bem", ""), "aceitaram bem");
     assert.equal(resolvePetNotes("aceitaram bem", "comeu um pouco menos"), "comeu um pouco menos");
     assert.equal(resolvePetNotes(null, "só individual"), "só individual");
+  });
+
+  it("A–C/F: per-pet notes toggle UX rules", () => {
+    assert.equal(showPerPetNotesToggle("create", 1), false);
+    assert.equal(showPerPetNotesToggle("edit", 2), false);
+    assert.equal(showPerPetNotesToggle("create", 2), true);
+
+    assert.equal(
+      resolvePetNotesForCreate({
+        shared: "aceitaram bem",
+        individual: "comeu menos",
+        perPetNotesEnabled: true,
+      }),
+      "comeu menos",
+    );
+    assert.equal(
+      resolvePetNotesForCreate({
+        shared: "aceitaram bem",
+        individual: "",
+        perPetNotesEnabled: true,
+      }),
+      "aceitaram bem",
+    );
+    assert.equal(
+      resolvePetNotesForCreate({
+        shared: "aceitaram bem",
+        individual: "rascunho escondido",
+        perPetNotesEnabled: false,
+      }),
+      "aceitaram bem",
+    );
   });
 
   it("N/O: legacy preserve vs explicit conversion", () => {

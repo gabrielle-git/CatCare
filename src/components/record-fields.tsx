@@ -24,6 +24,7 @@ import {
   isLegacyFeedingAmount,
   notesFieldNameForPet,
   resolveFeedingAmount,
+  showPerPetNotesToggle,
   type FeedingUnitPreset,
 } from "@/lib/neonatal-feeding";
 import type { QuickRecordType } from "@/components/record-fields-types";
@@ -228,6 +229,8 @@ export function RecordFields({
   const [feedingUnitPreset, setFeedingUnitPreset] = useState<FeedingUnitPreset>(initialFeeding.unitPreset);
   const [feedingUnitOther, setFeedingUnitOther] = useState(initialFeeding.unitOther);
   const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
+  const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
+  const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
 
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
   const lockVaccineFromUrl = mode === "create" && isProtocolVaccineKey(initialVaccineKey ?? "") && Boolean(initialDoseLabel);
@@ -368,6 +371,13 @@ export function RecordFields({
       return next;
     });
   }, [visibleSelectedIds]);
+
+  useEffect(() => {
+    if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
+      setPerPetNotesEnabled(false);
+      setPerPetNotesDraft({});
+    }
+  }, [mode, visibleSelectedIds.length]);
 
   const toggleType = (value: QuickRecordType) => {
     if (disabled) return;
@@ -841,7 +851,7 @@ export function RecordFields({
       </section>
 
       <label className="mt-5 block text-sm font-bold">
-        {mode === "create" && visibleSelectedIds.length > 1 ? "Observação para todos (opcional)" : "Observação (opcional)"}
+        {showPerPetNotesToggle(mode, visibleSelectedIds.length) ? "Observação para todos (opcional)" : "Observação (opcional)"}
         <textarea
           disabled={disabled}
           name="notes"
@@ -849,30 +859,61 @@ export function RecordFields({
           defaultValue={defaultValues?.notes ?? ""}
           className="field mt-2 resize-none"
           placeholder={
-            mode === "create" && visibleSelectedIds.length > 1
-              ? "Vale para todos os pets deste lançamento — a individual abaixo substitui"
+            showPerPetNotesToggle(mode, visibleSelectedIds.length)
+              ? "Opcional — vale para todos os pets deste lançamento"
               : "Opcional — qualquer detalhe que ajude depois"
           }
         />
       </label>
 
-      {mode === "create" && visibleSelectedIds.length > 1 && (
-        <section className="mt-4 space-y-3">
-          <p className="text-sm font-bold">Observações individuais (opcional)</p>
-          <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
-          {visibleSelectedIds.map((petId) => (
-            <label key={petId} className="block text-sm font-bold">
-              {petNames.get(petId) ?? "Pet"}
-              <textarea
-                disabled={disabled}
-                name={notesFieldNameForPet(petId)}
-                rows={2}
-                className="field mt-2 resize-none"
-                placeholder="Opcional — só para este pet"
-              />
-            </label>
-          ))}
-        </section>
+      {showPerPetNotesToggle(mode, visibleSelectedIds.length) && (
+        <div className="mt-4 space-y-3">
+          <label className="flex cursor-pointer items-start gap-3 text-sm font-bold">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[var(--graphite)]"
+              disabled={disabled}
+              checked={perPetNotesEnabled}
+              name={perPetNotesEnabled ? "include_per_pet_notes" : undefined}
+              value="1"
+              onChange={(event) => {
+                const next = event.target.checked;
+                setPerPetNotesEnabled(next);
+                if (!next) setPerPetNotesDraft({});
+              }}
+            />
+            <span>
+              Deseja adicionar uma observação individual para algum pet?
+              <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">
+                Por padrão não — só a observação para todos é usada.
+              </span>
+            </span>
+          </label>
+
+          {perPetNotesEnabled && (
+            <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4" aria-label="Observações individuais">
+              <p className="text-sm font-bold">Observações individuais</p>
+              <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
+              {visibleSelectedIds.map((petId) => (
+                <label key={petId} className="block text-sm font-bold">
+                  {petNames.get(petId) ?? "Pet"}
+                  <textarea
+                    disabled={disabled}
+                    name={notesFieldNameForPet(petId)}
+                    rows={2}
+                    className="field mt-2 resize-none"
+                    placeholder="Opcional — só para este pet"
+                    value={perPetNotesDraft[petId] ?? ""}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPerPetNotesDraft((prev) => ({ ...prev, [petId]: value }));
+                    }}
+                  />
+                </label>
+              ))}
+            </section>
+          )}
+        </div>
       )}
 
       {validationMessage && (

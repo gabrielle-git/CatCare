@@ -27,7 +27,7 @@ import {
   notesFieldNameForPet,
   parseFeedingAmountValue,
   resolveFeedingUnitFromForm,
-  resolvePetNotes,
+  resolvePetNotesForCreate,
 } from "@/lib/neonatal-feeding";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
@@ -117,6 +117,13 @@ export async function createRecord(formData: FormData) {
   }
 
   const notesShared = value(formData, "notes") || null;
+  const perPetNotesEnabled = value(formData, "include_per_pet_notes") === "1";
+  const notesForPet = (petId: string) =>
+    resolvePetNotesForCreate({
+      shared: notesShared,
+      individual: value(formData, notesFieldNameForPet(petId)),
+      perPetNotesEnabled,
+    });
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
   const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
@@ -132,7 +139,7 @@ export async function createRecord(formData: FormData) {
             ? "Informe um peso válido em kg (ex.: 4,2)."
             : `Informe um peso válido para ${pet.name}.`);
         }
-        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        const petNotes = notesForPet(pet.id);
         const { error } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, measured_at: occurredAt, notes: petNotes });
         if (error) failHere(error.message);
         await supabase.from("pets").update({ current_weight_grams: grams, updated_at: new Date().toISOString() }).eq("id", pet.id).eq("household_id", household.id);
@@ -164,7 +171,7 @@ export async function createRecord(formData: FormData) {
 
       const quality = qualityForType(formData, type, multi);
       const results = await Promise.all(pets.map((pet) => {
-        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        const petNotes = notesForPet(pet.id);
         return supabase.from("neonatal_records").insert({
           household_id: household.id,
           pet_id: pet.id,
@@ -187,7 +194,7 @@ export async function createRecord(formData: FormData) {
 
     if (shouldSaveObservationAsNeonatal(type, pets, neonatalContext, isNeonatalPet)) {
       const results = await Promise.all(pets.map((pet) => {
-        const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+        const petNotes = notesForPet(pet.id);
         return supabase.from("neonatal_records").insert({
           household_id: household.id,
           pet_id: pet.id,
@@ -250,7 +257,7 @@ export async function createRecord(formData: FormData) {
         if (existing) failHere("Esta dose já está registrada como aplicada.");
       }
 
-      const petNotes = resolvePetNotes(notesShared, value(formData, notesFieldNameForPet(pet.id)));
+      const petNotes = notesForPet(pet.id);
       const { data, error } = await supabase.from("health_records").insert({
         household_id: household.id,
         pet_id: pet.id,
