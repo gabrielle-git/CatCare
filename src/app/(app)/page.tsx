@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ChevronRight, HeartPulse, Plus } from "lucide-react";
 import { HomeAgendaPanel } from "@/components/home-agenda-panel";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
-import { HomeFamilyStats } from "@/components/home-family-stats";
 import { PetAvatar } from "@/components/pet-avatar";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { formatDateTime, formatHumanEquivalentAge, formatLongDate, formatPetAge, formatWeight, isNeonatalPet } from "@/lib/format";
@@ -214,12 +213,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
         <aside className="hidden min-w-0 flex-col gap-5 xl:flex">
           <HomeAgendaPanel reminders={reminders} petNames={petNames} />
-          <HomeFamilyStats petCount={pets.length} timelineCount={timeline.length} reminderCount={reminders.length} />
         </aside>
-      </div>
-
-      <div className="mt-5 xl:hidden">
-        <HomeFamilyStats petCount={pets.length} timelineCount={timeline.length} reminderCount={reminders.length} />
       </div>
     </div>
   );
