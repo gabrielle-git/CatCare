@@ -23,8 +23,10 @@ import {
   FEEDING_UNIT_PRESETS,
   isLegacyFeedingAmount,
   notesFieldNameForPet,
+  notesTargetPetFieldName,
   resolveFeedingAmount,
   showPerPetNotesToggle,
+  syncPerPetNotesTargets,
   type FeedingUnitPreset,
 } from "@/lib/neonatal-feeding";
 import type { QuickRecordType } from "@/components/record-fields-types";
@@ -230,6 +232,7 @@ export function RecordFields({
   const [feedingUnitOther, setFeedingUnitOther] = useState(initialFeeding.unitOther);
   const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
   const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
+  const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
   const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
 
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
@@ -375,9 +378,20 @@ export function RecordFields({
   useEffect(() => {
     if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
       setPerPetNotesEnabled(false);
+      setPerPetNotesTargets([]);
       setPerPetNotesDraft({});
+      return;
     }
-  }, [mode, visibleSelectedIds.length]);
+    setPerPetNotesTargets((prev) => syncPerPetNotesTargets(visibleSelectedIds, prev));
+    setPerPetNotesDraft((prev) => {
+      const allowed = new Set(visibleSelectedIds);
+      const next: Record<string, string> = {};
+      for (const [id, text] of Object.entries(prev)) {
+        if (allowed.has(id)) next[id] = text;
+      }
+      return next;
+    });
+  }, [mode, visibleSelectedIds]);
 
   const toggleType = (value: QuickRecordType) => {
     if (disabled) return;
@@ -879,11 +893,14 @@ export function RecordFields({
               onChange={(event) => {
                 const next = event.target.checked;
                 setPerPetNotesEnabled(next);
-                if (!next) setPerPetNotesDraft({});
+                if (!next) {
+                  setPerPetNotesTargets([]);
+                  setPerPetNotesDraft({});
+                }
               }}
             />
             <span>
-              Deseja adicionar uma observação individual para algum pet?
+              Quer adicionar uma observação individual?
               <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">
                 Por padrão não — só a observação para todos é usada.
               </span>
@@ -892,25 +909,70 @@ export function RecordFields({
 
           {perPetNotesEnabled && (
             <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4" aria-label="Observações individuais">
-              <p className="text-sm font-bold">Observações individuais</p>
-              <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
-              {visibleSelectedIds.map((petId) => (
-                <label key={petId} className="block text-sm font-bold">
-                  {petNames.get(petId) ?? "Pet"}
-                  <textarea
-                    disabled={disabled}
-                    name={notesFieldNameForPet(petId)}
-                    rows={2}
-                    className="field mt-2 resize-none"
-                    placeholder="Opcional — só para este pet"
-                    value={perPetNotesDraft[petId] ?? ""}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPerPetNotesDraft((prev) => ({ ...prev, [petId]: value }));
-                    }}
-                  />
-                </label>
-              ))}
+              <fieldset disabled={disabled} className="min-w-0">
+                <legend className="text-sm font-bold">Para qual pet?</legend>
+                <p className="mt-1 text-xs text-[var(--muted)]">Pode escolher um ou mais — só eles ganham campo próprio.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visibleSelectedIds.map((petId) => {
+                    const checked = perPetNotesTargets.includes(petId);
+                    return (
+                      <label
+                        key={petId}
+                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                          checked
+                            ? "border-[var(--graphite)] bg-[var(--graphite)] text-white"
+                            : "border-[var(--border)] bg-white text-[var(--graphite)]"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          name={notesTargetPetFieldName()}
+                          value={petId}
+                          checked={checked}
+                          onChange={() => {
+                            setPerPetNotesTargets((prev) => {
+                              if (prev.includes(petId)) {
+                                setPerPetNotesDraft((draft) => {
+                                  const next = { ...draft };
+                                  delete next[petId];
+                                  return next;
+                                });
+                                return prev.filter((id) => id !== petId);
+                              }
+                              return [...prev, petId];
+                            });
+                          }}
+                        />
+                        {petNames.get(petId) ?? "Pet"}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              {perPetNotesTargets.length > 0 && (
+                <div className="space-y-3 border-t border-[var(--border)] pt-3">
+                  <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
+                  {perPetNotesTargets.map((petId) => (
+                    <label key={petId} className="block text-sm font-bold">
+                      {petNames.get(petId) ?? "Pet"}
+                      <textarea
+                        disabled={disabled}
+                        name={notesFieldNameForPet(petId)}
+                        rows={2}
+                        className="field mt-2 resize-none"
+                        placeholder="Opcional — só para este pet"
+                        value={perPetNotesDraft[petId] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setPerPetNotesDraft((prev) => ({ ...prev, [petId]: value }));
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
             </section>
           )}
         </div>

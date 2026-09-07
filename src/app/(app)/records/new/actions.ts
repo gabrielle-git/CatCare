@@ -25,6 +25,7 @@ import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } fr
 import {
   isFeedingSubtype,
   notesFieldNameForPet,
+  notesTargetPetFieldName,
   parseFeedingAmountValue,
   resolveFeedingUnitFromForm,
   resolvePetNotesForCreate,
@@ -118,11 +119,17 @@ export async function createRecord(formData: FormData) {
 
   const notesShared = value(formData, "notes") || null;
   const perPetNotesEnabled = value(formData, "include_per_pet_notes") === "1";
+  const notesTargetPets = new Set(
+    perPetNotesEnabled
+      ? formData.getAll(notesTargetPetFieldName()).map((entry) => String(entry)).filter(Boolean)
+      : [],
+  );
   const notesForPet = (petId: string) =>
     resolvePetNotesForCreate({
       shared: notesShared,
       individual: value(formData, notesFieldNameForPet(petId)),
       perPetNotesEnabled,
+      petSelectedForIndividual: notesTargetPets.has(petId),
     });
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;

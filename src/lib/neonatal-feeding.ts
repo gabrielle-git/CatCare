@@ -163,16 +163,31 @@ export function showPerPetNotesToggle(mode: "create" | "edit", selectedPetCount:
   return mode === "create" && selectedPetCount > 1;
 }
 
+export function notesTargetPetFieldName() {
+  return "notes_target_pet";
+}
+
+/** Keep individual-note targets inside the current launch pet set. */
+export function syncPerPetNotesTargets(
+  launchPetIds: readonly string[],
+  targetPetIds: readonly string[],
+): string[] {
+  const allowed = new Set(launchPetIds);
+  return targetPetIds.filter((id) => allowed.has(id));
+}
+
 /**
- * When the per-pet notes control is off, ignore any individual draft values
- * (do not submit / do not apply them).
+ * Apply individual notes only when the feature is on AND this pet was chosen
+ * for an individual note. Otherwise use the shared observation.
  */
 export function resolvePetNotesForCreate(args: {
   shared: string | null | undefined;
   individual: string | null | undefined;
   perPetNotesEnabled: boolean;
+  petSelectedForIndividual: boolean;
 }): string | null {
-  return resolvePetNotes(args.shared, args.perPetNotesEnabled ? args.individual : null);
+  const useIndividual = args.perPetNotesEnabled && args.petSelectedForIndividual;
+  return resolvePetNotes(args.shared, useIndividual ? args.individual : null);
 }
 
 export function isLegacyFeedingAmount(row: FeedingRowLike): boolean {

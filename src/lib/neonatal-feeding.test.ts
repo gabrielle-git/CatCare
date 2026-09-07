@@ -11,6 +11,7 @@ import {
   resolvePetNotesForCreate,
   shouldPreserveLegacyFeedingAmount,
   showPerPetNotesToggle,
+  syncPerPetNotesTargets,
 } from "./neonatal-feeding";
 import { computeNeonatalSummaries } from "./neonatal-stats";
 import { compareNeonatalTimelineItems } from "./neonatal-history";
@@ -113,11 +114,14 @@ describe("neonatal feeding helpers", () => {
     assert.equal(showPerPetNotesToggle("edit", 2), false);
     assert.equal(showPerPetNotesToggle("create", 2), true);
 
+    assert.deepEqual(syncPerPetNotesTargets(["gwen", "hinata"], ["gwen", "dobby"]), ["gwen"]);
+
     assert.equal(
       resolvePetNotesForCreate({
         shared: "aceitaram bem",
         individual: "comeu menos",
         perPetNotesEnabled: true,
+        petSelectedForIndividual: true,
       }),
       "comeu menos",
     );
@@ -126,6 +130,7 @@ describe("neonatal feeding helpers", () => {
         shared: "aceitaram bem",
         individual: "",
         perPetNotesEnabled: true,
+        petSelectedForIndividual: true,
       }),
       "aceitaram bem",
     );
@@ -134,6 +139,16 @@ describe("neonatal feeding helpers", () => {
         shared: "aceitaram bem",
         individual: "rascunho escondido",
         perPetNotesEnabled: false,
+        petSelectedForIndividual: true,
+      }),
+      "aceitaram bem",
+    );
+    assert.equal(
+      resolvePetNotesForCreate({
+        shared: "aceitaram bem",
+        individual: "só para outro",
+        perPetNotesEnabled: true,
+        petSelectedForIndividual: false,
       }),
       "aceitaram bem",
     );
