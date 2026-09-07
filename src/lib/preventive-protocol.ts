@@ -91,14 +91,36 @@ const FELINE_DEFAULT_V1_VACCINES: PreventiveVaccineItem[] = [
   },
 ];
 
+function cloneVaccineItems(items: PreventiveVaccineItem[]): PreventiveVaccineItem[] {
+  return items.map((item) => ({
+    ...item,
+    primarySeries: item.primarySeries.map((dose) => ({ ...dose })),
+  }));
+}
+
 export function createFelineDefaultProtocol(coreVaccineKey: "v3" | "v4" | "v5" = "v4"): PreventiveProtocol {
   return {
     id: FELINE_DEFAULT_PROTOCOL_ID,
     species: "cat",
     version: 1,
     coreVaccineKey,
-    vaccines: FELINE_DEFAULT_V1_VACCINES,
+    // Clone so callers/overrides never mutate the shared template definition.
+    vaccines: cloneVaccineItems(FELINE_DEFAULT_V1_VACCINES),
   };
+}
+
+/**
+ * Stable catalog lookup by persisted protocol id.
+ * Unknown id → null (never invent a substitute template).
+ */
+export function getPreventiveProtocolById(id: string | null | undefined): PreventiveProtocol | null {
+  if (id == null) return null;
+  const normalized = id.trim();
+  if (normalized.length === 0) return null;
+  if (normalized === FELINE_DEFAULT_PROTOCOL_ID) {
+    return createFelineDefaultProtocol("v4");
+  }
+  return null;
 }
 
 function normalizeSpecies(species: string | null | undefined): string | null {
@@ -120,6 +142,11 @@ export function resolvePreventiveProtocol(
     return createFelineDefaultProtocol(coreVaccineKey);
   }
   return null;
+}
+
+/** Expose normalized species for effective-protocol resolution. */
+export function normalizePreventiveSpecies(species: string | null | undefined): string | null {
+  return normalizeSpecies(species);
 }
 
 /** Vaccines visible for the active core combo + always-on companions (e.g. rabies). */
