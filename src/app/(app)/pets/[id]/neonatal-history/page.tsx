@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { TimelineList } from "@/components/timeline-list";
 import { demoPets, demoTimeline } from "@/lib/mock-data";
+import { sortNeonatalTimelineItems } from "@/lib/neonatal-history";
 import { getPet } from "@/lib/pets";
 import { isNeonatalTimelineItem, listPetNeonatalTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
@@ -30,6 +31,9 @@ export default async function PetNeonatalHistoryPage({ params }: { params: Promi
   const { pet, items, configured, editable } = await loadNeonatalHistory(id);
   if (!pet) notFound();
 
+  const petNames = { [pet.id]: pet.name };
+  const sorted = sortNeonatalTimelineItems(items, petNames);
+
   return (
     <div className="mx-auto w-full max-w-[860px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
       <Link href={`/pets/${pet.id}`} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]">
@@ -46,7 +50,7 @@ export default async function PetNeonatalHistoryPage({ params }: { params: Promi
 
       <section className="mt-8">
         <TimelineList
-          items={items}
+          items={sorted}
           emptyText="Nenhum cuidado neonatal foi registrado para este pet."
           editable={editable}
           returnTo={`/pets/${pet.id}/neonatal-history`}

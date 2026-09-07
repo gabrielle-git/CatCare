@@ -65,6 +65,18 @@ export function isNeonatalCareType(type: string) {
   return neonatalCareTypes.has(type);
 }
 
+/** Nota for neonatal pets/context → neonatal_records; adult Nota stays health/other. */
+export function shouldSaveObservationAsNeonatal(
+  type: string,
+  pets: { birth_date: string | null }[],
+  neonatalContext: boolean,
+  isNeonatal: (pet: { birth_date: string | null }) => boolean,
+) {
+  if (type !== "observation") return false;
+  if (neonatalContext) return true;
+  return pets.length > 0 && pets.every((pet) => isNeonatal(pet));
+}
+
 export function parseRecordTypes(formData: FormData): string[] {
   const fromList = value(formData, "record_types");
   const raw = fromList

@@ -24,7 +24,7 @@ const neonatalLabels: Record<NeonatalRecord["type"], string> = {
   urine: "Fez xixi",
   stool: "Fez cocô",
   temperature: "Temperatura",
-  observation: "Observação neonatal",
+  observation: "Nota",
 };
 
 function toneForHealth(type: HealthRecord["type"]): TimelineTone {
