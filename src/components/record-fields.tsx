@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bug, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { Bug, Bath, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
+import { HYGIENE_PRESETS } from "@/lib/hygiene-care";
 import { WEIGHT_KG_LEGACY_FIELD, weightKgFieldName } from "@/lib/record-field-names";
 import { validateCreateRecordForm } from "@/lib/record-form-validation";
 import { isNeonatalCareType, toLocalDateTimeInput } from "@/lib/record-form";
@@ -46,6 +47,7 @@ const options: RecordOption[] = [
   { value: "deworming", label: "Vermífugo", shortLabel: "Vermíf.", icon: Bug },
   { value: "medication", label: "Medicamento", shortLabel: "Remédio", icon: Pill },
   { value: "consultation", label: "Consulta", shortLabel: "Consulta", icon: Stethoscope },
+  { value: "hygiene", label: "Cuidados de higiene", shortLabel: "Higiene", icon: Bath },
   { value: "observation", label: "Observação", shortLabel: "Nota", icon: ClipboardPlus },
 ];
 
@@ -108,6 +110,8 @@ export type RecordFieldDefaults = {
   notes?: string | null;
   title?: string;
   clinic_or_vet?: string | null;
+  hygiene_subtype?: string | null;
+  hygiene_custom_label?: string | null;
   weight_grams?: number;
   amount_ml?: number | null;
   feeding_subtype?: string | null;
@@ -231,6 +235,8 @@ export function RecordFields({
   const [feedingUnitPreset, setFeedingUnitPreset] = useState<FeedingUnitPreset>(initialFeeding.unitPreset);
   const [feedingUnitOther, setFeedingUnitOther] = useState(initialFeeding.unitOther);
   const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
+  const [hygieneSubtype, setHygieneSubtype] = useState(defaultValues?.hygiene_subtype ?? "");
+  const [hygieneCustomLabel, setHygieneCustomLabel] = useState(defaultValues?.hygiene_custom_label ?? "");
   const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
   const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
   const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
@@ -299,11 +305,12 @@ export function RecordFields({
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
   const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
   const hasHealthType = activeTypes.some((type) =>
-    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation",
+    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation" || type === "hygiene",
   );
   const hasReminderType = !multiType && activeTypes.some((type) =>
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
+  const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
   const recordCount = activeTypes.length * visibleSelectedIds.length;
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
@@ -323,6 +330,8 @@ export function RecordFields({
       feedingUnitOther,
       allowLegacyFeedingWithoutSubtype: mode === "edit" && initialFeeding.legacyWithoutSubtype && !feedingSubtype,
       temperatureC,
+      hygieneSubtype,
+      hygieneCustomLabel,
       petNames,
     });
     if (base) return base;
@@ -337,7 +346,7 @@ export function RecordFields({
       if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
     }
     return null;
-  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
+  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, hygieneCustomLabel, hygieneSubtype, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
 
   const submitBlocked = disabled || visiblePets.length === 0 || validationMessage !== null;
 
@@ -780,6 +789,55 @@ export function RecordFields({
                     </div>
                   )
                 )}
+                {type === "hygiene" && (
+                  <div className="sm:col-span-2 space-y-3">
+                    <div>
+                      <p className="text-sm font-bold">Qual cuidado você fez?</p>
+                      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Cuidado de higiene">
+                        {HYGIENE_PRESETS.map((preset) => {
+                          const active = hygieneSubtype === preset.key;
+                          return (
+                            <button
+                              key={preset.key}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                setHygieneSubtype(preset.key);
+                                if (preset.key !== "other") setHygieneCustomLabel("");
+                              }}
+                              aria-pressed={active}
+                              className={`focus-ring rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                                active
+                                  ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
+                                  : "border-[var(--border)] bg-white text-[var(--muted)] hover:border-[var(--lavender)]/40"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {hygieneSubtype ? <input type="hidden" name="hygiene_subtype" value={hygieneSubtype} /> : null}
+                      <p className="mt-2 text-[11px] font-semibold text-[var(--muted)]">
+                        Manutenção cotidiana, não procedimento clínico.
+                      </p>
+                    </div>
+                    {hygieneSubtype === "other" && (
+                      <label className="block text-sm font-bold">
+                        Qual cuidado?
+                        <input
+                          disabled={disabled}
+                          name="hygiene_custom_label"
+                          value={hygieneCustomLabel}
+                          onChange={(event) => setHygieneCustomLabel(event.target.value)}
+                          className="field mt-2"
+                          placeholder="Ex.: Limpeza das patas"
+                          aria-required="true"
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
                 {healthType && type !== "vaccine" && (
                   lockTitleFromUrl && !multiType ? (
                     <div className="block sm:col-span-2">
@@ -865,7 +923,11 @@ export function RecordFields({
       </section>
 
       <label className="mt-5 block text-sm font-bold">
-        {showPerPetNotesToggle(mode, visibleSelectedIds.length) ? "Observação para todos (opcional)" : "Observação (opcional)"}
+        {hygieneOnly
+          ? "Quer acrescentar algo importante?"
+          : showPerPetNotesToggle(mode, visibleSelectedIds.length)
+            ? "Observação para todos (opcional)"
+            : "Observação (opcional)"}
         <textarea
           disabled={disabled}
           name="notes"
@@ -873,9 +935,11 @@ export function RecordFields({
           defaultValue={defaultValues?.notes ?? ""}
           className="field mt-2 resize-none"
           placeholder={
-            showPerPetNotesToggle(mode, visibleSelectedIds.length)
-              ? "Opcional — vale para todos os pets deste lançamento"
-              : "Opcional — qualquer detalhe que ajude depois"
+            hygieneOnly
+              ? "Opcional — qualquer detalhe que ajude depois"
+              : showPerPetNotesToggle(mode, visibleSelectedIds.length)
+                ? "Opcional — vale para todos os pets deste lançamento"
+                : "Opcional — qualquer detalhe que ajude depois"
           }
         />
       </label>

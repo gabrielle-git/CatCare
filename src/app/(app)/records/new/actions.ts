@@ -30,6 +30,7 @@ import {
   resolveFeedingUnitFromForm,
   resolvePetNotesForCreate,
 } from "@/lib/neonatal-feeding";
+import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
@@ -222,7 +223,10 @@ export async function createRecord(formData: FormData) {
       continue;
     }
 
-    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const healthType: HealthRecordType =
+      type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "hygiene"
+        ? type
+        : "other";
     const defaults: Record<HealthRecordType, string> = {
       vaccine: "Vacina",
       deworming: "Vermífugo",
@@ -233,7 +237,20 @@ export async function createRecord(formData: FormData) {
       disease: "Diagnóstico",
       allergy: "Alergia",
       surgery: "Cirurgia",
+      hygiene: "Cuidados de higiene",
     };
+
+    let hygieneSubtype: string | null = null;
+    let hygieneCustomLabel: string | null = null;
+    if (type === "hygiene") {
+      const hygiene = buildHygieneFields(value(formData, "hygiene_subtype"), value(formData, "hygiene_custom_label"));
+      if (!hygiene.ok) {
+        failHere(hygiene.message);
+      } else {
+        hygieneSubtype = hygiene.fields.hygiene_subtype;
+        hygieneCustomLabel = hygiene.fields.hygiene_custom_label;
+      }
+    }
 
     const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
     const doseLabel = type === "vaccine" ? value(formData, "dose_label") : "";
@@ -250,14 +267,16 @@ export async function createRecord(formData: FormData) {
       }
     }
 
-    const title = type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
-      ? formatVaccineRecordTitle(vaccineKey, doseLabel)
-      : titleForType(formData, type, multi, defaults[healthType]);
+    const title = type === "hygiene" && hygieneSubtype
+      ? hygieneRecordTitle(hygieneSubtype, hygieneCustomLabel)
+      : type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
+        ? formatVaccineRecordTitle(vaccineKey, doseLabel)
+        : titleForType(formData, type, multi, defaults[healthType]);
     if (type === "vaccine" && vaccineKey === "other" && !title.trim()) {
       failHere("Informe o nome da vacina.");
     }
 
-    const clinicOrVet = value(formData, "clinic_or_vet") || null;
+    const clinicOrVet = type === "hygiene" ? null : value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {
       if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
         const existing = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
@@ -273,6 +292,8 @@ export async function createRecord(formData: FormData) {
         occurred_at: occurredAt,
         clinic_or_vet: clinicOrVet,
         notes: petNotes,
+        hygiene_subtype: type === "hygiene" ? hygieneSubtype : null,
+        hygiene_custom_label: type === "hygiene" ? hygieneCustomLabel : null,
       }).select("id").single();
       if (error) failHere(error.message);
       created += 1;
@@ -296,7 +317,7 @@ export async function createRecord(formData: FormData) {
         }
       }
 
-      if (reminderAt && data && !multi) {
+      if (reminderAt && data && !multi && type !== "hygiene") {
         const prefix = reminderTitles[type] ?? "Cuidado de";
         await supabase.from("reminders").insert({
           household_id: household.id,

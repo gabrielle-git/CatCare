@@ -1,4 +1,5 @@
 import { isCivilDateString } from "@/lib/factual-datetime";
+import { hygieneSearchExtrasFromDisplayTitle } from "@/lib/hygiene-care";
 import { isInDateRange } from "@/lib/neonatal-stats";
 import type { TimelineItem } from "@/types/database";
 
@@ -21,6 +22,7 @@ export const FAMILY_HISTORY_TYPE_OPTIONS = [
   { value: "consultation", label: "Consulta" },
   { value: "exam", label: "Exame" },
   { value: "surgery", label: "Cirurgia" },
+  { value: "hygiene", label: "Higiene" },
   { value: "observation", label: "Nota" },
   { value: "other", label: "Outro" },
 ] as const;
@@ -61,7 +63,8 @@ export function buildTimelineSearchText(
   const petName =
     petNames instanceof Map ? petNames.get(item.pet_id) : petNames?.[item.pet_id];
   const kindLabel = KIND_SEARCH_LABELS[item.kind] ?? item.kind;
-  return [item.title, item.detail, kindLabel, petName].filter(Boolean).join(" ");
+  const hygieneExtras = item.kind === "hygiene" ? hygieneSearchExtrasFromDisplayTitle(item.title) : "";
+  return [item.title, item.detail, kindLabel, petName, hygieneExtras].filter(Boolean).join(" ");
 }
 
 export function timelineItemMatchesQuery(

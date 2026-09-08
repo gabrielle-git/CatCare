@@ -1,6 +1,6 @@
 export type PetSex = "male" | "female" | "unknown";
 export type HouseholdRole = "owner" | "caregiver" | "viewer";
-export type HealthRecordType = "vaccine" | "consultation" | "exam" | "medication" | "disease" | "allergy" | "surgery" | "deworming" | "other";
+export type HealthRecordType = "vaccine" | "consultation" | "exam" | "medication" | "disease" | "allergy" | "surgery" | "deworming" | "other" | "hygiene";
 export type NeonatalRecordType = "feeding" | "weight" | "urine" | "stool" | "temperature" | "observation";
 export type ReminderStatus = "pending" | "done" | "snoozed" | "cancelled";
 export type ExpenseCategory = "veterinary" | "food" | "medication" | "hygiene" | "accessory" | "transport" | "other";
@@ -76,6 +76,8 @@ export type HealthRecord = {
   occurred_at: string;
   clinic_or_vet: string | null;
   notes: string | null;
+  hygiene_subtype: string | null;
+  hygiene_custom_label: string | null;
   created_at: string;
   updated_at: string;
 };

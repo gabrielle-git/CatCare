@@ -23,6 +23,7 @@ import {
   resolveFeedingUnitFromForm,
   shouldPreserveLegacyFeedingAmount,
 } from "@/lib/neonatal-feeding";
+import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
 import { getNeonatalRecord } from "@/lib/records";
 
 export type UpdateRecordResult =
@@ -163,8 +164,31 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     );
     if (error) return failHere(error.message);
   } else {
-    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
-    const defaults: Record<HealthRecordType, string> = { vaccine: "Vacina", deworming: "Vermífugo", medication: "Medicamento", consultation: "Consulta veterinária", other: "Observação", exam: "Exame", disease: "Diagnóstico", allergy: "Alergia", surgery: "Cirurgia" };
+    const healthType: HealthRecordType =
+      type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "hygiene"
+        ? type
+        : "other";
+    const defaults: Record<HealthRecordType, string> = {
+      vaccine: "Vacina",
+      deworming: "Vermífugo",
+      medication: "Medicamento",
+      consultation: "Consulta veterinária",
+      other: "Observação",
+      exam: "Exame",
+      disease: "Diagnóstico",
+      allergy: "Alergia",
+      surgery: "Cirurgia",
+      hygiene: "Cuidados de higiene",
+    };
+
+    let hygieneSubtype: string | null = null;
+    let hygieneCustomLabel: string | null = null;
+    if (type === "hygiene") {
+      const hygiene = buildHygieneFields(value(formData, "hygiene_subtype"), value(formData, "hygiene_custom_label"));
+      if (!hygiene.ok) return failHere(hygiene.message);
+      hygieneSubtype = hygiene.fields.hygiene_subtype;
+      hygieneCustomLabel = hygiene.fields.hygiene_custom_label;
+    }
 
     const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
     const doseLabel = type === "vaccine" ? value(formData, "dose_label") : "";
@@ -181,14 +205,16 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
       }
     }
 
-    const title = type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
-      ? formatVaccineRecordTitle(vaccineKey, doseLabel)
-      : value(formData, "title") || defaults[healthType];
+    const title = type === "hygiene" && hygieneSubtype
+      ? hygieneRecordTitle(hygieneSubtype, hygieneCustomLabel)
+      : type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
+        ? formatVaccineRecordTitle(vaccineKey, doseLabel)
+        : value(formData, "title") || defaults[healthType];
     if (type === "vaccine" && vaccineKey === "other" && !title.trim()) {
       return failHere("Informe o nome da vacina.");
     }
 
-    const clinicOrVet = value(formData, "clinic_or_vet") || null;
+    const clinicOrVet = type === "hygiene" ? null : value(formData, "clinic_or_vet") || null;
 
     if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
       const existing = await findExistingVaccineDose(supabase, petId, vaccineKey, doseLabel);
@@ -199,8 +225,15 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
 
     const { error } = await timed("updateRecord.UPDATE health_records", () =>
       supabase.from("health_records").update({
-        pet_id: petId, type: healthType, title, occurred_at: occurredAt,
-        clinic_or_vet: clinicOrVet, notes, updated_at: new Date().toISOString(),
+        pet_id: petId,
+        type: healthType,
+        title,
+        occurred_at: occurredAt,
+        clinic_or_vet: clinicOrVet,
+        notes,
+        hygiene_subtype: type === "hygiene" ? hygieneSubtype : null,
+        hygiene_custom_label: type === "hygiene" ? hygieneCustomLabel : null,
+        updated_at: new Date().toISOString(),
       }).eq("id", recordId).eq("household_id", household.id),
     );
     if (error) return failHere(error.message);

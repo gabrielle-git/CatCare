@@ -10,12 +10,15 @@ export type RoutinePreset = {
 
 /** Atalhos de preenchimento — não viram tipos especiais no banco. */
 export const routinePresets: RoutinePreset[] = [
-  { id: "dental", title: "Escovar os dentes", icon_key: "dental", recurrence_days: 1, instructions: "Use escova pequena e pasta veterinária." },
-  { id: "brush", title: "Escovar o pelo", icon_key: "brush", recurrence_days: 2 },
-  { id: "nails", title: "Cortar unhas", icon_key: "scissors", recurrence_days: 15 },
-  { id: "eyes", title: "Limpar os olhos", icon_key: "eye", recurrence_days: 3 },
-  { id: "ears", title: "Limpar os ouvidos", icon_key: "ear", recurrence_days: 7 },
+  { id: "dental", title: "Higiene dental", icon_key: "dental", recurrence_days: 1, instructions: "Use escova pequena e pasta veterinária." },
+  { id: "brush", title: "Escovação da pelagem", icon_key: "brush", recurrence_days: 2 },
+  { id: "nails", title: "Corte de unhas", icon_key: "scissors", recurrence_days: 15 },
+  { id: "eyes", title: "Limpeza dos olhos", icon_key: "eye", recurrence_days: 3 },
+  { id: "ears", title: "Limpeza das orelhas", icon_key: "ear", recurrence_days: 7 },
   { id: "bath", title: "Banho", icon_key: "bath", recurrence_days: 30 },
+  { id: "dry_bath", title: "Banho a seco", icon_key: "bath", recurrence_days: 30 },
+  { id: "grooming", title: "Tosa", icon_key: "scissors", recurrence_days: null },
+  { id: "hygienic_grooming", title: "Tosa higiênica", icon_key: "scissors", recurrence_days: null },
 ];
 
 export const ROUTINE_FREQUENCY_OPTIONS = [
