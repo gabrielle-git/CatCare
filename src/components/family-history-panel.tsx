@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ListFilter, Search } from "lucide-react";
+import { ListFilter, Search } from "lucide-react";
 import { TimelineList } from "@/components/timeline-list";
 import {
   FAMILY_HISTORY_TYPE_OPTIONS,
@@ -95,19 +95,15 @@ export function FamilyHistoryPanel({
   return (
     <div className="space-y-4">
       <section className="cat-card space-y-3 p-4 md:p-5">
-        <label className="relative block">
+        <label className="flex w-full items-center gap-2.5 rounded-[16px] border border-[var(--border)] bg-white px-3.5 transition focus-within:border-[var(--lavender)] focus-within:shadow-[0_0_0_3px_rgba(142,125,190,0.16)]">
           <span className="sr-only">Buscar no histórico</span>
-          <Search
-            size={16}
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-            aria-hidden="true"
-          />
+          <Search size={16} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
           <input
             type="search"
             value={draftQ}
             onChange={(event) => setDraftQ(event.target.value)}
             placeholder="Buscar por leite, vacina, consulta..."
-            className="field w-full pl-10"
+            className="min-w-0 flex-1 border-0 bg-transparent py-[0.8rem] text-[var(--foreground)] outline-none"
             autoComplete="off"
             enterKeyHint="search"
           />
@@ -120,7 +116,9 @@ export function FamilyHistoryPanel({
             className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition ${
               hasAdvanced
                 ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                : "border border-[var(--border)] bg-white text-[var(--muted)]"
+                : filtersOpen
+                  ? "border border-[var(--lavender)] bg-[var(--lavender-soft)]/50 text-[var(--lavender-strong)]"
+                  : "border border-[var(--border)] bg-white text-[var(--muted)]"
             }`}
             aria-expanded={filtersOpen}
             aria-controls="family-history-filters"
@@ -128,11 +126,6 @@ export function FamilyHistoryPanel({
             <ListFilter size={14} aria-hidden="true" />
             Filtros
             {hasAdvanced ? <span className="text-[10px]">• ativos</span> : null}
-            <ChevronDown
-              size={14}
-              className={`transition ${filtersOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            />
           </button>
 
           <div id="family-history-filters" hidden={!filtersOpen} className={filtersOpen ? "mt-4 space-y-5" : undefined}>

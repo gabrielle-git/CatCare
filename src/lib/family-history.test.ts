@@ -215,10 +215,13 @@ describe("family history + more navigation contracts", () => {
     assert.equal(panel.includes("initialPet"), false);
     assert.ok(panel.includes("Buscar por leite, vacina, consulta"));
     assert.ok(panel.includes("Filtros"));
+    assert.equal(panel.includes("ChevronDown"), false);
     assert.ok(panel.includes("useState(advancedOpenDefault)"));
     assert.ok(panel.includes("showResultCount={false}"));
     assert.ok(panel.includes("resultado"));
     assert.equal(panel.includes("em todo o histórico carregado"), false);
+    assert.ok(panel.includes("flex w-full items-center gap-2.5"));
+    assert.equal(panel.includes("absolute left-"), false);
   });
 
   it("N–Y. mobile Mais sheet groups resources; bottom nav stays at 5", () => {
