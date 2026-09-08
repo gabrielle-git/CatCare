@@ -13,6 +13,7 @@ import {
   parseRecordTypes,
   parseWeightGramsForPet,
   redirectPathWithParam,
+  resolvePostCreateDestination,
   resolveReturnTo,
   shouldSaveObservationAsNeonatal,
   value,
@@ -30,7 +31,7 @@ import {
   resolveFeedingUnitFromForm,
   resolvePetNotesForCreate,
 } from "@/lib/neonatal-feeding";
-import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
+import { buildHygieneFieldsList, hygieneRecordTitle } from "@/lib/hygiene-care";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
@@ -46,19 +47,15 @@ function fail(petIds: string[], type: string, message: string, returnTo?: string
   redirect(`/records/new?${params.toString()}`);
 }
 
-function redirectAfterSave(returnTo: string | null, petIds: string[], count: number) {
-  const saved = String(count);
-  if (returnTo) {
-    redirect(redirectPathWithParam(returnTo, "saved", saved));
-  }
-  if (petIds.length === 1) redirect(`/pets/${petIds[0]}?saved=1`);
-  // Multi-pet without origin: pets list is better than Home as universal fallback.
-  redirect(redirectPathWithParam("/pets", "saved", saved));
+function redirectAfterSave(returnTo: string | null, petIds: string[], count: number, neonatalContext = false) {
+  const destination = resolvePostCreateDestination({ returnTo, petIds, neonatalContext });
+  redirect(redirectPathWithParam(destination, "saved", String(count)));
 }
 
 function revalidateRecordPaths(petIds: string[]) {
   revalidatePath("/");
   revalidatePath("/agenda");
+  revalidatePath("/historico");
   revalidatePath("/neonatal");
   for (const petId of petIds) revalidatePath(`/pets/${petId}`);
 }
@@ -240,16 +237,32 @@ export async function createRecord(formData: FormData) {
       hygiene: "Cuidados de higiene",
     };
 
-    let hygieneSubtype: string | null = null;
-    let hygieneCustomLabel: string | null = null;
     if (type === "hygiene") {
-      const hygiene = buildHygieneFields(value(formData, "hygiene_subtype"), value(formData, "hygiene_custom_label"));
-      if (!hygiene.ok) {
-        failHere(hygiene.message);
-      } else {
-        hygieneSubtype = hygiene.fields.hygiene_subtype;
-        hygieneCustomLabel = hygiene.fields.hygiene_custom_label;
+      const hygiene = buildHygieneFieldsList(
+        formData.getAll("hygiene_subtype").map((item) => String(item)),
+        value(formData, "hygiene_custom_label"),
+      );
+      if (!hygiene.ok) failHere(hygiene.message);
+      const hygieneItems = hygiene.ok ? hygiene.items : [];
+      for (const pet of pets) {
+        const petNotes = notesForPet(pet.id);
+        for (const fields of hygieneItems) {
+          const { error } = await supabase.from("health_records").insert({
+            household_id: household.id,
+            pet_id: pet.id,
+            type: "hygiene",
+            title: hygieneRecordTitle(fields.hygiene_subtype, fields.hygiene_custom_label),
+            occurred_at: occurredAt,
+            clinic_or_vet: null,
+            notes: petNotes,
+            hygiene_subtype: fields.hygiene_subtype,
+            hygiene_custom_label: fields.hygiene_custom_label,
+          });
+          if (error) failHere(error.message);
+          created += 1;
+        }
       }
+      continue;
     }
 
     const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
@@ -267,16 +280,14 @@ export async function createRecord(formData: FormData) {
       }
     }
 
-    const title = type === "hygiene" && hygieneSubtype
-      ? hygieneRecordTitle(hygieneSubtype, hygieneCustomLabel)
-      : type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
-        ? formatVaccineRecordTitle(vaccineKey, doseLabel)
-        : titleForType(formData, type, multi, defaults[healthType]);
+    const title = type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel
+      ? formatVaccineRecordTitle(vaccineKey, doseLabel)
+      : titleForType(formData, type, multi, defaults[healthType]);
     if (type === "vaccine" && vaccineKey === "other" && !title.trim()) {
       failHere("Informe o nome da vacina.");
     }
 
-    const clinicOrVet = type === "hygiene" ? null : value(formData, "clinic_or_vet") || null;
+    const clinicOrVet = value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {
       if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
         const existing = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
@@ -292,8 +303,8 @@ export async function createRecord(formData: FormData) {
         occurred_at: occurredAt,
         clinic_or_vet: clinicOrVet,
         notes: petNotes,
-        hygiene_subtype: type === "hygiene" ? hygieneSubtype : null,
-        hygiene_custom_label: type === "hygiene" ? hygieneCustomLabel : null,
+        hygiene_subtype: null,
+        hygiene_custom_label: null,
       }).select("id").single();
       if (error) failHere(error.message);
       created += 1;
@@ -317,7 +328,7 @@ export async function createRecord(formData: FormData) {
         }
       }
 
-      if (reminderAt && data && !multi && type !== "hygiene") {
+      if (reminderAt && data && !multi) {
         const prefix = reminderTitles[type] ?? "Cuidado de";
         await supabase.from("reminders").insert({
           household_id: household.id,
@@ -331,6 +342,7 @@ export async function createRecord(formData: FormData) {
     }
   }
 
-  revalidateRecordPaths(pets.map((pet) => pet.id));
-  redirectAfterSave(returnTo ?? (neonatalContext ? "/neonatal" : null), pets.map((pet) => pet.id), created);
+  const petIdList = pets.map((pet) => pet.id);
+  revalidateRecordPaths(petIdList);
+  redirectAfterSave(returnTo, petIdList, created, neonatalContext);
 }

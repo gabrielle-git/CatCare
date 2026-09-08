@@ -103,4 +103,4 @@ export function parseWeightGramsForPet(formData: FormData, petId: string, allowL
 
 export { weightKgFieldName, WEIGHT_KG_LEGACY_FIELD };
 
-export { redirectPathWithParam, resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";
+export { redirectPathWithParam, resolveReturnTo, resolvePostCreateDestination, safeReturnPath } from "@/lib/safe-return-path";

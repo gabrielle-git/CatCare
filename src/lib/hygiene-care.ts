@@ -80,10 +80,64 @@ export function buildHygieneFields(
   if (!subtype) return { ok: false, message: "Escolha qual cuidado de higiene você fez." };
   const custom = String(customRaw ?? "").trim();
   if (subtype === "other") {
-    if (!custom) return { ok: false, message: "Informe qual cuidado você fez." };
+    if (!custom) return { ok: false, message: "Informe qual outro cuidado você fez." };
     return { ok: true, fields: { hygiene_subtype: "other", hygiene_custom_label: custom } };
   }
   return { ok: true, fields: { hygiene_subtype: subtype, hygiene_custom_label: null } };
+}
+
+/** Parse multi-select hygiene subtypes from form (getAll or comma-separated). */
+export function parseHygieneSubtypeList(raw: string | readonly string[] | null | undefined): HygieneSubtypeKey[] {
+  const parts = Array.isArray(raw)
+    ? raw.flatMap((item) => String(item).split(/[,|]+/))
+    : String(raw ?? "").split(/[,|]+/);
+  const seen = new Set<HygieneSubtypeKey>();
+  const list: HygieneSubtypeKey[] = [];
+  for (const part of parts) {
+    const key = resolveHygieneSubtype(part);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    list.push(key);
+  }
+  return list;
+}
+
+/**
+ * Build one HygieneFields row per selected care (create multi-select).
+ * "other" shares a single custom label across the selection.
+ */
+export function buildHygieneFieldsList(
+  subtypesRaw: string | readonly string[] | null | undefined,
+  customRaw: string | null | undefined,
+): { ok: true; items: HygieneFields[] } | { ok: false; message: string } {
+  const list = parseHygieneSubtypeList(subtypesRaw);
+  if (list.length === 0) return { ok: false, message: "Escolha ao menos um cuidado de higiene." };
+  const custom = String(customRaw ?? "").trim();
+  if (list.includes("other") && !custom) {
+    return { ok: false, message: "Informe qual outro cuidado você fez." };
+  }
+  return {
+    ok: true,
+    items: list.map((subtype) =>
+      subtype === "other"
+        ? { hygiene_subtype: "other", hygiene_custom_label: custom }
+        : { hygiene_subtype: subtype, hygiene_custom_label: null },
+    ),
+  };
+}
+
+/** Create: pets × hygiene cares (or 1 unit for other types). */
+export function countHygieneAwareCreateRecords(
+  types: readonly string[],
+  petCount: number,
+  hygieneCareCount: number,
+): number {
+  if (petCount <= 0 || types.length === 0) return 0;
+  let units = 0;
+  for (const type of types) {
+    units += type === "hygiene" ? Math.max(hygieneCareCount, 0) : 1;
+  }
+  return units * petCount;
 }
 
 /** Extra searchable tokens for a hygiene timeline row (beyond title/detail). */

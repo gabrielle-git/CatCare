@@ -6,7 +6,7 @@ import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
-import { HYGIENE_PRESETS } from "@/lib/hygiene-care";
+import { HYGIENE_PRESETS, countHygieneAwareCreateRecords, type HygieneSubtypeKey } from "@/lib/hygiene-care";
 import { WEIGHT_KG_LEGACY_FIELD, weightKgFieldName } from "@/lib/record-field-names";
 import { validateCreateRecordForm } from "@/lib/record-form-validation";
 import { isNeonatalCareType, toLocalDateTimeInput } from "@/lib/record-form";
@@ -235,8 +235,15 @@ export function RecordFields({
   const [feedingUnitPreset, setFeedingUnitPreset] = useState<FeedingUnitPreset>(initialFeeding.unitPreset);
   const [feedingUnitOther, setFeedingUnitOther] = useState(initialFeeding.unitOther);
   const [temperatureC, setTemperatureC] = useState(defaultValues?.temperature_c?.toString() ?? "");
-  const [hygieneSubtype, setHygieneSubtype] = useState(defaultValues?.hygiene_subtype ?? "");
+  const [hygieneSubtypes, setHygieneSubtypes] = useState<HygieneSubtypeKey[]>(() => {
+    const initial = defaultValues?.hygiene_subtype?.trim();
+    return initial && (HYGIENE_PRESETS.some((preset) => preset.key === initial))
+      ? [initial as HygieneSubtypeKey]
+      : [];
+  });
   const [hygieneCustomLabel, setHygieneCustomLabel] = useState(defaultValues?.hygiene_custom_label ?? "");
+  const hygieneMultiSelect = mode === "create";
+  const hygieneSubtype = hygieneSubtypes[0] ?? "";
   const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
   const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
   const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
@@ -311,7 +318,7 @@ export function RecordFields({
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
   const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
-  const recordCount = activeTypes.length * visibleSelectedIds.length;
+  const recordCount = countHygieneAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
     : recordCount > 1
@@ -331,6 +338,7 @@ export function RecordFields({
       allowLegacyFeedingWithoutSubtype: mode === "edit" && initialFeeding.legacyWithoutSubtype && !feedingSubtype,
       temperatureC,
       hygieneSubtype,
+      hygieneSubtypes: hygieneMultiSelect ? hygieneSubtypes : undefined,
       hygieneCustomLabel,
       petNames,
     });
@@ -346,7 +354,7 @@ export function RecordFields({
       if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
     }
     return null;
-  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, hygieneCustomLabel, hygieneSubtype, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
+  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, hygieneCustomLabel, hygieneMultiSelect, hygieneSubtype, hygieneSubtypes, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
 
   const submitBlocked = disabled || visiblePets.length === 0 || validationMessage !== null;
 
@@ -516,9 +524,11 @@ export function RecordFields({
         )}
         {mode === "create" && recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
           <p className="mt-2 text-xs font-semibold text-[var(--muted)]" role="status">
-            {recordCount} registros serão criados ({visibleSelectedIds.length}{" "}
-            {visibleSelectedIds.length === 1 ? "pet" : "pets"} × {activeTypes.length}{" "}
-            {activeTypes.length === 1 ? "tipo" : "tipos"}).
+            {recordCount} registros serão criados
+            {activeTypes.includes("hygiene") && hygieneSubtypes.length > 0
+              ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${hygieneSubtypes.length} ${hygieneSubtypes.length === 1 ? "cuidado" : "cuidados"}${activeTypes.length > 1 ? ` + outros tipos` : ""})`
+              : ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${activeTypes.length} ${activeTypes.length === 1 ? "tipo" : "tipos"})`}
+            .
           </p>
         )}
       </section>
@@ -792,17 +802,38 @@ export function RecordFields({
                 {type === "hygiene" && (
                   <div className="sm:col-span-2 space-y-3">
                     <div>
-                      <p className="text-sm font-bold">Qual cuidado você fez?</p>
-                      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Cuidado de higiene">
+                      <p className="text-sm font-bold">
+                        {hygieneMultiSelect ? "Quais cuidados você fez?" : "Qual cuidado você fez?"}
+                      </p>
+                      {hygieneMultiSelect ? (
+                        <p className="mt-1 text-[11px] font-semibold text-[var(--muted)]">Pode escolher mais de um.</p>
+                      ) : null}
+                      <div
+                        className="mt-2 flex flex-wrap gap-2"
+                        role="group"
+                        aria-label={hygieneMultiSelect ? "Cuidados de higiene" : "Cuidado de higiene"}
+                        aria-multiselectable={hygieneMultiSelect || undefined}
+                      >
                         {HYGIENE_PRESETS.map((preset) => {
-                          const active = hygieneSubtype === preset.key;
+                          const active = hygieneSubtypes.includes(preset.key);
                           return (
                             <button
                               key={preset.key}
                               type="button"
                               disabled={disabled}
                               onClick={() => {
-                                setHygieneSubtype(preset.key);
+                                if (hygieneMultiSelect) {
+                                  setHygieneSubtypes((prev) => {
+                                    if (prev.includes(preset.key)) {
+                                      const next = prev.filter((key) => key !== preset.key);
+                                      if (preset.key === "other") setHygieneCustomLabel("");
+                                      return next;
+                                    }
+                                    return [...prev, preset.key];
+                                  });
+                                  return;
+                                }
+                                setHygieneSubtypes([preset.key]);
                                 if (preset.key !== "other") setHygieneCustomLabel("");
                               }}
                               aria-pressed={active}
@@ -817,14 +848,16 @@ export function RecordFields({
                           );
                         })}
                       </div>
-                      {hygieneSubtype ? <input type="hidden" name="hygiene_subtype" value={hygieneSubtype} /> : null}
+                      {hygieneSubtypes.map((key) => (
+                        <input key={key} type="hidden" name="hygiene_subtype" value={key} />
+                      ))}
                       <p className="mt-2 text-[11px] font-semibold text-[var(--muted)]">
                         Manutenção cotidiana, não procedimento clínico.
                       </p>
                     </div>
-                    {hygieneSubtype === "other" && (
+                    {hygieneSubtypes.includes("other") && (
                       <label className="block text-sm font-bold">
-                        Qual cuidado?
+                        Qual outro cuidado?
                         <input
                           disabled={disabled}
                           name="hygiene_custom_label"

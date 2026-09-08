@@ -11,12 +11,14 @@ import {
   HYGIENE_PRESETS,
   HYGIENE_SUBTYPE_KEYS,
   buildHygieneFields,
+  buildHygieneFieldsList,
+  countHygieneAwareCreateRecords,
   hygieneDisplayLabel,
   hygieneRecordTitle,
   hygieneSearchExtrasFromDisplayTitle,
 } from "./hygiene-care";
 import { validateCreateRecordForm } from "./record-form-validation";
-import { recordKindFromHealth, resolveRecordSource } from "./record-form";
+import { recordKindFromHealth, resolvePostCreateDestination, resolveRecordSource } from "./record-form";
 import { routinePresets } from "./routine-presets";
 import { validateFactualDateTimeLocal } from "./factual-datetime";
 import type { TimelineItem } from "@/types/database";
@@ -79,19 +81,70 @@ describe("hygiene care catalog + fields", () => {
     assert.equal(built.fields.hygiene_custom_label, null);
   });
 
-  it("M: multi-pet uses same hygiene fields per row (1 fact shape / pet)", () => {
-    const built = buildHygieneFields("nail_trim", null);
+  it("M: multi-pet × multi-care expands to pets × cares rows", () => {
+    const built = buildHygieneFieldsList(["bath", "coat_brushing", "ear_cleaning"], null);
     assert.equal(built.ok, true);
     if (!built.ok) return;
-    const petIds = ["gwen", "hinata", "dobby"];
-    const rows = petIds.map((pet_id) => ({
-      pet_id,
-      type: "hygiene" as const,
-      ...built.fields,
-      title: hygieneRecordTitle(built.fields.hygiene_subtype, built.fields.hygiene_custom_label),
-    }));
-    assert.equal(rows.length, 3);
-    assert.ok(rows.every((row) => row.hygiene_subtype === "nail_trim" && row.hygiene_custom_label === null));
+    const petIds = ["gwen", "hinata"];
+    const notes = "sessão da manhã";
+    const rows = petIds.flatMap((pet_id) =>
+      built.items.map((fields) => ({
+        pet_id,
+        type: "hygiene" as const,
+        notes,
+        ...fields,
+        title: hygieneRecordTitle(fields.hygiene_subtype, fields.hygiene_custom_label),
+      })),
+    );
+    assert.equal(rows.length, 6);
+    assert.equal(countHygieneAwareCreateRecords(["hygiene"], 2, 3), 6);
+    assert.equal(countHygieneAwareCreateRecords(["hygiene"], 1, 3), 3);
+    assert.equal(countHygieneAwareCreateRecords(["hygiene"], 1, 1), 1);
+    assert.ok(rows.every((row) => row.notes === notes));
+    assert.deepEqual(
+      rows.filter((row) => row.pet_id === "gwen").map((row) => row.hygiene_subtype),
+      ["bath", "coat_brushing", "ear_cleaning"],
+    );
+  });
+
+  it("E/F: Other + preset; Other without custom rejected", () => {
+    const ok = buildHygieneFieldsList(["bath", "other"], "Limpeza das patinhas");
+    assert.equal(ok.ok, true);
+    if (ok.ok) {
+      assert.equal(ok.items.length, 2);
+      assert.equal(ok.items[0].hygiene_custom_label, null);
+      assert.equal(ok.items[1].hygiene_custom_label, "Limpeza das patinhas");
+    }
+    const bad = buildHygieneFieldsList(["bath", "other"], "  ");
+    assert.equal(bad.ok, false);
+  });
+
+  it("G/H: edit/delete remain per single factual row", () => {
+    const create = readFileSync(join(process.cwd(), "src/app/(app)/records/new/actions.ts"), "utf8");
+    const update = readFileSync(join(process.cwd(), "src/app/(app)/records/actions.ts"), "utf8");
+    assert.match(create, /buildHygieneFieldsList/);
+    assert.match(update, /buildHygieneFields\(/);
+    assert.match(update, /export async function deleteRecord/);
+    assert.doesNotMatch(update, /buildHygieneFieldsList/);
+  });
+
+  it("I–K: multi-pet redirect to /historico; returnTo and single-pet preserved", () => {
+    assert.equal(
+      resolvePostCreateDestination({ returnTo: null, petIds: ["a", "b"] }),
+      "/historico",
+    );
+    assert.equal(
+      resolvePostCreateDestination({ returnTo: "/neonatal", petIds: ["a", "b"] }),
+      "/neonatal",
+    );
+    assert.equal(
+      resolvePostCreateDestination({ returnTo: null, petIds: ["only"] }),
+      "/pets/only",
+    );
+    assert.equal(
+      resolvePostCreateDestination({ returnTo: "/agenda", petIds: ["only"] }),
+      "/agenda",
+    );
   });
 
   it("N–P: edit subtype transitions reconcile custom label", () => {
@@ -239,10 +292,11 @@ describe("hygiene care catalog + fields", () => {
         feedingUnitOther: "",
         temperatureC: "",
         hygieneSubtype: "",
+        hygieneSubtypes: [],
         hygieneCustomLabel: "",
         petNames,
       }),
-      "Escolha qual cuidado de higiene você fez.",
+      "Escolha ao menos um cuidado de higiene.",
     );
     assert.equal(
       validateCreateRecordForm({
@@ -256,10 +310,11 @@ describe("hygiene care catalog + fields", () => {
         feedingUnitOther: "",
         temperatureC: "",
         hygieneSubtype: "other",
+        hygieneSubtypes: ["other"],
         hygieneCustomLabel: "",
         petNames,
       }),
-      "Informe qual cuidado você fez.",
+      "Informe qual outro cuidado você fez.",
     );
     assert.equal(
       validateCreateRecordForm({
@@ -273,6 +328,7 @@ describe("hygiene care catalog + fields", () => {
         feedingUnitOther: "",
         temperatureC: "",
         hygieneSubtype: "bath",
+        hygieneSubtypes: ["bath", "ear_cleaning"],
         hygieneCustomLabel: "",
         petNames,
       }),
@@ -283,7 +339,7 @@ describe("hygiene care catalog + fields", () => {
   it("clinic_or_vet is not used on hygiene create/update paths", () => {
     const create = readFileSync(join(process.cwd(), "src/app/(app)/records/new/actions.ts"), "utf8");
     const update = readFileSync(join(process.cwd(), "src/app/(app)/records/actions.ts"), "utf8");
-    assert.match(create, /type === "hygiene" \? null/);
+    assert.match(create, /clinic_or_vet: null/);
     assert.match(update, /type === "hygiene" \? null/);
   });
 });
