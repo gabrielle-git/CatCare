@@ -14,6 +14,7 @@ import {
   type FamilyHistoryTypeFilter,
 } from "@/lib/family-history";
 import { todayIsoDate } from "@/lib/neonatal-stats";
+import { appButtonClass } from "@/lib/ui-button";
 import type { TimelineItem } from "@/types/database";
 
 type PetOption = { id: string; name: string };
@@ -113,13 +114,10 @@ export function FamilyHistoryPanel({
           <button
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
-            className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition ${
-              hasAdvanced
-                ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                : filtersOpen
-                  ? "border border-[var(--lavender)] bg-[var(--lavender-soft)]/50 text-[var(--lavender-strong)]"
-                  : "border border-[var(--border)] bg-white text-[var(--muted)]"
-            }`}
+            className={appButtonClass(
+              hasAdvanced || filtersOpen ? "soft" : "secondary",
+              hasAdvanced || filtersOpen ? "border border-transparent" : undefined,
+            )}
             aria-expanded={filtersOpen}
             aria-controls="family-history-filters"
           >

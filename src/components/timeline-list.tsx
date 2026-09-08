@@ -7,6 +7,7 @@ import { deleteRecord, deleteRecords } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatDateTime } from "@/lib/format";
 import { preselectRecordHref } from "@/lib/record-links";
+import { appButtonClass } from "@/lib/ui-button";
 import type { TimelineItem } from "@/types/database";
 
 const toneClasses = {
@@ -176,7 +177,7 @@ export function TimelineList({
         )}
         <div className="flex flex-wrap items-center gap-2">
           {editable && showNewRecord && !selectionMode && (
-            <Link href={newRecordHref} className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white">
+            <Link href={newRecordHref} className={appButtonClass("primary")}>
               <Plus size={13} /> Novo registro
             </Link>
           )}
@@ -184,7 +185,7 @@ export function TimelineList({
             <button
               type="button"
               onClick={() => setSelectionMode(true)}
-              className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+              className={appButtonClass("secondary")}
             >
               Selecionar
             </button>
@@ -201,7 +202,7 @@ export function TimelineList({
           <button
             type="button"
             onClick={exitSelectionMode}
-            className="focus-ring rounded-full px-2.5 py-1 text-[11px] font-bold text-[var(--muted)]"
+            className={appButtonClass("ghost")}
           >
             Cancelar
           </button>
@@ -217,7 +218,7 @@ export function TimelineList({
                 title={`Apagar ${selectedItems.length} registro${selectedItems.length > 1 ? "s" : ""}?`}
                 message="Esta ação remove os registros selecionados permanentemente e não pode ser desfeita."
                 confirmLabel={`Apagar ${selectedItems.length}`}
-                className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--danger)] px-3 py-1.5 text-[11px] font-bold text-white"
+                className={appButtonClass("dangerSolid")}
               >
                 <Trash2 size={13} /> Apagar selecionados
               </ConfirmButton>
@@ -253,10 +254,10 @@ export function TimelineList({
                   {item.detail && <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</p>}
                   {editable && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={editHref} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]"><Pencil size={13} /> Editar</Link>
+                      <Link href={editHref} className={appButtonClass("soft")}><Pencil size={13} /> Editar</Link>
                       <form action={remove}>
                         <input type="hidden" name="return_to" value={fallbackReturn} />
-                        <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-bold text-[var(--danger)]"><Trash2 size={13} /> Apagar</ConfirmButton>
+                        <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className={appButtonClass("danger")}><Trash2 size={13} /> Apagar</ConfirmButton>
                       </form>
                     </div>
                   )}
@@ -269,7 +270,7 @@ export function TimelineList({
 
       {fullHistoryHref && totalCount > visibleItems.length && (
         <div className="pt-1 text-center">
-          <Link href={fullHistoryHref} className="focus-ring inline-flex rounded-full border border-[var(--border)] bg-white px-4 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+          <Link href={fullHistoryHref} className={appButtonClass("secondary", "text-[var(--lavender-strong)]")}>
             Ver histórico completo ({totalCount} registros)
           </Link>
         </div>

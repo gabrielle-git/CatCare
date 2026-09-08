@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
+import { appButtonClass } from "@/lib/ui-button";
 
 export function RoutineCompleteButton({
   routineId,
@@ -119,10 +120,10 @@ export function RoutineCompleteButton({
             </p>
 
             <div className="mt-4 flex gap-2">
-              <button type="button" onClick={selectAll} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs font-bold">
+              <button type="button" onClick={selectAll} className={appButtonClass("secondary")}>
                 Selecionar todos
               </button>
-              <button type="button" onClick={clearAll} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs font-bold">
+              <button type="button" onClick={clearAll} className={appButtonClass("secondary")}>
                 Limpar
               </button>
             </div>

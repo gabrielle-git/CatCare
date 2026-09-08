@@ -9,6 +9,7 @@ import {
   getPetRoutineStatus,
   type PetRoutineStatus,
 } from "@/lib/routines-schedule";
+import { appButtonClass } from "@/lib/ui-button";
 import type { CareRoutineCompletion, CareRoutineWithPets } from "@/types/database";
 
 export type RoutineCardModel = {
@@ -83,7 +84,7 @@ export function RoutineCard({ routine, petNames, completionsByPet, editable, com
           <div className="mt-2">
             <Link
               href={`/routines/${routine.id}/edit`}
-              className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"
+              className={appButtonClass("soft")}
             >
               <Pencil size={12} /> Editar
             </Link>
