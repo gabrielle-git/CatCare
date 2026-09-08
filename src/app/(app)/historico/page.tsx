@@ -46,7 +46,7 @@ async function loadHistory() {
 export default async function FamilyHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pet?: string; from?: string; to?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; from?: string; to?: string; type?: string }>;
 }) {
   const [{ pets, items, editable }, flags] = await Promise.all([loadHistory(), searchParams]);
 
@@ -58,7 +58,7 @@ export default async function FamilyHistoryPage({
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">O que aconteceu por aqui</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Todos os cuidados registrados, com filtro por pet, período e tipo.
+          Cuidados de todos os pets. Busque por texto ou refine por período e tipo.
         </p>
       </header>
 
@@ -67,7 +67,7 @@ export default async function FamilyHistoryPage({
           items={items}
           pets={pets}
           editable={editable}
-          initialPet={flags.pet}
+          initialQ={flags.q}
           initialFrom={flags.from}
           initialTo={flags.to}
           initialType={flags.type}
@@ -75,7 +75,7 @@ export default async function FamilyHistoryPage({
       </section>
 
       <p className="mt-6 text-center text-xs text-[var(--muted)]">
-        Quer ver só um pet? Abra o perfil em{" "}
+        Quer o histórico de um pet só? Abra o perfil em{" "}
         <Link href="/pets" className="font-bold text-[var(--lavender-strong)]">
           Meus pets
         </Link>

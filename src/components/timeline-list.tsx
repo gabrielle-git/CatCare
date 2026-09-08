@@ -69,6 +69,7 @@ export function TimelineList({
   limit,
   fullHistoryHref,
   showTypeFilters = true,
+  showResultCount = true,
 }: {
   items: TimelineItem[];
   emptyText?: string;
@@ -85,6 +86,8 @@ export function TimelineList({
   fullHistoryHref?: string;
   /** When false, parent owns type filtering (e.g. URL filters on /historico). */
   showTypeFilters?: boolean;
+  /** When false, parent shows the only result count. */
+  showResultCount?: boolean;
 }) {
   const totalCount = items.length;
   const visibleItems = limit ? items.slice(0, limit) : items;
@@ -160,13 +163,17 @@ export function TimelineList({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[11px] text-[var(--muted)]">
-          {filter === "all"
-            ? limit && totalCount > limit
-              ? `${visibleItems.length} de ${totalCount} registros recentes`
-              : `${totalCount} registro${totalCount === 1 ? "" : "s"}`
-            : `${filtered.length} de ${visibleItems.length} registros`}
-        </p>
+        {showResultCount ? (
+          <p className="text-[11px] text-[var(--muted)]">
+            {filter === "all"
+              ? limit && totalCount > limit
+                ? `${visibleItems.length} de ${totalCount} registros recentes`
+                : `${totalCount} registro${totalCount === 1 ? "" : "s"}`
+              : `${filtered.length} de ${visibleItems.length} registros`}
+          </p>
+        ) : (
+          <span />
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {editable && showNewRecord && !selectionMode && (
             <Link href={newRecordHref} className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white">
