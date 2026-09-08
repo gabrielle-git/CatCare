@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Cat,
   HeartPulse,
+  History,
   Home,
   ImageIcon,
   Plus,
@@ -23,8 +24,9 @@ const sections = [
   {
     label: "Principal",
     items: [
-      { href: "/", label: "Visão geral", icon: Home },
+      { href: "/", label: "Início", icon: Home },
       { href: "/pets", label: "Meus pets", icon: Cat },
+      { href: "/historico", label: "Histórico", icon: History },
       { href: "/records/new", label: "Registrar cuidado", icon: Plus },
       { href: "/assistant", label: "Assistente de pets", icon: Bot },
     ],

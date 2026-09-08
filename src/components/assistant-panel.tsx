@@ -57,7 +57,7 @@ export function AssistantPanel({ answers, demoMode = false }: { answers: Record<
       <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--cream)] px-4 py-3">
         <div className="flex items-center gap-2 text-xs font-bold">
           <span className="grid size-8 place-items-center rounded-[13px] bg-[var(--lavender-soft)]"><Bot size={16} /></span>
-          Assistente de dados
+          Pergunte aos seus registros
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-[9px] font-bold text-[var(--success)]">
           <Sparkles size={10} /> Sem inventar dados
