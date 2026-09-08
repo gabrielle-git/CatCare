@@ -3,6 +3,7 @@ import type { WeightChartPoint } from "@/components/weight-chart";
 import { formatWeight } from "@/lib/format";
 import type { RecordSource } from "@/types/database";
 import { recordKindFromHealth, recordKindFromNeonatal } from "@/lib/record-form";
+import { hygieneDisplayLabel } from "@/lib/hygiene-care";
 import { getFeedingDisplay } from "@/lib/neonatal-feeding";
 import { formatVaccineRecordTitle, isProtocolVaccineKey, vaccineDisplayName } from "@/lib/vaccine-schedule";
 import type { HealthRecord, NeonatalRecord, Reminder, TimelineItem, TimelineTone, WeightRecord } from "@/types/database";
@@ -17,6 +18,7 @@ const healthLabels: Record<HealthRecord["type"], string> = {
   allergy: "Alergia",
   surgery: "Cirurgia",
   other: "Observação",
+  hygiene: "Cuidados de higiene",
 };
 
 const neonatalLabels: Record<NeonatalRecord["type"], string> = {
@@ -29,7 +31,7 @@ const neonatalLabels: Record<NeonatalRecord["type"], string> = {
 };
 
 function toneForHealth(type: HealthRecord["type"]): TimelineTone {
-  if (type === "vaccine" || type === "deworming" || type === "medication") return "mint";
+  if (type === "vaccine" || type === "deworming" || type === "medication" || type === "hygiene") return "mint";
   if (type === "consultation" || type === "exam") return "lavender";
   return "peach";
 }
@@ -39,7 +41,32 @@ function mapWeight(row: WeightRecord): TimelineItem {
 }
 
 function mapHealth(row: HealthRecord): TimelineItem {
-  return { id: row.id, pet_id: row.pet_id, source: "health", kind: recordKindFromHealth(row.type), title: row.title || healthLabels[row.type], detail: [row.clinic_or_vet, row.notes].filter(Boolean).join(" • ") || null, occurred_at: row.occurred_at, tone: toneForHealth(row.type) };
+  if (row.type === "hygiene") {
+    const title =
+      hygieneDisplayLabel(row.hygiene_subtype, row.hygiene_custom_label) ||
+      row.title ||
+      healthLabels.hygiene;
+    return {
+      id: row.id,
+      pet_id: row.pet_id,
+      source: "health",
+      kind: "hygiene",
+      title,
+      detail: row.notes || null,
+      occurred_at: row.occurred_at,
+      tone: toneForHealth("hygiene"),
+    };
+  }
+  return {
+    id: row.id,
+    pet_id: row.pet_id,
+    source: "health",
+    kind: recordKindFromHealth(row.type),
+    title: row.title || healthLabels[row.type],
+    detail: [row.clinic_or_vet, row.notes].filter(Boolean).join(" • ") || null,
+    occurred_at: row.occurred_at,
+    tone: toneForHealth(row.type),
+  };
 }
 
 function mapNeonatal(row: NeonatalRecord): TimelineItem {
@@ -299,6 +326,8 @@ export type EditableRecord = {
   notes: string | null;
   title?: string;
   clinic_or_vet?: string | null;
+  hygiene_subtype?: string | null;
+  hygiene_custom_label?: string | null;
   weight_grams?: number;
   amount_ml?: number | null;
   feeding_subtype?: string | null;
@@ -342,6 +371,8 @@ export async function getEditableRecord(supabase: SupabaseClient, householdId: s
       notes: row.notes,
       title: row.title,
       clinic_or_vet: row.clinic_or_vet,
+      hygiene_subtype: row.hygiene_subtype,
+      hygiene_custom_label: row.hygiene_custom_label,
       vaccine_key: vaccineKey,
       dose_label: doseLabel,
     };

@@ -59,6 +59,8 @@ export default async function EditRecordPage({ params, searchParams }: { params:
             record_type: record.kind as RecordFieldDefaults["record_type"],
             vaccine_key: record.vaccine_key,
             dose_label: record.dose_label,
+            hygiene_subtype: record.hygiene_subtype,
+            hygiene_custom_label: record.hygiene_custom_label,
           }}
           submitLabel="Salvar alterações"
         />

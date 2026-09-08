@@ -48,3 +48,20 @@ export function redirectPathWithParam(path: string, key: string, value: string) 
   url.searchParams.set(key, value);
   return `${url.pathname}${url.search}`;
 }
+
+/**
+ * Post-create navigation for Registrar.
+ * Explicit returnTo wins; multi-pet without it lands on family history.
+ */
+export function resolvePostCreateDestination(input: {
+  returnTo: string | null | undefined;
+  petIds: readonly string[];
+  neonatalContext?: boolean;
+}): string {
+  const explicit = resolveReturnTo(input.returnTo);
+  if (explicit) return explicit;
+  if (input.petIds.length > 1) return "/historico";
+  if (input.petIds.length === 1) return `/pets/${input.petIds[0]}`;
+  if (input.neonatalContext) return "/neonatal";
+  return "/pets";
+}

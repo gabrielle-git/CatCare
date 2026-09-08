@@ -4,13 +4,13 @@ import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
 export const quickRecordTypes = new Set([
   "weight", "feeding", "urine", "stool", "temperature",
-  "vaccine", "deworming", "medication", "consultation", "observation",
+  "vaccine", "deworming", "medication", "consultation", "observation", "hygiene",
 ]);
 
 export type RecordSource = "weight" | "health" | "neonatal";
 
 const neonatalKinds = new Set<NeonatalRecordType>(["feeding", "weight", "urine", "stool", "temperature", "observation"]);
-const healthKinds = new Set<HealthRecordType>(["vaccine", "deworming", "medication", "consultation", "exam", "disease", "allergy", "surgery", "other"]);
+const healthKinds = new Set<HealthRecordType>(["vaccine", "deworming", "medication", "consultation", "exam", "disease", "allergy", "surgery", "other", "hygiene"]);
 
 export function resolveRecordSource(kind: string): RecordSource | null {
   if (kind === "weight") return "weight";
@@ -103,4 +103,4 @@ export function parseWeightGramsForPet(formData: FormData, petId: string, allowL
 
 export { weightKgFieldName, WEIGHT_KG_LEGACY_FIELD };
 
-export { redirectPathWithParam, resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";
+export { redirectPathWithParam, resolveReturnTo, resolvePostCreateDestination, safeReturnPath } from "@/lib/safe-return-path";

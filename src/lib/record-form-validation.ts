@@ -1,5 +1,6 @@
 import type { QuickRecordType } from "@/components/record-fields-types";
 import { parseWeightKg } from "@/lib/format";
+import { buildHygieneFields, buildHygieneFieldsList } from "@/lib/hygiene-care";
 import { isFeedingSubtype, parseFeedingAmountValue, resolveFeedingUnitFromForm } from "@/lib/neonatal-feeding";
 
 export function parseAmountMl(raw: string) {
@@ -24,6 +25,11 @@ type ValidateInput = {
   /** Edit of legacy feeding may omit subtype while preserving amount_ml. */
   allowLegacyFeedingWithoutSubtype?: boolean;
   temperatureC: string;
+  /** Edit: single subtype. Create multi-select may omit this and use hygieneSubtypes. */
+  hygieneSubtype: string;
+  /** Create multi-select keys; when present and non-empty, takes precedence over hygieneSubtype. */
+  hygieneSubtypes?: readonly string[];
+  hygieneCustomLabel: string;
   petNames: Map<string, string>;
 };
 
@@ -62,6 +68,16 @@ export function validateCreateRecordForm(input: ValidateInput): string | null {
 
   if (input.types.includes("temperature") && parseTemperatureC(input.temperatureC) == null) {
     return "Informe uma temperatura válida.";
+  }
+
+  if (input.types.includes("hygiene")) {
+    if (input.hygieneSubtypes !== undefined) {
+      const multi = buildHygieneFieldsList(input.hygieneSubtypes, input.hygieneCustomLabel);
+      if (!multi.ok) return multi.message;
+    } else {
+      const hygiene = buildHygieneFields(input.hygieneSubtype, input.hygieneCustomLabel);
+      if (!hygiene.ok) return hygiene.message;
+    }
   }
 
   return null;

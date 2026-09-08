@@ -13,6 +13,7 @@ import {
   parseRecordTypes,
   parseWeightGramsForPet,
   redirectPathWithParam,
+  resolvePostCreateDestination,
   resolveReturnTo,
   shouldSaveObservationAsNeonatal,
   value,
@@ -30,6 +31,7 @@ import {
   resolveFeedingUnitFromForm,
   resolvePetNotesForCreate,
 } from "@/lib/neonatal-feeding";
+import { buildHygieneFieldsList, hygieneRecordTitle } from "@/lib/hygiene-care";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
@@ -45,19 +47,15 @@ function fail(petIds: string[], type: string, message: string, returnTo?: string
   redirect(`/records/new?${params.toString()}`);
 }
 
-function redirectAfterSave(returnTo: string | null, petIds: string[], count: number) {
-  const saved = String(count);
-  if (returnTo) {
-    redirect(redirectPathWithParam(returnTo, "saved", saved));
-  }
-  if (petIds.length === 1) redirect(`/pets/${petIds[0]}?saved=1`);
-  // Multi-pet without origin: pets list is better than Home as universal fallback.
-  redirect(redirectPathWithParam("/pets", "saved", saved));
+function redirectAfterSave(returnTo: string | null, petIds: string[], count: number, neonatalContext = false) {
+  const destination = resolvePostCreateDestination({ returnTo, petIds, neonatalContext });
+  redirect(redirectPathWithParam(destination, "saved", String(count)));
 }
 
 function revalidateRecordPaths(petIds: string[]) {
   revalidatePath("/");
   revalidatePath("/agenda");
+  revalidatePath("/historico");
   revalidatePath("/neonatal");
   for (const petId of petIds) revalidatePath(`/pets/${petId}`);
 }
@@ -222,7 +220,10 @@ export async function createRecord(formData: FormData) {
       continue;
     }
 
-    const healthType: HealthRecordType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" ? type : "other";
+    const healthType: HealthRecordType =
+      type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "hygiene"
+        ? type
+        : "other";
     const defaults: Record<HealthRecordType, string> = {
       vaccine: "Vacina",
       deworming: "Vermífugo",
@@ -233,7 +234,36 @@ export async function createRecord(formData: FormData) {
       disease: "Diagnóstico",
       allergy: "Alergia",
       surgery: "Cirurgia",
+      hygiene: "Cuidados de higiene",
     };
+
+    if (type === "hygiene") {
+      const hygiene = buildHygieneFieldsList(
+        formData.getAll("hygiene_subtype").map((item) => String(item)),
+        value(formData, "hygiene_custom_label"),
+      );
+      if (!hygiene.ok) failHere(hygiene.message);
+      const hygieneItems = hygiene.ok ? hygiene.items : [];
+      for (const pet of pets) {
+        const petNotes = notesForPet(pet.id);
+        for (const fields of hygieneItems) {
+          const { error } = await supabase.from("health_records").insert({
+            household_id: household.id,
+            pet_id: pet.id,
+            type: "hygiene",
+            title: hygieneRecordTitle(fields.hygiene_subtype, fields.hygiene_custom_label),
+            occurred_at: occurredAt,
+            clinic_or_vet: null,
+            notes: petNotes,
+            hygiene_subtype: fields.hygiene_subtype,
+            hygiene_custom_label: fields.hygiene_custom_label,
+          });
+          if (error) failHere(error.message);
+          created += 1;
+        }
+      }
+      continue;
+    }
 
     const vaccineKey = type === "vaccine" ? value(formData, "vaccine_key") : "";
     const doseLabel = type === "vaccine" ? value(formData, "dose_label") : "";
@@ -273,6 +303,8 @@ export async function createRecord(formData: FormData) {
         occurred_at: occurredAt,
         clinic_or_vet: clinicOrVet,
         notes: petNotes,
+        hygiene_subtype: null,
+        hygiene_custom_label: null,
       }).select("id").single();
       if (error) failHere(error.message);
       created += 1;
@@ -310,6 +342,7 @@ export async function createRecord(formData: FormData) {
     }
   }
 
-  revalidateRecordPaths(pets.map((pet) => pet.id));
-  redirectAfterSave(returnTo ?? (neonatalContext ? "/neonatal" : null), pets.map((pet) => pet.id), created);
+  const petIdList = pets.map((pet) => pet.id);
+  revalidateRecordPaths(petIdList);
+  redirectAfterSave(returnTo, petIdList, created, neonatalContext);
 }

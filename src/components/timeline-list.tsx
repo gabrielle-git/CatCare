@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardPlus, Droplets, Milk, Pill, Pencil, Plus, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
+import { Bath, ClipboardPlus, Droplets, Milk, Pill, Pencil, Plus, Scale, Stethoscope, Syringe, Thermometer, Trash2, type LucideIcon } from "lucide-react";
 import { deleteRecord, deleteRecords } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatDateTime } from "@/lib/format";
@@ -33,6 +33,7 @@ const adultFilters = [
   { value: "deworming", label: "Vermífugo" },
   { value: "medication", label: "Remédio" },
   { value: "consultation", label: "Consulta" },
+  { value: "hygiene", label: "Higiene" },
   { value: "observation", label: "Nota" },
 ] as const;
 
@@ -42,6 +43,7 @@ const fullFilters = [
   { value: "deworming", label: "Vermífugo" },
   { value: "medication", label: "Remédio" },
   { value: "consultation", label: "Consulta" },
+  { value: "hygiene", label: "Higiene" },
   { value: "observation", label: "Nota" },
 ] as const;
 
@@ -54,6 +56,7 @@ function iconFor(kind: TimelineItem["kind"]): LucideIcon {
   if (kind === "deworming") return Pill;
   if (kind === "medication") return Pill;
   if (kind === "consultation" || kind === "exam") return Stethoscope;
+  if (kind === "hygiene") return Bath;
   return ClipboardPlus;
 }
 
