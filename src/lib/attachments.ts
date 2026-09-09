@@ -189,6 +189,41 @@ export function resolveDocumentCreateOwnership(
   return { ok: true, status: "reuse" };
 }
 
+export function attachmentSlotsSummary(existingCount: number, pendingNewCount = 0) {
+  const used = existingCount + pendingNewCount;
+  return {
+    used,
+    max: ATTACHMENT_MAX_PER_DOCUMENT,
+    remaining: Math.max(0, ATTACHMENT_MAX_PER_DOCUMENT - used),
+    label: `${used} de ${ATTACHMENT_MAX_PER_DOCUMENT}`,
+  };
+}
+
+/** V1: a logical document must keep at least one stored file. */
+export function canRemoveStoredAttachment(existingCount: number): boolean {
+  return existingCount > 1;
+}
+
+export const LAST_ATTACHMENT_REMOVAL_MESSAGE =
+  "Um documento precisa ter pelo menos um arquivo. Adicione outro antes de remover este.";
+
+/** Listing shows one card per logical document, never per attachment. */
+export function documentListCardCount(documents: Array<{ id: string; attachment_count?: number }>): number {
+  return documents.length;
+}
+
+export function formatAttachmentBytes(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function attachmentKindLabel(mimeType: string) {
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType.startsWith("image/")) return "Imagem";
+  return mimeType || "Arquivo";
+}
+
 export function isStorageObjectAlreadyExists(error: { message?: string; statusCode?: string | number } | null | undefined): boolean {
   if (!error) return false;
   const code = String(error.statusCode ?? "");

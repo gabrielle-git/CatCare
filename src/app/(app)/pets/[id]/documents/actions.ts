@@ -161,18 +161,23 @@ export async function createPetDocument(petId: string, formData: FormData) {
 }
 
 export async function updatePetDocument(petId: string, documentId: string, formData: FormData) {
+  const editPath = `${documentsBase(petId)}/${documentId}/edit`;
+  const fail = (message: string): never => {
+    redirect(`${editPath}?error=${encodeURIComponent(message)}`);
+  };
+
   let meta: ReturnType<typeof readMeta>;
   try {
     meta = readMeta(formData);
   } catch (error) {
-    redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Dados inválidos.")}`);
+    fail(error instanceof Error ? error.message : "Dados inválidos.");
   }
 
   const { supabase, household } = await authContext();
   try {
     await assertPetInHousehold(supabase, household.id, petId);
   } catch (error) {
-    redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Pet inválido.")}`);
+    fail(error instanceof Error ? error.message : "Pet inválido.");
   }
 
   const { data: existing, error: existingError } = await supabase
@@ -186,20 +191,18 @@ export async function updatePetDocument(petId: string, documentId: string, formD
 
   const { error: metaError } = await supabase.rpc("update_pet_document_meta", {
     p_document_id: documentId,
-    p_title: meta.title,
-    p_category: meta.category,
+    p_title: meta!.title,
+    p_category: meta!.category,
   });
-  if (metaError) {
-    redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(metaError.message)}`);
-  }
+  if (metaError) fail(metaError.message);
 
   const newFiles = readFiles(formData);
   if (newFiles.length > 0) {
-    let attachmentIds: string[];
+    let attachmentIds: string[] = [];
     try {
       attachmentIds = readAttachmentIds(formData, newFiles.length);
     } catch (error) {
-      redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Arquivos inválidos.")}`);
+      fail(error instanceof Error ? error.message : "Arquivos inválidos.");
     }
 
     const { data: alreadyLinked } = await supabase
@@ -224,34 +227,29 @@ export async function updatePetDocument(petId: string, documentId: string, formD
         required: false,
         existingCount: count ?? 0,
       });
-      if (!validated.ok) {
-        redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(validated.message)}`);
-      }
+      const validatedFiles = validated.ok ? validated.values : fail(validated.message);
 
-      const prepared = prepareAttachmentUploads(household.id, validated.values, 0, pendingIds);
+      const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, pendingIds);
       let uploaded: string[] = [];
       try {
         uploaded = await uploadPreparedAttachments(supabase, prepared);
       } catch (error) {
-        redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.")}`);
+        fail(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
       }
       const { error } = await supabase.rpc("add_document_attachments", {
         p_document_id: documentId,
         p_attachments: attachmentPayloadForRpc(prepared),
       });
       if (error) {
-        // If rows already exist from a parallel retry, treat as success when all ids are present.
         const { data: linkedNow } = await supabase
           .from("document_attachments")
           .select("attachment_id")
           .eq("document_id", documentId)
           .in("attachment_id", pendingIds);
         const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
-        if (pendingIds.every((id) => linked.has(id))) {
-          // idempotent success
-        } else {
+        if (!pendingIds.every((id) => linked.has(id))) {
           await removeStoragePaths(supabase, uploaded);
-          redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error.message)}`);
+          fail(error.message);
         }
       }
     }
@@ -259,30 +257,45 @@ export async function updatePetDocument(petId: string, documentId: string, formD
 
   revalidatePath(documentsBase(petId));
   revalidatePath(`${documentsBase(petId)}/${documentId}`);
-  redirect(`${documentsBase(petId)}/${documentId}?updated=1`);
+  revalidatePath(editPath);
+  redirect(`${editPath}?updated=1`);
 }
 
-export async function deleteDocumentAttachment(petId: string, documentId: string, attachmentId: string) {
+export async function deleteDocumentAttachment(
+  petId: string,
+  documentId: string,
+  attachmentId: string,
+  returnTo: "view" | "edit" = "view",
+) {
   const { supabase, household } = await authContext();
   await assertPetInHousehold(supabase, household.id, petId);
+
+  const target =
+    returnTo === "edit"
+      ? `${documentsBase(petId)}/${documentId}/edit`
+      : `${documentsBase(petId)}/${documentId}`;
 
   const { data: path, error } = await supabase.rpc("delete_document_attachment", {
     p_attachment_id: attachmentId,
   });
   if (error) {
-    redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error.message)}`);
+    const message = /at least one attachment/i.test(error.message)
+      ? "Um documento precisa ter pelo menos um arquivo. Adicione outro antes de remover este."
+      : error.message;
+    redirect(`${target}?error=${encodeURIComponent(message)}`);
   }
   if (typeof path === "string" && path) {
     try {
       await removeStoragePaths(supabase, [path]);
     } catch {
-      redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent("Arquivo removido do documento, mas a limpeza no Storage falhou. Tente novamente mais tarde.")}`);
+      redirect(`${target}?error=${encodeURIComponent("Arquivo removido do documento, mas a limpeza no Storage falhou. Tente novamente mais tarde.")}`);
     }
   }
 
   revalidatePath(documentsBase(petId));
   revalidatePath(`${documentsBase(petId)}/${documentId}`);
-  redirect(`${documentsBase(petId)}/${documentId}?updated=1`);
+  revalidatePath(`${documentsBase(petId)}/${documentId}/edit`);
+  redirect(`${target}?updated=1`);
 }
 
 export async function deletePetDocument(petId: string, documentId: string) {

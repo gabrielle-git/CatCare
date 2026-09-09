@@ -83,7 +83,7 @@ export default async function PetDocumentsPage({
                   </Link>
                   {editable && (
                     <>
-                      <Link href={`/pets/${pet.id}/documents/${document.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-[11px] font-bold">
+                      <Link href={`/pets/${pet.id}/documents/${document.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-[11px] font-bold">
                         <Pencil size={12} /> Editar
                       </Link>
                       <form action={remove}>

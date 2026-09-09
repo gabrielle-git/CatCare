@@ -5,25 +5,19 @@ import { FilePlus2, FileText, Trash2 } from "lucide-react";
 import {
   ATTACHMENT_MAX_PER_DOCUMENT,
   DOCUMENT_CATEGORY_SUGGESTIONS,
+  LAST_ATTACHMENT_REMOVAL_MESSAGE,
+  attachmentKindLabel,
+  attachmentSlotsSummary,
+  canRemoveStoredAttachment,
+  formatAttachmentBytes,
   mergeLocalFileSelections,
   type LocalSelectedFile,
 } from "@/lib/attachments";
+import { ConfirmButton } from "@/components/confirm-button";
 import { SubmitButton } from "@/components/submit-button";
 import type { AttachmentWithUrl } from "@/types/database";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
-
-function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function fileTypeLabel(file: File) {
-  if (file.type === "application/pdf") return "PDF";
-  if (file.type.startsWith("image/")) return "Imagem";
-  return file.type || "Arquivo";
-}
 
 function CategoryFields({
   disabled,
@@ -45,7 +39,7 @@ function CategoryFields({
   return (
     <div>
       <p className="text-sm font-bold">Categoria <span className="text-[var(--danger)]">*</span></p>
-      <p className="mt-1 text-xs text-[var(--muted)]">Sugestões rápidas — ou escolha Outro e digite a sua.</p>
+      <p className="mt-1 text-xs text-[var(--muted)]">Pertence ao documento (não a cada arquivo).</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {DOCUMENT_CATEGORY_SUGGESTIONS.map((item) => {
           const active = preset === item.value;
@@ -85,16 +79,17 @@ function AccumulatingFilePicker({
   requireFiles,
   existingStoredCount,
   pickerId,
+  heading,
 }: {
   disabled?: boolean;
   requireFiles: boolean;
   existingStoredCount: number;
   pickerId: string;
+  heading: string;
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const syncInputRef = useRef<HTMLInputElement>(null);
-  const pickInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const input = syncInputRef.current;
@@ -104,42 +99,46 @@ function AccumulatingFilePicker({
     input.files = transfer.files;
   }, [selected]);
 
-  const remainingSlots = Math.max(0, ATTACHMENT_MAX_PER_DOCUMENT - existingStoredCount - selected.length);
+  const slots = attachmentSlotsSummary(existingStoredCount, selected.length);
+  const remainingSlots = slots.remaining;
 
   return (
     <div>
       <p className="text-sm font-bold">
-        {existingStoredCount > 0 ? "Adicionar arquivos" : "Arquivos"}{" "}
-        {requireFiles ? <span className="text-[var(--danger)]">*</span> : null}
+        {heading} {requireFiles && existingStoredCount === 0 ? <span className="text-[var(--danger)]">*</span> : null}
       </p>
       <p className="mt-1 text-xs text-[var(--muted)]">
-        Até {ATTACHMENT_MAX_PER_DOCUMENT} arquivos no total · JPG, PNG, WebP ou PDF · máx. 5 MB cada.
+        {slots.label} arquivos · JPG, PNG, WebP ou PDF · máx. 5 MB cada.
         {remainingSlots === 0 ? " Limite atingido." : ` Você ainda pode adicionar ${remainingSlots}.`}
       </p>
 
       {selected.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {selected.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-2.5 text-xs">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{item.file.name}</p>
-                <p className="mt-0.5 text-[var(--muted)]">{fileTypeLabel(item.file)} · {formatBytes(item.file.size)}</p>
-              </div>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
-                className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
-              >
-                <Trash2 size={12} /> Remover
-              </button>
-              <input type="hidden" name="attachment_ids" value={item.id} />
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">
+            {existingStoredCount > 0 ? "Novos arquivos" : "Arquivos selecionados"} — {selected.length}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {selected.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-2.5 text-xs">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{item.file.name}</p>
+                  <p className="mt-0.5 text-[var(--muted)]">{attachmentKindLabel(item.file.type)} · {formatAttachmentBytes(item.file.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
+                  className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
+                >
+                  <Trash2 size={12} /> Remover
+                </button>
+                <input type="hidden" name="attachment_ids" value={item.id} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {/* Synced files for FormData submit — order matches attachment_ids */}
       <input
         ref={syncInputRef}
         type="file"
@@ -155,11 +154,10 @@ function AccumulatingFilePicker({
         htmlFor={pickerId}
         className={`mt-3 flex items-center justify-center gap-2 rounded-[18px] border border-dashed border-[var(--lavender)] bg-[var(--lavender-soft)] px-4 py-4 text-xs font-bold text-[var(--lavender-strong)] ${disabled || remainingSlots === 0 ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
       >
-        <FilePlus2 size={17} /> {selected.length || existingStoredCount ? "Adicionar arquivos" : "Escolher arquivos"}
+        <FilePlus2 size={17} /> + Adicionar arquivos
       </label>
       <input
         id={pickerId}
-        ref={pickInputRef}
         disabled={disabled || remainingSlots === 0}
         multiple
         type="file"
@@ -184,11 +182,80 @@ function AccumulatingFilePicker({
   );
 }
 
+/** Existing attachments with view/remove — must stay OUTSIDE the save form (no nested forms). */
+export function DocumentExistingFilesPanel({
+  attachments,
+  disabled = false,
+  removeAttachmentAction,
+}: {
+  attachments: AttachmentWithUrl[];
+  disabled?: boolean;
+  removeAttachmentAction?: (attachmentId: string) => (formData: FormData) => void | Promise<void>;
+}) {
+  if (attachments.length === 0) return null;
+  const slots = attachmentSlotsSummary(attachments.length, 0);
+  const canRemove = canRemoveStoredAttachment(attachments.length);
+
+  return (
+    <div>
+      <p className="text-sm font-bold">Arquivos deste documento — {slots.label}</p>
+      <p className="mt-1 text-xs text-[var(--muted)]">Cada item é um arquivo do mesmo documento, não um documento separado.</p>
+      <ul className="mt-3 space-y-2">
+        {attachments.map((item) => {
+          const isPdf = item.mime_type === "application/pdf";
+          const remove = !disabled ? removeAttachmentAction?.(item.id) : undefined;
+          return (
+            <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{item.original_filename}</p>
+                  <p className="mt-0.5 text-[var(--muted)]">
+                    {attachmentKindLabel(item.mime_type)} · {formatAttachmentBytes(item.byte_size)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[11px] font-bold text-[var(--lavender-strong)]"
+                    >
+                      {isPdf ? "Abrir" : "Visualizar"}
+                    </a>
+                  )}
+                  {remove && canRemove ? (
+                    <form action={remove}>
+                      <ConfirmButton
+                        title="Remover arquivo?"
+                        message="Remover este arquivo do documento? O documento continua existindo."
+                        confirmLabel="Remover arquivo"
+                        className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]"
+                      >
+                        <Trash2 size={12} /> Remover
+                      </ConfirmButton>
+                    </form>
+                  ) : remove && !canRemove ? (
+                    <span className="rounded-xl px-3 py-2 text-[11px] font-semibold text-[var(--muted)]">Último arquivo</span>
+                  ) : null}
+                </div>
+              </div>
+              {!canRemove && remove && (
+                <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">{LAST_ATTACHMENT_REMOVAL_MESSAGE}</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function DocumentFields({
   disabled = false,
   defaultTitle = "",
   defaultCategory = "",
-  currentAttachments = [],
+  existingStoredCount = 0,
   requireFiles = true,
   documentId,
   submitLabel,
@@ -196,9 +263,9 @@ export function DocumentFields({
   disabled?: boolean;
   defaultTitle?: string;
   defaultCategory?: string;
-  currentAttachments?: AttachmentWithUrl[];
+  /** Count of already-saved attachments (for slot math). Render list via DocumentExistingFilesPanel outside this form. */
+  existingStoredCount?: number;
   requireFiles?: boolean;
-  /** Stable create intent id — required on create forms. */
   documentId?: string;
   submitLabel: string;
 }) {
@@ -217,32 +284,19 @@ export function DocumentFields({
           defaultValue={defaultTitle}
           maxLength={160}
           className="field mt-2"
-          placeholder="Ex.: Passaporte do Dobby"
+          placeholder="Ex.: Carteira de vacinação do Dobby"
         />
+        <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">Nome do documento lógico — os arquivos abaixo pertencem a ele.</span>
       </label>
 
       <CategoryFields disabled={disabled} defaultCategory={defaultCategory} />
 
-      {currentAttachments.length > 0 && (
-        <div>
-          <p className="text-sm font-bold">Arquivos atuais</p>
-          <ul className="mt-3 space-y-2">
-            {currentAttachments.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-2.5 text-xs">
-                <span className="min-w-0 truncate font-semibold">{item.original_filename}</span>
-                <span className="shrink-0 text-[var(--muted)]">{item.mime_type === "application/pdf" ? "PDF" : "Imagem"}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-[var(--muted)]">Para remover um arquivo individual, use as ações na visualização do documento.</p>
-        </div>
-      )}
-
       <AccumulatingFilePicker
         disabled={disabled}
         requireFiles={requireFiles}
-        existingStoredCount={currentAttachments.length}
+        existingStoredCount={existingStoredCount}
         pickerId={pickerId}
+        heading={existingStoredCount > 0 ? "Adicionar mais arquivos" : "Arquivos"}
       />
 
       <SubmitButton
@@ -283,6 +337,9 @@ export function DocumentAttachmentActions({
       </div>
       <div className="space-y-2 p-4">
         <p className="truncate text-sm font-bold">{attachment.original_filename}</p>
+        <p className="text-xs text-[var(--muted)]">
+          {attachmentKindLabel(attachment.mime_type)} · {formatAttachmentBytes(attachment.byte_size)}
+        </p>
         <div className="flex flex-wrap gap-2">
           {attachment.url && (
             <a href={attachment.url} target="_blank" rel="noreferrer" className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
@@ -294,12 +351,20 @@ export function DocumentAttachmentActions({
           </a>
           {canDelete && deleteAction && (
             <form action={deleteAction}>
-              <button type="submit" className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]">
-                <Trash2 size={12} /> Excluir arquivo
-              </button>
+              <ConfirmButton
+                title="Remover arquivo?"
+                message="Remover este arquivo do documento? O documento continua existindo."
+                confirmLabel="Remover arquivo"
+                className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]"
+              >
+                <Trash2 size={12} /> Remover arquivo
+              </ConfirmButton>
             </form>
           )}
         </div>
+        {!canDelete && (
+          <p className="text-[11px] leading-relaxed text-[var(--muted)]">{LAST_ATTACHMENT_REMOVAL_MESSAGE}</p>
+        )}
       </div>
     </div>
   );

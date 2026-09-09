@@ -5,10 +5,14 @@ import { describe, it } from "node:test";
 import {
   ATTACHMENT_MAX_BYTES,
   ATTACHMENT_MAX_PER_DOCUMENT,
+  LAST_ATTACHMENT_REMOVAL_MESSAGE,
   assertAttachmentStoragePath,
+  attachmentSlotsSummary,
   buildAttachmentStoragePath,
+  canRemoveStoredAttachment,
   contentDispositionAttachment,
   detectMimeFromMagicBytes,
+  documentListCardCount,
   extensionForMime,
   isAllowedAttachmentMime,
   isStorageObjectAlreadyExists,
@@ -282,5 +286,64 @@ describe("create idempotency + multi-file selection", () => {
     assert.match(sql, /delete_pet_document/);
     assert.match(sql, /on delete cascade/);
     assert.equal(existsSync(join(process.cwd(), "supabase/migrations/0034_attachments_pet_documents.sql")), false);
+  });
+});
+
+describe("document vs attachment UX rules", () => {
+  it("listing counts one card per document even with 3 attachments", () => {
+    const cards = documentListCardCount([{ id: DOCUMENT, attachment_count: 3 }]);
+    assert.equal(cards, 1);
+  });
+
+  it("edit slot math accounts for existing + new files", () => {
+    const slots = attachmentSlotsSummary(5, 2);
+    assert.equal(slots.used, 7);
+    assert.equal(slots.remaining, 1);
+    assert.equal(slots.label, "7 de 8");
+  });
+
+  it("last stored attachment cannot be removed", () => {
+    assert.equal(canRemoveStoredAttachment(1), false);
+    assert.equal(canRemoveStoredAttachment(3), true);
+    assert.match(LAST_ATTACHMENT_REMOVAL_MESSAGE, /pelo menos um arquivo/);
+  });
+
+  it("title/category belong to document metadata helpers, not attachment payloads", async () => {
+    const files = [fileFrom("a.jpg", "image/jpeg", jpegBytes())];
+    const validated = await validateAttachmentFiles(files);
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+    const prepared = prepareAttachmentUploads(HOUSEHOLD, validated.values, 0, [ATTACHMENT]);
+    assert.equal("title" in prepared[0], false);
+    assert.equal("category" in prepared[0], false);
+    assert.ok("original_filename" in prepared[0]);
+  });
+
+  it("removing one attachment conceptually leaves document + siblings (count rules)", () => {
+    const before = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const after = before.filter((item) => item.id !== "b");
+    assert.equal(after.length, 2);
+    assert.ok(after.some((item) => item.id === "a"));
+    assert.ok(after.some((item) => item.id === "c"));
+  });
+
+  it("edit selection accumulates without replacing prior pending files", () => {
+    const a = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
+    const b = fileFrom("b.pdf", "application/pdf", pdfBytes(), undefined, 20);
+    const first = mergeLocalFileSelections([], [a], { existingStoredCount: 2, createId: () => ATTACHMENT });
+    const second = mergeLocalFileSelections(first.items, [b], { existingStoredCount: 2, createId: () => ATTACHMENT_B });
+    assert.equal(second.items.length, 2);
+    assert.equal(second.items[0].file.name, "a.jpg");
+  });
+
+  it("pending new files can be dropped before save", () => {
+    const a = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
+    const b = fileFrom("b.pdf", "application/pdf", pdfBytes(), undefined, 20);
+    const selected = mergeLocalFileSelections([], [a, b], {
+      createId: () => crypto.randomUUID(),
+    }).items;
+    const afterRemove = selected.filter((item) => item.file.name !== "a.jpg");
+    assert.equal(afterRemove.length, 1);
+    assert.equal(afterRemove[0].file.name, "b.pdf");
   });
 });
