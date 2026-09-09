@@ -77,11 +77,9 @@ export default async function PetDocumentDetailPage({
                 defaultCategory={document.category}
                 currentAttachments={document.attachments}
                 requireFiles={false}
+                submitLabel="Salvar alterações"
               />
             </div>
-            <button className="focus-ring mt-7 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white">
-              Salvar alterações
-            </button>
           </form>
 
           <form action={removeDoc} className="mt-4">

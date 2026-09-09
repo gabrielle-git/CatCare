@@ -27,6 +27,8 @@ export default async function NewPetDocumentPage({
   const { pet, configured, editable } = await loadPage(id);
   if (!pet) notFound();
   const action = createPetDocument.bind(null, pet.id);
+  // One UUID per form render — retries of this form reuse the same id (idempotent create).
+  const documentId = crypto.randomUUID();
 
   return (
     <div className="mx-auto w-full max-w-[820px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -44,10 +46,7 @@ export default async function NewPetDocumentPage({
       {configured && !editable && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm"><Link href="/login" className="font-bold underline">Entre na conta</Link> para cadastrar documentos.</div>}
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       <form action={action} className="cat-card mt-6 p-5 md:p-7">
-        <DocumentFields disabled={!editable} requireFiles />
-        <button disabled={!editable} className="focus-ring mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-4 text-sm font-bold text-white">
-          <FilePlus2 size={18} /> Salvar documento
-        </button>
+        <DocumentFields disabled={!editable} requireFiles documentId={documentId} submitLabel="Salvar documento" />
       </form>
     </div>
   );

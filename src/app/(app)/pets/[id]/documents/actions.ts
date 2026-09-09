@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   attachmentPayloadForRpc,
+  isUuid,
   prepareAttachmentUploads,
   removeStoragePaths,
+  resolveDocumentCreateOwnership,
   uploadPreparedAttachments,
   validateAttachmentFiles,
 } from "@/lib/attachments";
@@ -33,6 +35,18 @@ function readFiles(formData: FormData) {
   return formData.getAll("files").filter((entry): entry is File => entry instanceof File && entry.size > 0);
 }
 
+function readAttachmentIds(formData: FormData, fileCount: number) {
+  const ids = formData.getAll("attachment_ids").map((entry) => String(entry).trim()).filter(Boolean);
+  if (fileCount === 0) return [] as string[];
+  if (ids.length !== fileCount || ids.some((id) => !isUuid(id))) {
+    throw new Error("Seleção de arquivos inconsistente. Recarregue a página e tente de novo.");
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("IDs de anexos duplicados na mesma intenção.");
+  }
+  return ids;
+}
+
 async function authContext() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
@@ -57,51 +71,93 @@ async function assertPetInHousehold(
   if (error || !data) throw new Error("Este pet não pertence a esta família.");
 }
 
+function finishCreate(petId: string, documentId: string) {
+  revalidatePath(documentsBase(petId));
+  revalidatePath(`/pets/${petId}`);
+  redirect(`${documentsBase(petId)}/${documentId}?saved=1`);
+}
+
 export async function createPetDocument(petId: string, formData: FormData) {
+  const fail = (message: string): never => {
+    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(message)}`);
+  };
+
   let meta: ReturnType<typeof readMeta>;
   try {
     meta = readMeta(formData);
   } catch (error) {
-    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Dados inválidos.")}`);
+    fail(error instanceof Error ? error.message : "Dados inválidos.");
   }
+
+  const documentId = value(formData, "document_id");
+  if (!isUuid(documentId)) fail("Intenção de criação inválida. Recarregue a página.");
 
   const { supabase, household } = await authContext();
   try {
     await assertPetInHousehold(supabase, household.id, petId);
   } catch (error) {
-    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Pet inválido.")}`);
+    fail(error instanceof Error ? error.message : "Pet inválido.");
   }
 
-  const validated = await validateAttachmentFiles(readFiles(formData), { required: true });
-  if (!validated.ok) {
-    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(validated.message)}`);
+  const { data: existing, error: existingError } = await supabase
+    .from("documents")
+    .select("id, household_id, pet_id")
+    .eq("id", documentId)
+    .maybeSingle();
+  if (existingError) fail(existingError.message);
+
+  const ownership = resolveDocumentCreateOwnership(documentId, household.id, petId, existing);
+  if (ownership.ok === false) {
+    fail(
+      ownership.reason === "foreign_household" || ownership.reason === "pet_mismatch"
+        ? "Não foi possível reutilizar este documento."
+        : "Intenção de criação inválida. Recarregue a página.",
+    );
+  } else if (ownership.status === "reuse") {
+    finishCreate(petId, documentId);
   }
 
-  const documentId = crypto.randomUUID();
-  const prepared = prepareAttachmentUploads(household.id, validated.values, 0);
+  const files = readFiles(formData);
+  let attachmentIds: string[] = [];
+  try {
+    attachmentIds = readAttachmentIds(formData, files.length);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Arquivos inválidos.");
+  }
+
+  const validated = await validateAttachmentFiles(files, { required: true });
+  const validatedFiles = validated.ok ? validated.values : fail(validated.message);
+  const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, attachmentIds);
   let uploaded: string[] = [];
   try {
     uploaded = await uploadPreparedAttachments(supabase, prepared);
   } catch (error) {
-    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.")}`);
+    fail(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
   }
 
   const { error } = await supabase.rpc("create_pet_document", {
     p_document_id: documentId,
     p_pet_id: petId,
-    p_title: meta.title,
-    p_category: meta.category,
+    p_title: meta!.title,
+    p_category: meta!.category,
     p_attachments: attachmentPayloadForRpc(prepared),
   });
 
   if (error) {
+    const { data: again } = await supabase
+      .from("documents")
+      .select("id, household_id, pet_id")
+      .eq("id", documentId)
+      .maybeSingle();
+    const retry = resolveDocumentCreateOwnership(documentId, household.id, petId, again);
+    if (retry.ok && retry.status === "reuse") {
+      finishCreate(petId, documentId);
+    }
     await removeStoragePaths(supabase, uploaded);
-    redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(error.message)}`);
+    fail(error.message);
   }
 
-  revalidatePath(documentsBase(petId));
-  revalidatePath(`/pets/${petId}`);
-  redirect(`${documentsBase(petId)}/${documentId}?saved=1`);
+  finishCreate(petId, documentId);
 }
 
 export async function updatePetDocument(petId: string, documentId: string, formData: FormData) {
@@ -139,16 +195,40 @@ export async function updatePetDocument(petId: string, documentId: string, formD
 
   const newFiles = readFiles(formData);
   if (newFiles.length > 0) {
-    const { count } = await supabase
-      .from("document_attachments")
-      .select("attachment_id", { count: "exact", head: true })
-      .eq("document_id", documentId);
-    const validated = await validateAttachmentFiles(newFiles, { required: false, existingCount: count ?? 0 });
-    if (!validated.ok) {
-      redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(validated.message)}`);
+    let attachmentIds: string[];
+    try {
+      attachmentIds = readAttachmentIds(formData, newFiles.length);
+    } catch (error) {
+      redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Arquivos inválidos.")}`);
     }
-    if (validated.values.length > 0) {
-      const prepared = prepareAttachmentUploads(household.id, validated.values);
+
+    const { data: alreadyLinked } = await supabase
+      .from("attachments")
+      .select("id")
+      .eq("household_id", household.id)
+      .in("id", attachmentIds);
+    const alreadyIds = new Set((alreadyLinked ?? []).map((row) => row.id));
+    const pendingIndexes = attachmentIds
+      .map((id, index) => ({ id, index }))
+      .filter((item) => !alreadyIds.has(item.id));
+
+    if (pendingIndexes.length > 0) {
+      const { count } = await supabase
+        .from("document_attachments")
+        .select("attachment_id", { count: "exact", head: true })
+        .eq("document_id", documentId);
+
+      const pendingFiles = pendingIndexes.map((item) => newFiles[item.index]);
+      const pendingIds = pendingIndexes.map((item) => item.id);
+      const validated = await validateAttachmentFiles(pendingFiles, {
+        required: false,
+        existingCount: count ?? 0,
+      });
+      if (!validated.ok) {
+        redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(validated.message)}`);
+      }
+
+      const prepared = prepareAttachmentUploads(household.id, validated.values, 0, pendingIds);
       let uploaded: string[] = [];
       try {
         uploaded = await uploadPreparedAttachments(supabase, prepared);
@@ -160,8 +240,19 @@ export async function updatePetDocument(petId: string, documentId: string, formD
         p_attachments: attachmentPayloadForRpc(prepared),
       });
       if (error) {
-        await removeStoragePaths(supabase, uploaded);
-        redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error.message)}`);
+        // If rows already exist from a parallel retry, treat as success when all ids are present.
+        const { data: linkedNow } = await supabase
+          .from("document_attachments")
+          .select("attachment_id")
+          .eq("document_id", documentId)
+          .in("attachment_id", pendingIds);
+        const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
+        if (pendingIds.every((id) => linked.has(id))) {
+          // idempotent success
+        } else {
+          await removeStoragePaths(supabase, uploaded);
+          redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error.message)}`);
+        }
       }
     }
   }
@@ -202,14 +293,13 @@ export async function deletePetDocument(petId: string, documentId: string) {
     p_document_id: documentId,
   });
   if (error) {
-    redirect(`${documentsBase(petId)}/${documentId}?error=${encodeURIComponent(error.message)}`);
+    redirect(`${documentsBase(petId)}?error=${encodeURIComponent(error.message)}`);
   }
   const list = Array.isArray(paths) ? paths.filter((item): item is string => typeof item === "string") : [];
   if (list.length) {
     try {
       await removeStoragePaths(supabase, list);
     } catch {
-      // Metadata already gone; surface soft warning on list.
       revalidatePath(documentsBase(petId));
       revalidatePath(`/pets/${petId}`);
       redirect(`${documentsBase(petId)}?deleted=1&storage_warning=1`);

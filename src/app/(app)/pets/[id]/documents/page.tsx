@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileStack, Plus } from "lucide-react";
+import { ArrowLeft, FileStack, Pencil, Plus, Trash2 } from "lucide-react";
+import { ConfirmButton } from "@/components/confirm-button";
 import { formatFullDate } from "@/lib/format";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { listPetDocuments } from "@/lib/documents";
 import { getPet } from "@/lib/pets";
+import { deletePetDocument } from "./actions";
 
 async function loadPage(petId: string) {
   if (!(await isLiveData())) return { pet: null, documents: [], configured: false, editable: false };
@@ -65,17 +67,41 @@ export default async function PetDocumentsPage({
         </section>
       ) : (
         <section className="mt-6 space-y-3">
-          {documents.map((document) => (
-            <Link key={document.id} href={`/pets/${pet.id}/documents/${document.id}`} className="focus-ring cat-card flex items-center justify-between gap-4 p-4 md:p-5">
-              <div className="min-w-0">
-                <p className="truncate text-base font-bold">{document.title}</p>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {document.category} · {document.attachment_count} {document.attachment_count === 1 ? "arquivo" : "arquivos"} · {formatFullDate(document.created_at)}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--lavender-strong)]">Ver</span>
-            </Link>
-          ))}
+          {documents.map((document) => {
+            const remove = deletePetDocument.bind(null, pet.id, document.id);
+            return (
+              <article key={document.id} className="cat-card flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between md:p-5">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-bold">{document.title}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {document.category} · {document.attachment_count} {document.attachment_count === 1 ? "arquivo" : "arquivos"} · {formatFullDate(document.created_at)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/pets/${pet.id}/documents/${document.id}`} className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+                    Ver
+                  </Link>
+                  {editable && (
+                    <>
+                      <Link href={`/pets/${pet.id}/documents/${document.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-[11px] font-bold">
+                        <Pencil size={12} /> Editar
+                      </Link>
+                      <form action={remove}>
+                        <ConfirmButton
+                          title="Excluir documento?"
+                          message="O documento e todos os arquivos ligados a ele serão apagados. Esta ação não pode ser desfeita."
+                          confirmLabel="Excluir definitivamente"
+                          className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]"
+                        >
+                          <Trash2 size={12} /> Excluir
+                        </ConfirmButton>
+                      </form>
+                    </>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
     </div>

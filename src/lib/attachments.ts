@@ -118,9 +118,82 @@ export function buildAttachmentStoragePath(householdId: string, attachmentId: st
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attachmentId)) {
     throw new Error("attachment_id inválido para path de Storage.");
   }
-  const objectId = crypto.randomUUID();
   const extension = extensionForMime(mimeType);
-  return `${householdId}/attachments/${attachmentId}/${objectId}.${extension}`;
+  // Stable object name so retries of the same attachment id do not create orphan objects.
+  return `${householdId}/attachments/${attachmentId}/file.${extension}`;
+}
+
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export function localFileSelectionKey(file: { name: string; size: number; lastModified: number }): string {
+  return `${file.name}::${file.size}::${file.lastModified}`;
+}
+
+export type LocalSelectedFile<T extends { name: string; size: number; lastModified: number } = File> = {
+  id: string;
+  key: string;
+  file: T;
+};
+
+export function mergeLocalFileSelections<T extends { name: string; size: number; lastModified: number }>(
+  existing: LocalSelectedFile<T>[],
+  incoming: T[],
+  options?: {
+    maxTotal?: number;
+    existingStoredCount?: number;
+    createId?: () => string;
+  },
+): { items: LocalSelectedFile<T>[]; truncated: boolean; skippedDuplicates: number } {
+  const maxTotal = options?.maxTotal ?? ATTACHMENT_MAX_PER_DOCUMENT;
+  const existingStoredCount = options?.existingStoredCount ?? 0;
+  const createId = options?.createId ?? (() => crypto.randomUUID());
+  const items = [...existing];
+  const keys = new Set(existing.map((item) => item.key));
+  let skippedDuplicates = 0;
+  let truncated = false;
+
+  for (const file of incoming) {
+    const key = localFileSelectionKey(file);
+    if (keys.has(key)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+    if (existingStoredCount + items.length >= maxTotal) {
+      truncated = true;
+      break;
+    }
+    keys.add(key);
+    items.push({ id: createId(), key, file });
+  }
+
+  return { items, truncated, skippedDuplicates };
+}
+
+export type DocumentCreateOwnershipResult =
+  | { ok: true; status: "create" | "reuse" }
+  | { ok: false; reason: "invalid_id" | "foreign_household" | "pet_mismatch" };
+
+/** Pure ownership/idempotency decision for create retries with a stable document_id. */
+export function resolveDocumentCreateOwnership(
+  documentId: string,
+  expectedHouseholdId: string,
+  expectedPetId: string,
+  existing: { id: string; household_id: string; pet_id: string | null } | null,
+): DocumentCreateOwnershipResult {
+  if (!isUuid(documentId)) return { ok: false, reason: "invalid_id" };
+  if (!existing) return { ok: true, status: "create" };
+  if (existing.household_id !== expectedHouseholdId) return { ok: false, reason: "foreign_household" };
+  if (existing.pet_id !== expectedPetId) return { ok: false, reason: "pet_mismatch" };
+  return { ok: true, status: "reuse" };
+}
+
+export function isStorageObjectAlreadyExists(error: { message?: string; statusCode?: string | number } | null | undefined): boolean {
+  if (!error) return false;
+  const code = String(error.statusCode ?? "");
+  const message = (error.message ?? "").toLowerCase();
+  return code === "409" || message.includes("already exists") || message.includes("resource already exists");
 }
 
 export function assertAttachmentStoragePath(householdId: string, storagePath: string) {
@@ -191,9 +264,16 @@ export function prepareAttachmentUploads(
   householdId: string,
   files: ValidatedAttachmentFile[],
   startingPosition = 0,
+  attachmentIds?: string[],
 ): PreparedAttachmentUpload[] {
+  if (attachmentIds && attachmentIds.length !== files.length) {
+    throw new Error("IDs de anexos incompatíveis com os arquivos.");
+  }
+  if (attachmentIds?.some((id) => !isUuid(id))) {
+    throw new Error("ID de anexo inválido.");
+  }
   return files.map((item, index) => {
-    const id = crypto.randomUUID();
+    const id = attachmentIds?.[index] ?? crypto.randomUUID();
     return {
       id,
       storage_path: buildAttachmentStoragePath(householdId, id, item.mimeType),
@@ -219,11 +299,13 @@ export async function uploadPreparedAttachments(
         cacheControl: "3600",
         upsert: false,
       });
-      if (error) throw error;
+      if (error && !isStorageObjectAlreadyExists(error)) throw error;
       uploaded.push(item.storage_path);
     }
     return uploaded;
   } catch (error) {
+    // Only remove objects this attempt newly created when the batch fails mid-way.
+    // Paths are stable per attachment id; callers decide cleanup on true failure.
     if (uploaded.length) await supabase.storage.from(PET_MEDIA_BUCKET).remove(uploaded);
     throw error;
   }

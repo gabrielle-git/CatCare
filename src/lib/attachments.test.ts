@@ -1,21 +1,33 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   ATTACHMENT_MAX_BYTES,
+  ATTACHMENT_MAX_PER_DOCUMENT,
   assertAttachmentStoragePath,
   buildAttachmentStoragePath,
   contentDispositionAttachment,
   detectMimeFromMagicBytes,
   extensionForMime,
   isAllowedAttachmentMime,
+  isStorageObjectAlreadyExists,
+  mergeLocalFileSelections,
   mimeMatchesMagicBytes,
+  prepareAttachmentUploads,
+  resolveDocumentCreateOwnership,
   sanitizeOriginalFilename,
   validateAttachmentFile,
   validateAttachmentFiles,
 } from "./attachments";
 
 const HOUSEHOLD = "f2d3a4b5-c6d7-4e8f-9a0b-1c2d3e4f5a6b";
+const OTHER_HOUSEHOLD = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+const PET = "11111111-2222-4333-8444-555555555555";
+const OTHER_PET = "66666666-7777-4888-8999-aaaaaaaaaaaa";
+const DOCUMENT = "b1b1b1b1-c2c2-4d3d-8e4e-f5f5f5f5f5f5";
 const ATTACHMENT = "a9f8e7d6-c5b4-4a39-8f21-0d1e2f3a4b5c";
+const ATTACHMENT_B = "c0c0c0c0-d1d1-4e2e-8f3f-a4a4a4a4a4a4";
 
 function jpegBytes(): Uint8Array {
   return new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01]);
@@ -35,10 +47,10 @@ function pdfBytes(): Uint8Array {
   return new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xc7, 0xec, 0x8f, 0xa2, 0x0a, 0x31]);
 }
 
-function fileFrom(name: string, type: string, bytes: Uint8Array, size?: number): File {
+function fileFrom(name: string, type: string, bytes: Uint8Array, size?: number, lastModified = 1): File {
   const buffer = new Uint8Array(size ?? bytes.length);
   buffer.set(bytes.slice(0, Math.min(bytes.length, buffer.length)));
-  return new File([buffer], name, { type });
+  return new File([buffer], name, { type, lastModified });
 }
 
 describe("attachments validation", () => {
@@ -98,10 +110,9 @@ describe("attachments validation", () => {
     assert.ok(sanitizeOriginalFilename(long).endsWith(".pdf"));
   });
 
-  it("builds storage path starting with household UUID and MIME extension", () => {
+  it("builds stable storage path starting with household UUID and MIME extension", () => {
     const path = buildAttachmentStoragePath(HOUSEHOLD, ATTACHMENT, "application/pdf");
-    assert.ok(path.startsWith(`${HOUSEHOLD}/attachments/${ATTACHMENT}/`));
-    assert.ok(path.endsWith(".pdf"));
+    assert.equal(path, `${HOUSEHOLD}/attachments/${ATTACHMENT}/file.pdf`);
     assert.equal(extensionForMime("image/webp"), "webp");
     assert.doesNotThrow(() => assertAttachmentStoragePath(HOUSEHOLD, path));
     assert.throws(() => assertAttachmentStoragePath(HOUSEHOLD, `other/attachments/${ATTACHMENT}/x.pdf`));
@@ -149,9 +160,19 @@ describe("export includes attachment tables", () => {
   });
 });
 
-describe("multi-file positions", () => {
-  it("prepareAttachmentUploads assigns sequential positions", async () => {
-    const { prepareAttachmentUploads } = await import("./attachments");
+describe("create idempotency + multi-file selection", () => {
+  it("same document_id ownership resolves to reuse (1 document)", () => {
+    const first = resolveDocumentCreateOwnership(DOCUMENT, HOUSEHOLD, PET, null);
+    assert.deepEqual(first, { ok: true, status: "create" });
+    const retry = resolveDocumentCreateOwnership(DOCUMENT, HOUSEHOLD, PET, {
+      id: DOCUMENT,
+      household_id: HOUSEHOLD,
+      pet_id: PET,
+    });
+    assert.deepEqual(retry, { ok: true, status: "reuse" });
+  });
+
+  it("stable attachment ids keep prepareAttachmentUploads from inventing new ids on retry", async () => {
     const files = [
       fileFrom("a.jpg", "image/jpeg", jpegBytes()),
       fileFrom("b.pdf", "application/pdf", pdfBytes()),
@@ -159,8 +180,107 @@ describe("multi-file positions", () => {
     const validated = await validateAttachmentFiles(files);
     assert.equal(validated.ok, true);
     if (!validated.ok) return;
-    const prepared = prepareAttachmentUploads(HOUSEHOLD, validated.values, 0);
+    const ids = [ATTACHMENT, ATTACHMENT_B];
+    const first = prepareAttachmentUploads(HOUSEHOLD, validated.values, 0, ids);
+    const second = prepareAttachmentUploads(HOUSEHOLD, validated.values, 0, ids);
+    assert.deepEqual(first.map((item) => item.id), ids);
+    assert.deepEqual(second.map((item) => item.id), ids);
+    assert.deepEqual(first.map((item) => item.storage_path), second.map((item) => item.storage_path));
+    assert.equal(first.length, 2);
+  });
+
+  it("multi-file create preparation yields 1 intent with 2 attachments", async () => {
+    const files = [
+      fileFrom("frente.jpg", "image/jpeg", jpegBytes()),
+      fileFrom("verso.pdf", "application/pdf", pdfBytes()),
+    ];
+    const validated = await validateAttachmentFiles(files);
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+    const prepared = prepareAttachmentUploads(HOUSEHOLD, validated.values, 0, [ATTACHMENT, ATTACHMENT_B]);
+    assert.equal(prepared.length, 2);
     assert.deepEqual(prepared.map((item) => item.position), [0, 1]);
-    assert.equal(prepared[0].storage_path.startsWith(`${HOUSEHOLD}/attachments/`), true);
+  });
+
+  it("adding a new selection preserves previous local files", () => {
+    const a = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
+    const b = fileFrom("b.pdf", "application/pdf", pdfBytes(), undefined, 20);
+    const first = mergeLocalFileSelections([], [a], { createId: () => ATTACHMENT });
+    assert.equal(first.items.length, 1);
+    const second = mergeLocalFileSelections(first.items, [b], {
+      createId: () => ATTACHMENT_B,
+    });
+    assert.equal(second.items.length, 2);
+    assert.equal(second.items[0].file.name, "a.jpg");
+    assert.equal(second.items[1].file.name, "b.pdf");
+  });
+
+  it("local duplicate selection (name+size+lastModified) does not duplicate item", () => {
+    const a = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
+    const again = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
+    const merged = mergeLocalFileSelections([], [a, again], { createId: () => ATTACHMENT });
+    assert.equal(merged.items.length, 1);
+    assert.equal(merged.skippedDuplicates, 1);
+  });
+
+  it("enforces max 8 across stored + local selections", () => {
+    let current: ReturnType<typeof mergeLocalFileSelections<File>>["items"] = [];
+    for (let index = 0; index < 8; index += 1) {
+      const file = fileFrom(`f${index}.jpg`, "image/jpeg", jpegBytes(), undefined, index + 1);
+      current = mergeLocalFileSelections(current, [file], {
+        maxTotal: ATTACHMENT_MAX_PER_DOCUMENT,
+        createId: () => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      }).items;
+    }
+    assert.equal(current.length, 8);
+    const overflow = mergeLocalFileSelections(current, [fileFrom("extra.jpg", "image/jpeg", jpegBytes(), undefined, 99)], {
+      maxTotal: ATTACHMENT_MAX_PER_DOCUMENT,
+      createId: () => ATTACHMENT_B,
+    });
+    assert.equal(overflow.items.length, 8);
+    assert.equal(overflow.truncated, true);
+  });
+
+  it("rejects document_id that already belongs to another household", () => {
+    const result = resolveDocumentCreateOwnership(DOCUMENT, HOUSEHOLD, PET, {
+      id: DOCUMENT,
+      household_id: OTHER_HOUSEHOLD,
+      pet_id: PET,
+    });
+    assert.deepEqual(result, { ok: false, reason: "foreign_household" });
+  });
+
+  it("rejects document_id reused against a different pet in the same household", () => {
+    const result = resolveDocumentCreateOwnership(DOCUMENT, HOUSEHOLD, PET, {
+      id: DOCUMENT,
+      household_id: HOUSEHOLD,
+      pet_id: OTHER_PET,
+    });
+    assert.deepEqual(result, { ok: false, reason: "pet_mismatch" });
+  });
+
+  it("edit path can prepare multiple new attachments with stable ids", async () => {
+    const files = [
+      fileFrom("extra1.jpg", "image/jpeg", jpegBytes()),
+      fileFrom("extra2.pdf", "application/pdf", pdfBytes()),
+    ];
+    const validated = await validateAttachmentFiles(files, { required: false, existingCount: 1 });
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+    const prepared = prepareAttachmentUploads(HOUSEHOLD, validated.values, 1, [ATTACHMENT, ATTACHMENT_B]);
+    assert.deepEqual(prepared.map((item) => item.position), [1, 2]);
+    assert.equal(prepared[0].storage_path.endsWith("/file.jpg"), true);
+  });
+
+  it("storage already-exists errors are treated as idempotent upload success signals", () => {
+    assert.equal(isStorageObjectAlreadyExists({ statusCode: "409", message: "The resource already exists" }), true);
+    assert.equal(isStorageObjectAlreadyExists({ message: "boom" }), false);
+  });
+
+  it("delete cascade contract remains in migration 0033 (no 0034)", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/0033_attachments_pet_documents.sql"), "utf8");
+    assert.match(sql, /delete_pet_document/);
+    assert.match(sql, /on delete cascade/);
+    assert.equal(existsSync(join(process.cwd(), "supabase/migrations/0034_attachments_pet_documents.sql")), false);
   });
 });
