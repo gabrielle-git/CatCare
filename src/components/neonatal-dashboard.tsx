@@ -14,7 +14,7 @@ import {
   type NeonatalPetSummary,
 } from "@/lib/neonatal-stats";
 import { preselectRecordHref } from "@/lib/record-links";
-import type { NeonatalRecord } from "@/types/database";
+import type { FeedingSessionWithItems, NeonatalRecord } from "@/types/database";
 
 type Baby = {
   id: string;
@@ -65,17 +65,19 @@ function LastLines({ stats }: { stats: NeonatalPetSummary }) {
 export function NeonatalDashboard({
   babies,
   records,
+  feedingSessions = [],
   editable,
 }: {
   babies: Baby[];
   records: NeonatalRecord[];
+  feedingSessions?: FeedingSessionWithItems[];
   editable: boolean;
 }) {
   const today = todayIsoDate();
   const petIds = useMemo(() => babies.map((pet) => pet.id), [babies]);
   const summaries = useMemo(
-    () => computeNeonatalSummaries(records, petIds, { from: today, to: today }),
-    [petIds, records, today],
+    () => computeNeonatalSummaries(records, petIds, { from: today, to: today }, feedingSessions),
+    [feedingSessions, petIds, records, today],
   );
   const household = useMemo(() => aggregateHouseholdSummary(summaries), [summaries]);
   const hasActivity = household.feedingCount + household.stoolCount + household.urineCount > 0;

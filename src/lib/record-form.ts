@@ -7,14 +7,15 @@ export const quickRecordTypes = new Set([
   "vaccine", "deworming", "medication", "consultation", "observation", "hygiene",
 ]);
 
-export type RecordSource = "weight" | "health" | "neonatal";
+export type RecordSource = "weight" | "health" | "neonatal" | "feeding";
 
 const neonatalKinds = new Set<NeonatalRecordType>(["feeding", "weight", "urine", "stool", "temperature", "observation"]);
 const healthKinds = new Set<HealthRecordType>(["vaccine", "deworming", "medication", "consultation", "exam", "disease", "allergy", "surgery", "other", "hygiene"]);
 
 export function resolveRecordSource(kind: string): RecordSource | null {
   if (kind === "weight") return "weight";
-  if (neonatalKinds.has(kind as NeonatalRecordType) && kind !== "weight") return "neonatal";
+  if (kind === "feeding") return "feeding";
+  if (neonatalKinds.has(kind as NeonatalRecordType) && kind !== "weight" && kind !== "feeding") return "neonatal";
   if (healthKinds.has(kind as HealthRecordType) || kind === "observation") return "health";
   return null;
 }
@@ -59,7 +60,8 @@ export function toLocalDateTimeInput(iso: string) {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
-export const neonatalCareTypes = new Set(["feeding", "urine", "stool", "temperature"]);
+/** Types that still require neonatal pets (feeding is adult-capable via feeding_sessions). */
+export const neonatalCareTypes = new Set(["urine", "stool", "temperature"]);
 
 export function isNeonatalCareType(type: string) {
   return neonatalCareTypes.has(type);

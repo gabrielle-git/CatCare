@@ -261,8 +261,8 @@ describe("hygiene care catalog + fields", () => {
     assert.equal(resolveRecordSource("vaccine"), "health");
   });
 
-  it("AB: neonatal kinds unchanged", () => {
-    assert.equal(resolveRecordSource("feeding"), "neonatal");
+  it("AB: feeding resolves to feeding source; urine stays neonatal", () => {
+    assert.equal(resolveRecordSource("feeding"), "feeding");
     assert.equal(resolveRecordSource("urine"), "neonatal");
   });
 

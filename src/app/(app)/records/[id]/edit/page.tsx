@@ -19,7 +19,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
 
   const { id } = await params;
   const query = await searchParams;
-  const source = (query.source === "weight" || query.source === "health" || query.source === "neonatal" ? query.source : null) as RecordSource | null;
+  const source = (query.source === "weight" || query.source === "health" || query.source === "neonatal" || query.source === "feeding" ? query.source : null) as RecordSource | null;
   if (!(await timed("/records/:id/edit.isLiveData", () => isLiveData())) || !source) {
     return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
   }
@@ -61,6 +61,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
             dose_label: record.dose_label,
             hygiene_subtype: record.hygiene_subtype,
             hygiene_custom_label: record.hygiene_custom_label,
+            feeding_items: record.feeding_items,
           }}
           submitLabel="Salvar alterações"
         />

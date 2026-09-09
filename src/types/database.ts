@@ -100,6 +100,33 @@ export type NeonatalRecord = {
   created_at: string;
 };
 
+/** Canonical meal (1 per pet). Household via pets — no household_id column. */
+export type FeedingSession = {
+  id: string;
+  pet_id: string;
+  occurred_at: string;
+  notes: string | null;
+  quality: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Component of a feeding session (1..N per session). */
+export type FeedingItem = {
+  id: string;
+  session_id: string;
+  subtype: string;
+  custom_label: string | null;
+  amount_value: number | null;
+  amount_unit: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeedingSessionWithItems = FeedingSession & {
+  feeding_items: FeedingItem[];
+};
+
 export type Reminder = {
   id: string;
   household_id: string;
@@ -335,13 +362,13 @@ export type CareRoutineWithPets = CareRoutine & {
 
 export type TimelineTone = "lavender" | "rose" | "mint" | "peach";
 
-export type RecordSource = "weight" | "health" | "neonatal";
+export type RecordSource = "weight" | "health" | "neonatal" | "feeding";
 
 export type TimelineItem = {
   id: string;
   pet_id: string;
   source: RecordSource;
-  kind: "weight" | HealthRecordType | NeonatalRecordType;
+  kind: "weight" | HealthRecordType | NeonatalRecordType | "feeding";
   title: string;
   detail: string | null;
   occurred_at: string;

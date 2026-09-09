@@ -24,6 +24,7 @@ import {
   shouldPreserveLegacyFeedingAmount,
 } from "@/lib/neonatal-feeding";
 import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
+import { parseFeedingEditItemsFromForm } from "@/lib/feeding-care";
 import { getNeonatalRecord } from "@/lib/records";
 
 export type UpdateRecordResult =
@@ -46,7 +47,8 @@ async function authContext() {
 function revalidateRecordPaths(petId: string, source: RecordSource = "health") {
   timedSync("revalidatePath /pets/:id", () => revalidatePath(`/pets/${petId}`));
   timedSync("revalidatePath /", () => revalidatePath("/"));
-  if (source === "neonatal") {
+  timedSync("revalidatePath /historico", () => revalidatePath("/historico"));
+  if (source === "neonatal" || source === "feeding") {
     timedSync("revalidatePath /neonatal", () => revalidatePath("/neonatal"));
   }
 }
@@ -60,6 +62,7 @@ type RecordRef = { id: string; source: RecordSource; petId: string };
 function tableForSource(source: RecordSource) {
   if (source === "weight") return "weight_records";
   if (source === "neonatal") return "neonatal_records";
+  if (source === "feeding") return "feeding_sessions";
   return "health_records";
 }
 
@@ -95,6 +98,21 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     if (grams == null) return failHere("Informe um peso válido em kg (ex.: 4,2).");
     const { error } = await timed("updateRecord.UPDATE weight_records", () =>
       supabase.from("weight_records").update({ pet_id: petId, weight_grams: grams, measured_at: occurredAt, notes }).eq("id", recordId).eq("household_id", household.id),
+    );
+    if (error) return failHere(error.message);
+  } else if (source === "feeding") {
+    if (type !== "feeding") return failHere("Registro de alimentação inválido.");
+    const items = parseFeedingEditItemsFromForm(formData);
+    if (!items.ok) return failHere(items.message);
+    const quality = value(formData, "quality") || null;
+    const { error } = await timed("updateRecord.replace_feeding_session", () =>
+      supabase.rpc("replace_feeding_session", {
+        p_session_id: recordId,
+        p_occurred_at: occurredAt,
+        p_notes: notes,
+        p_quality: quality,
+        p_items: items.ok ? items.items : [],
+      }),
     );
     if (error) return failHere(error.message);
   } else if (source === "neonatal") {
@@ -274,7 +292,18 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   const table = tableForSource(source);
 
   // Linked vaccine_doses are removed by FK ON DELETE CASCADE on health_record_id.
-  const { data, error } = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id).select("id");
+  // feeding_sessions has no household_id — RLS via pets; cascade deletes items.
+  let data: { id: string }[] | null = null;
+  let error: { message: string } | null = null;
+  if (source === "feeding") {
+    const result = await supabase.from(table).delete().eq("id", recordId).eq("pet_id", petId).select("id");
+    data = result.data;
+    error = result.error;
+  } else {
+    const result = await supabase.from(table).delete().eq("id", recordId).eq("household_id", household.id).select("id");
+    data = result.data;
+    error = result.error;
+  }
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   if (!data?.length) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado ou sem permissão para apagar."));
 
@@ -302,10 +331,12 @@ export async function deleteRecords(formData: FormData) {
   for (const record of records) {
     // Linked vaccine_doses cascade-delete with health_records (FK ON DELETE CASCADE).
     const table = tableForSource(record.source);
-    const { data, error } = await supabase.from(table).delete().eq("id", record.id).eq("household_id", household.id).select("id");
-    if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
-    if (data?.length) {
-      deleted += data.length;
+    const result = record.source === "feeding"
+      ? await supabase.from(table).delete().eq("id", record.id).eq("pet_id", record.petId).select("id")
+      : await supabase.from(table).delete().eq("id", record.id).eq("household_id", household.id).select("id");
+    if (result.error) redirect(redirectPathWithParam(returnTo, "error", result.error.message));
+    if (result.data?.length) {
+      deleted += result.data.length;
       petIds.add(record.petId);
       const sources = sourcesByPet.get(record.petId) ?? new Set<RecordSource>();
       sources.add(record.source);
@@ -317,7 +348,13 @@ export async function deleteRecords(formData: FormData) {
 
   for (const petId of petIds) {
     const sources = sourcesByPet.get(petId);
-    const source: RecordSource = sources?.has("neonatal") ? "neonatal" : sources?.has("weight") ? "weight" : "health";
+    const source: RecordSource = sources?.has("neonatal")
+      ? "neonatal"
+      : sources?.has("feeding")
+        ? "feeding"
+        : sources?.has("weight")
+          ? "weight"
+          : "health";
     revalidateRecordPaths(petId, source);
   }
   redirectWithDeleted(returnTo, deleted);

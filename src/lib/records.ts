@@ -4,9 +4,24 @@ import { formatWeight } from "@/lib/format";
 import type { RecordSource } from "@/types/database";
 import { recordKindFromHealth, recordKindFromNeonatal } from "@/lib/record-form";
 import { hygieneDisplayLabel } from "@/lib/hygiene-care";
+import {
+  feedingItemsFromRows,
+  feedingSessionTimelineTitle,
+  formatFeedingSessionDetail,
+} from "@/lib/feeding-care";
 import { getFeedingDisplay } from "@/lib/neonatal-feeding";
 import { formatVaccineRecordTitle, isProtocolVaccineKey, vaccineDisplayName } from "@/lib/vaccine-schedule";
-import type { HealthRecord, NeonatalRecord, Reminder, TimelineItem, TimelineTone, WeightRecord } from "@/types/database";
+import type {
+  FeedingItem,
+  FeedingSession,
+  FeedingSessionWithItems,
+  HealthRecord,
+  NeonatalRecord,
+  Reminder,
+  TimelineItem,
+  TimelineTone,
+  WeightRecord,
+} from "@/types/database";
 
 const healthLabels: Record<HealthRecord["type"], string> = {
   vaccine: "Vacina",
@@ -91,11 +106,81 @@ function mapNeonatal(row: NeonatalRecord): TimelineItem {
   return { id: row.id, pet_id: row.pet_id, source: "neonatal", kind: recordKindFromNeonatal(row.type), title: neonatalLabels[row.type], detail: [metric, row.notes].filter(Boolean).join(" • ") || null, occurred_at: row.occurred_at, tone: "peach" };
 }
 
+function mapFeedingSession(session: FeedingSession, items: FeedingItem[]): TimelineItem {
+  const detailParts = [
+    formatFeedingSessionDetail(feedingItemsFromRows(items)),
+    session.quality?.trim() || null,
+    session.notes?.trim() || null,
+  ].filter((part): part is string => Boolean(part));
+  return {
+    id: session.id,
+    pet_id: session.pet_id,
+    source: "feeding",
+    kind: "feeding",
+    title: feedingSessionTimelineTitle(),
+    detail: detailParts.join(" • ") || null,
+    occurred_at: session.occurred_at,
+    tone: "rose",
+  };
+}
+
+async function loadFeedingSessionsForTimeline(
+  supabase: SupabaseClient,
+  field: "pet_id" | "household_id",
+  value: string,
+  limit: number,
+): Promise<FeedingSessionWithItems[]> {
+  let sessionsQuery = supabase
+    .from("feeding_sessions")
+    .select("*")
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+
+  if (field === "pet_id") {
+    sessionsQuery = sessionsQuery.eq("pet_id", value);
+  } else {
+    const { data: pets, error: petsError } = await supabase
+      .from("pets")
+      .select("id")
+      .eq("household_id", value)
+      .is("archived_at", null);
+    if (petsError) throw petsError;
+    const petIds = (pets ?? []).map((pet) => pet.id as string);
+    if (petIds.length === 0) return [];
+    sessionsQuery = sessionsQuery.in("pet_id", petIds);
+  }
+
+  const { data: sessions, error } = await sessionsQuery;
+  if (error) throw error;
+  const sessionRows = (sessions ?? []) as FeedingSession[];
+  if (sessionRows.length === 0) return [];
+
+  const sessionIds = sessionRows.map((row) => row.id);
+  const { data: items, error: itemsError } = await supabase
+    .from("feeding_items")
+    .select("*")
+    .in("session_id", sessionIds);
+  if (itemsError) throw itemsError;
+
+  const itemsBySession = new Map<string, FeedingItem[]>();
+  for (const item of (items ?? []) as FeedingItem[]) {
+    const list = itemsBySession.get(item.session_id) ?? [];
+    list.push(item);
+    itemsBySession.set(item.session_id, list);
+  }
+
+  return sessionRows.map((session) => ({
+    ...session,
+    feeding_items: itemsBySession.get(session.id) ?? [],
+  }));
+}
+
 async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "household_id", value: string, limit: number) {
-  const [weights, health, neonatal] = await Promise.all([
+  const [weights, health, neonatal, feedingSessions] = await Promise.all([
     supabase.from("weight_records").select("*").eq(field, value).order("measured_at", { ascending: false }).limit(limit),
     supabase.from("health_records").select("*").eq(field, value).order("occurred_at", { ascending: false }).limit(limit),
     supabase.from("neonatal_records").select("*").eq(field, value).order("occurred_at", { ascending: false }).limit(limit),
+    loadFeedingSessionsForTimeline(supabase, field, value, limit),
   ]);
 
   if (weights.error) throw weights.error;
@@ -106,6 +191,7 @@ async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "househo
     ...((weights.data ?? []) as WeightRecord[]).map(mapWeight),
     ...((health.data ?? []) as HealthRecord[]).map(mapHealth),
     ...((neonatal.data ?? []) as NeonatalRecord[]).map(mapNeonatal),
+    ...feedingSessions.map((session) => mapFeedingSession(session, session.feeding_items)),
   ].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()).slice(0, limit);
 }
 
@@ -277,13 +363,71 @@ export async function listPetNeonatalRecords(supabase: SupabaseClient, petId: st
   return (data ?? []) as NeonatalRecord[];
 }
 
+export async function listHouseholdFeedingSessions(
+  supabase: SupabaseClient,
+  householdId: string,
+  limit = 500,
+): Promise<FeedingSessionWithItems[]> {
+  return loadFeedingSessionsForTimeline(supabase, "household_id", householdId, limit);
+}
+
+export async function listPetFeedingSessions(
+  supabase: SupabaseClient,
+  petId: string,
+  limit = 200,
+): Promise<FeedingSessionWithItems[]> {
+  return loadFeedingSessionsForTimeline(supabase, "pet_id", petId, limit);
+}
+
+export async function getFeedingSession(
+  supabase: SupabaseClient,
+  householdId: string,
+  id: string,
+): Promise<FeedingSessionWithItems | null> {
+  const { data: session, error } = await supabase
+    .from("feeding_sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!session) return null;
+
+  const { data: pet, error: petError } = await supabase
+    .from("pets")
+    .select("id, household_id")
+    .eq("id", (session as FeedingSession).pet_id)
+    .eq("household_id", householdId)
+    .maybeSingle();
+  if (petError) throw petError;
+  if (!pet) return null;
+
+  const { data: items, error: itemsError } = await supabase
+    .from("feeding_items")
+    .select("*")
+    .eq("session_id", id);
+  if (itemsError) throw itemsError;
+
+  return {
+    ...(session as FeedingSession),
+    feeding_items: (items ?? []) as FeedingItem[],
+  };
+}
+
 export async function listPetNeonatalTimeline(supabase: SupabaseClient, petId: string, limit = 200) {
-  const records = await listPetNeonatalRecords(supabase, petId, limit);
-  return records.map(mapNeonatal);
+  const [records, sessions] = await Promise.all([
+    listPetNeonatalRecords(supabase, petId, limit),
+    listPetFeedingSessions(supabase, petId, limit),
+  ]);
+  return [
+    ...records.map(mapNeonatal),
+    ...sessions.map((session) => mapFeedingSession(session, session.feeding_items)),
+  ]
+    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+    .slice(0, limit);
 }
 
 export function isNeonatalTimelineItem(item: TimelineItem) {
-  return item.source === "neonatal";
+  return item.source === "neonatal" || (item.source === "feeding" && item.kind === "feeding");
 }
 
 export async function listUpcomingReminders(supabase: SupabaseClient, householdId: string, limit = 8): Promise<Reminder[]> {
@@ -333,6 +477,7 @@ export type EditableRecord = {
   feeding_subtype?: string | null;
   feeding_amount_value?: number | null;
   feeding_amount_unit?: string | null;
+  feeding_items?: FeedingItem[];
   temperature_c?: number | null;
   quality?: string | null;
   vaccine_key?: string | null;
@@ -375,6 +520,20 @@ export async function getEditableRecord(supabase: SupabaseClient, householdId: s
       hygiene_custom_label: row.hygiene_custom_label,
       vaccine_key: vaccineKey,
       dose_label: doseLabel,
+    };
+  }
+  if (source === "feeding") {
+    const row = await getFeedingSession(supabase, householdId, id);
+    if (!row) return null;
+    return {
+      source,
+      id: row.id,
+      pet_id: row.pet_id,
+      kind: "feeding",
+      occurred_at: row.occurred_at,
+      notes: row.notes,
+      quality: row.quality,
+      feeding_items: row.feeding_items,
     };
   }
   const row = await getNeonatalRecord(supabase, householdId, id);
