@@ -63,14 +63,22 @@ export async function GET() {
 
   const plans = householdEntries.find(([table]) => table === "health_plans")?.[1];
   const guides = householdEntries.find(([table]) => table === "health_plan_guides")?.[1];
+  const pets = householdEntries.find(([table]) => table === "pets")?.[1];
 
   const planIds = Array.isArray(plans) ? plans.map((row) => String((row as { id: string }).id)) : [];
   const guideIds = Array.isArray(guides) ? guides.map((row) => String((row as { id: string }).id)) : [];
+  const petIds = Array.isArray(pets) ? pets.map((row) => String((row as { id: string }).id)) : [];
 
-  const [copayRules, guideServices] = await Promise.all([
+  const [copayRules, guideServices, feedingSessions] = await Promise.all([
     exportByForeignKeys(supabase, "health_plan_copay_rules", "health_plan_id", planIds),
     exportByForeignKeys(supabase, "health_plan_guide_services", "guide_id", guideIds),
+    exportByForeignKeys(supabase, "feeding_sessions", "pet_id", petIds),
   ]);
+
+  const sessionIds = Array.isArray(feedingSessions)
+    ? feedingSessions.map((row) => String((row as { id: string }).id))
+    : [];
+  const feedingItems = await exportByForeignKeys(supabase, "feeding_items", "session_id", sessionIds);
 
   const payload = {
     exported_at: new Date().toISOString(),
@@ -79,6 +87,8 @@ export async function GET() {
       ...householdEntries,
       ["health_plan_copay_rules", copayRules],
       ["health_plan_guide_services", guideServices],
+      ["feeding_sessions", feedingSessions],
+      ["feeding_items", feedingItems],
     ]),
   };
 

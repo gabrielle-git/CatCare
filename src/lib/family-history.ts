@@ -1,4 +1,5 @@
 import { isCivilDateString } from "@/lib/factual-datetime";
+import { feedingSearchExtrasFromDisplay } from "@/lib/feeding-care";
 import { hygieneSearchExtrasFromDisplayTitle } from "@/lib/hygiene-care";
 import { isInDateRange } from "@/lib/neonatal-stats";
 import type { TimelineItem } from "@/types/database";
@@ -64,7 +65,8 @@ export function buildTimelineSearchText(
     petNames instanceof Map ? petNames.get(item.pet_id) : petNames?.[item.pet_id];
   const kindLabel = KIND_SEARCH_LABELS[item.kind] ?? item.kind;
   const hygieneExtras = item.kind === "hygiene" ? hygieneSearchExtrasFromDisplayTitle(item.title) : "";
-  return [item.title, item.detail, kindLabel, petName, hygieneExtras].filter(Boolean).join(" ");
+  const feedingExtras = item.kind === "feeding" ? feedingSearchExtrasFromDisplay(item.title, item.detail) : "";
+  return [item.title, item.detail, kindLabel, petName, hygieneExtras, feedingExtras].filter(Boolean).join(" ");
 }
 
 export function timelineItemMatchesQuery(

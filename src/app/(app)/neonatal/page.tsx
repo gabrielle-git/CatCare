@@ -6,7 +6,7 @@ import { isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoTimeline, demoNeonatalRecords } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
-import { listHouseholdNeonatalRecords, listHouseholdTimeline } from "@/lib/records";
+import { listHouseholdFeedingSessions, listHouseholdNeonatalRecords, listHouseholdTimeline } from "@/lib/records";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
@@ -14,28 +14,30 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 async function loadNeonatal() {
-  if (!(await isLiveData())) return { pets: demoPets, timeline: demoTimeline, neonatalRecords: demoNeonatalRecords, configured: false, editable: false };
+  if (!(await isLiveData())) return { pets: demoPets, timeline: demoTimeline, neonatalRecords: demoNeonatalRecords, feedingSessions: [], configured: false, editable: false };
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], neonatalRecords: [], configured: true, editable: false };
+  if (!data.user) return { pets: [], timeline: [], neonatalRecords: [], feedingSessions: [], configured: true, editable: false };
   const role = await getMyRole(supabase);
   const household = await ensureHousehold(supabase, data.user.id);
-  const [pets, timeline, neonatalRecords] = await Promise.all([
+  const [pets, timeline, neonatalRecords, feedingSessions] = await Promise.all([
     listPets(supabase, household.id),
     listHouseholdTimeline(supabase, household.id, 120),
     listHouseholdNeonatalRecords(supabase, household.id, 500),
+    listHouseholdFeedingSessions(supabase, household.id, 500),
   ]);
-  return { pets, timeline, neonatalRecords, configured: true, editable: canEdit(role) };
+  return { pets, timeline, neonatalRecords, feedingSessions, configured: true, editable: canEdit(role) };
 }
 
 export default async function NeonatalPage({ searchParams }: { searchParams: Promise<{ deleted?: string; saved?: string; error?: string }> }) {
   const flags = await searchParams;
-  const { pets, timeline, neonatalRecords, configured, editable } = await loadNeonatal();
+  const { pets, timeline, neonatalRecords, feedingSessions, configured, editable } = await loadNeonatal();
   const babies = pets.filter(isNeonatalPet);
   const hasEstimatedBirthDates = babies.some((pet) => pet.birth_date_estimated);
   const babyIds = new Set(babies.map((pet) => pet.id));
   const petNames = Object.fromEntries(babies.map((pet) => [pet.id, pet.name]));
   const recent = timeline.filter((item) => babyIds.has(item.pet_id) && ["feeding", "urine", "stool", "temperature", "weight"].includes(item.kind));
+  const babyFeedingSessions = feedingSessions.filter((session) => babyIds.has(session.pet_id));
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -58,7 +60,7 @@ export default async function NeonatalPage({ searchParams }: { searchParams: Pro
           <p className="mt-2 text-sm text-[var(--muted)]">Filhotes com até 8 semanas aparecem aqui automaticamente.</p>
         </section>
       ) : (
-        <NeonatalDashboard babies={babies} records={neonatalRecords} editable={editable} />
+        <NeonatalDashboard babies={babies} records={neonatalRecords} feedingSessions={babyFeedingSessions} editable={editable} />
       )}
 
       <section className="mt-8">

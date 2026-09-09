@@ -24,14 +24,18 @@ import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 import { findExistingVaccineDose, insertVaccineDose } from "@/lib/vaccine-doses";
 import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
 import {
-  isFeedingSubtype,
   notesFieldNameForPet,
   notesTargetPetFieldName,
-  parseFeedingAmountValue,
-  resolveFeedingUnitFromForm,
   resolvePetNotesForCreate,
 } from "@/lib/neonatal-feeding";
 import { buildHygieneFieldsList, hygieneRecordTitle } from "@/lib/hygiene-care";
+import {
+  buildFeedingItems,
+  buildFeedingSessionBatchPayload,
+  feedingAmountOverridePetFieldName,
+  parseFeedingSubtypeList,
+  readFeedingDefaultAmountsFromForm,
+} from "@/lib/feeding-care";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
   const params = new URLSearchParams();
@@ -104,7 +108,7 @@ export async function createRecord(formData: FormData) {
   if (types.some(isNeonatalCareType)) {
     const invalid = pets.filter((pet) => !isNeonatalPet(pet));
     if (invalid.length > 0) {
-      failHere("Alimentação, xixi, cocô e temperatura são só para filhotes com até 8 semanas.");
+      failHere("Xixi, cocô e temperatura são só para filhotes com até 8 semanas.");
     }
   }
 
@@ -153,26 +157,45 @@ export async function createRecord(formData: FormData) {
       continue;
     }
 
+    if (type === "feeding") {
+      const subtypes = parseFeedingSubtypeList(formData.getAll("feeding_item_subtype").map((item) => String(item)));
+      const amounts = readFeedingDefaultAmountsFromForm(formData, subtypes);
+      const built = buildFeedingItems(subtypes, value(formData, "feeding_custom_label"), amounts);
+      if (!built.ok) failHere(built.message);
+      const defaultItems = built.ok ? built.items : [];
+
+      const overridesEnabled = value(formData, "include_feeding_amount_overrides") === "1";
+      const overridePetIds = new Set(
+        overridesEnabled
+          ? formData.getAll(feedingAmountOverridePetFieldName()).map((entry) => String(entry)).filter(Boolean)
+          : [],
+      );
+
+      const batch = buildFeedingSessionBatchPayload({
+        petIds: pets.map((pet) => pet.id),
+        notesByPetId: (petId) => notesForPet(petId),
+        defaultItems,
+        formData,
+        overridePetIds,
+      });
+      if (!batch.ok) failHere(batch.message);
+      const payload = batch.ok ? batch.payload : [];
+
+      const quality = qualityForType(formData, type, multi) || null;
+      const { data: sessionIds, error } = await supabase.rpc("create_feeding_sessions_batch", {
+        p_occurred_at: occurredAt,
+        p_quality: quality,
+        p_payload: payload,
+      });
+      if (error) failHere(error.message);
+      created += Array.isArray(sessionIds) ? sessionIds.length : pets.length;
+      continue;
+    }
+
     if (isNeonatalCareType(type)) {
       const neonatalType = type as NeonatalRecordType;
       const temperature = numberValue(formData, "temperature_c");
       if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) failHere("Informe uma temperatura válida.");
-
-      let feedingSubtype: string | null = null;
-      let feedingAmountValue: number | null = null;
-      let feedingAmountUnit: string | null = null;
-      if (type === "feeding") {
-        const subtypeRaw = value(formData, "feeding_subtype");
-        if (!isFeedingSubtype(subtypeRaw)) failHere("Escolha o tipo de alimentação.");
-        feedingSubtype = subtypeRaw;
-        feedingAmountValue = parseFeedingAmountValue(value(formData, "feeding_amount_value"));
-        feedingAmountUnit = resolveFeedingUnitFromForm(
-          value(formData, "feeding_amount_unit_preset"),
-          value(formData, "feeding_amount_unit_other"),
-        );
-        if (feedingAmountValue == null) failHere("Informe a quantidade da alimentação.");
-        if (!feedingAmountUnit) failHere("Informe a unidade da quantidade.");
-      }
 
       const quality = qualityForType(formData, type, multi);
       const results = await Promise.all(pets.map((pet) => {
@@ -183,11 +206,11 @@ export async function createRecord(formData: FormData) {
           type: neonatalType,
           occurred_at: occurredAt,
           amount_ml: null,
-          feeding_subtype: type === "feeding" ? feedingSubtype : null,
-          feeding_amount_value: type === "feeding" ? feedingAmountValue : null,
-          feeding_amount_unit: type === "feeding" ? feedingAmountUnit : null,
+          feeding_subtype: null,
+          feeding_amount_value: null,
+          feeding_amount_unit: null,
           temperature_c: type === "temperature" ? temperature : null,
-          quality: type === "feeding" || type === "urine" || type === "stool" ? quality : null,
+          quality: type === "urine" || type === "stool" ? quality : null,
           notes: petNotes,
         });
       }));

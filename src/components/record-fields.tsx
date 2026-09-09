@@ -6,7 +6,26 @@ import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
 import { gramsToKgInput } from "@/lib/format";
-import { HYGIENE_PRESETS, countHygieneAwareCreateRecords, type HygieneSubtypeKey } from "@/lib/hygiene-care";
+import { HYGIENE_PRESETS, type HygieneSubtypeKey } from "@/lib/hygiene-care";
+import {
+  FEEDING_CARE_PRESETS,
+  countFeedingAwareCreateRecords,
+  feedingAmountOverridePetFieldName,
+  feedingAmountUnitOtherFieldName,
+  feedingAmountUnitPresetFieldName,
+  feedingAmountValueFieldName,
+  feedingEditItemAmountUnitOtherFieldName,
+  feedingEditItemAmountUnitPresetFieldName,
+  feedingEditItemAmountValueFieldName,
+  feedingEditItemCustomLabelFieldName,
+  feedingEditItemSubtypeFieldName,
+  feedingOverrideAmountUnitOtherFieldName,
+  feedingOverrideAmountUnitPresetFieldName,
+  feedingOverrideAmountValueFieldName,
+  unitPresetFromStoredUnit,
+  type FeedingCareSubtypeKey,
+  type FeedingItemFields,
+} from "@/lib/feeding-care";
 import { WEIGHT_KG_LEGACY_FIELD, weightKgFieldName } from "@/lib/record-field-names";
 import { validateCreateRecordForm } from "@/lib/record-form-validation";
 import { isNeonatalCareType, toLocalDateTimeInput } from "@/lib/record-form";
@@ -30,6 +49,7 @@ import {
   syncPerPetNotesTargets,
   type FeedingUnitPreset,
 } from "@/lib/neonatal-feeding";
+import type { FeedingItem } from "@/types/database";
 import type { QuickRecordType } from "@/components/record-fields-types";
 
 export type { QuickRecordType } from "@/components/record-fields-types";
@@ -39,7 +59,7 @@ type RecordOption = { value: QuickRecordType; label: string; shortLabel: string;
 
 const options: RecordOption[] = [
   { value: "weight", label: "Pesagem", shortLabel: "Peso", icon: Scale },
-  { value: "feeding", label: "Alimentação", shortLabel: "Alim.", icon: Milk, neonatal: true },
+  { value: "feeding", label: "Alimentação", shortLabel: "Alim.", icon: Milk },
   { value: "urine", label: "Xixi", shortLabel: "Xixi", icon: Droplets, neonatal: true },
   { value: "stool", label: "Cocô", shortLabel: "Cocô", icon: Droplets, neonatal: true },
   { value: "temperature", label: "Temperatura", shortLabel: "Temp.", icon: Thermometer, neonatal: true },
@@ -83,16 +103,19 @@ function QualitySelect({
   label,
   disabled,
   defaultValue,
+  allowEmpty = false,
 }: {
   name: string;
   label: string;
   disabled: boolean;
   defaultValue?: string | null;
+  allowEmpty?: boolean;
 }) {
   return (
     <label className="block text-sm font-bold">
       {label}
-      <select disabled={disabled} name={name} defaultValue={defaultValue ?? "normal"} className="field mt-2">
+      <select disabled={disabled} name={name} defaultValue={defaultValue ?? (allowEmpty ? "" : "normal")} className="field mt-2">
+        {allowEmpty ? <option value="">Não informar</option> : null}
         <option value="normal">Normal</option>
         <option value="good">Foi bem</option>
         <option value="little">Pouquinho</option>
@@ -117,6 +140,7 @@ export type RecordFieldDefaults = {
   feeding_subtype?: string | null;
   feeding_amount_value?: number | null;
   feeding_amount_unit?: string | null;
+  feeding_items?: FeedingItem[] | FeedingItemFields[] | null;
   temperature_c?: number | null;
   quality?: string | null;
   vaccine_key?: string | null;
@@ -244,6 +268,41 @@ export function RecordFields({
   const [hygieneCustomLabel, setHygieneCustomLabel] = useState(defaultValues?.hygiene_custom_label ?? "");
   const hygieneMultiSelect = mode === "create";
   const hygieneSubtype = hygieneSubtypes[0] ?? "";
+  /** Create always uses sessions; edit uses sessions when feeding_items are loaded. */
+  const useSessionFeedingUi = mode === "create" || Boolean(defaultValues?.feeding_items?.length);
+  const [feedingComponents, setFeedingComponents] = useState<FeedingCareSubtypeKey[]>([]);
+  const [feedingCustomLabel, setFeedingCustomLabel] = useState("");
+  const [feedingAmounts, setFeedingAmounts] = useState<Record<string, { value: string; unitPreset: FeedingUnitPreset; unitOther: string }>>({});
+  const [feedingAmountOverridesEnabled, setFeedingAmountOverridesEnabled] = useState(false);
+  const [feedingOverridePets, setFeedingOverridePets] = useState<string[]>([]);
+  const [feedingOverrideAmounts, setFeedingOverrideAmounts] = useState<
+    Record<string, Record<string, { value: string; unitPreset: FeedingUnitPreset; unitOther: string }>>
+  >({});
+  type EditFeedingRow = {
+    key: string;
+    subtype: FeedingCareSubtypeKey | "";
+    customLabel: string;
+    value: string;
+    unitPreset: FeedingUnitPreset;
+    unitOther: string;
+  };
+  const [editFeedingRows, setEditFeedingRows] = useState<EditFeedingRow[]>(() => {
+    const items = defaultValues?.feeding_items;
+    if (!items?.length) {
+      return [{ key: "0", subtype: "", customLabel: "", value: "", unitPreset: "ml", unitOther: "" }];
+    }
+    return items.map((item, index) => {
+      const unit = unitPresetFromStoredUnit(item.amount_unit);
+      return {
+        key: String(index),
+        subtype: (FEEDING_CARE_PRESETS.some((p) => p.key === item.subtype) ? item.subtype : "") as FeedingCareSubtypeKey | "",
+        customLabel: item.custom_label ?? "",
+        value: item.amount_value != null ? String(item.amount_value) : "",
+        unitPreset: unit.preset,
+        unitOther: unit.other,
+      };
+    });
+  });
   const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
   const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
   const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
@@ -318,7 +377,7 @@ export function RecordFields({
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
   const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
-  const recordCount = countHygieneAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
+  const recordCount = countFeedingAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
     : recordCount > 1
@@ -326,6 +385,23 @@ export function RecordFields({
       : submitLabel;
 
   const validationMessage = useMemo(() => {
+    const sessionItems = useSessionFeedingUi && mode === "edit"
+      ? editFeedingRows.map((row) => {
+          const trimmed = row.value.trim();
+          const amount_value = trimmed ? Number(trimmed.replace(",", ".")) : null;
+          const amount_unit = !trimmed
+            ? null
+            : row.unitPreset === "other"
+              ? (row.unitOther.trim() || null)
+              : row.unitPreset;
+          return {
+            subtype: row.subtype,
+            custom_label: row.subtype === "other" ? row.customLabel : null,
+            amount_value: amount_value != null && Number.isFinite(amount_value) ? amount_value : (trimmed ? NaN : null),
+            amount_unit,
+          };
+        })
+      : null;
     const base = validateCreateRecordForm({
       petIds: visibleSelectedIds,
       types: activeTypes,
@@ -335,7 +411,11 @@ export function RecordFields({
       feedingAmountValue,
       feedingUnitPreset,
       feedingUnitOther,
-      allowLegacyFeedingWithoutSubtype: mode === "edit" && initialFeeding.legacyWithoutSubtype && !feedingSubtype,
+      allowLegacyFeedingWithoutSubtype: mode === "edit" && !useSessionFeedingUi && initialFeeding.legacyWithoutSubtype && !feedingSubtype,
+      feedingSessionMode: useSessionFeedingUi && activeTypes.includes("feeding"),
+      feedingSubtypes: useSessionFeedingUi && mode === "create" ? feedingComponents : undefined,
+      feedingCustomLabel: useSessionFeedingUi ? feedingCustomLabel : undefined,
+      feedingSessionItems: sessionItems,
       temperatureC,
       hygieneSubtype,
       hygieneSubtypes: hygieneMultiSelect ? hygieneSubtypes : undefined,
@@ -354,7 +434,7 @@ export function RecordFields({
       if (vaccineKey === "other" && !title.trim()) return "Informe o nome da vacina.";
     }
     return null;
-  }, [activeTypes, doseLabel, feedingAmountValue, feedingSubtype, feedingUnitOther, feedingUnitPreset, hygieneCustomLabel, hygieneMultiSelect, hygieneSubtype, hygieneSubtypes, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
+  }, [activeTypes, doseLabel, editFeedingRows, feedingAmountValue, feedingComponents, feedingCustomLabel, feedingSubtype, feedingUnitOther, feedingUnitPreset, hygieneCustomLabel, hygieneMultiSelect, hygieneSubtype, hygieneSubtypes, initialFeeding.legacyWithoutSubtype, mode, petNames, temperatureC, title, useSessionFeedingUi, vaccineKey, visibleSelectedIds, weightKg, weightKgByPetId]);
 
   const submitBlocked = disabled || visiblePets.length === 0 || validationMessage !== null;
 
@@ -519,7 +599,7 @@ export function RecordFields({
         </div>
         {droppedPetNames.length > 0 && (
           <p className="mt-2 text-xs font-semibold text-[#9a536c]" role="status">
-            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — alimentação, xixi, cocô e temperatura só valem para filhotes.
+            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — xixi, cocô e temperatura só valem para filhotes.
           </p>
         )}
         {mode === "create" && recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
@@ -527,7 +607,9 @@ export function RecordFields({
             {recordCount} registros serão criados
             {activeTypes.includes("hygiene") && hygieneSubtypes.length > 0
               ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${hygieneSubtypes.length} ${hygieneSubtypes.length === 1 ? "cuidado" : "cuidados"}${activeTypes.length > 1 ? ` + outros tipos` : ""})`
-              : ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${activeTypes.length} ${activeTypes.length === 1 ? "tipo" : "tipos"})`}
+              : activeTypes.includes("feeding") && feedingComponents.length > 0 && activeTypes.length === 1
+                ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "refeição" : "refeições"})`
+                : ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${activeTypes.length} ${activeTypes.length === 1 ? "tipo" : "tipos"})`}
             .
           </p>
         )}
@@ -615,7 +697,383 @@ export function RecordFields({
             const fields = (
               <div className="grid gap-4 sm:grid-cols-2">
                 {type === "weight" && renderWeightFields()}
-                {type === "feeding" && (
+                {type === "feeding" && useSessionFeedingUi && mode === "create" && (
+                  <div className="sm:col-span-2 space-y-3">
+                    <div>
+                      <p className="text-sm font-bold">O que eles comeram?</p>
+                      <p className="mt-1 text-[11px] font-semibold text-[var(--muted)]">Pode escolher mais de um. Quantidade é opcional.</p>
+                      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Componentes da refeição" aria-multiselectable>
+                        {FEEDING_CARE_PRESETS.map((preset) => {
+                          const active = feedingComponents.includes(preset.key);
+                          return (
+                            <button
+                              key={preset.key}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                setFeedingComponents((prev) => {
+                                  if (prev.includes(preset.key)) {
+                                    const next = prev.filter((key) => key !== preset.key);
+                                    if (preset.key === "other") setFeedingCustomLabel("");
+                                    setFeedingAmounts((amounts) => {
+                                      const copy = { ...amounts };
+                                      delete copy[preset.key];
+                                      return copy;
+                                    });
+                                    return next;
+                                  }
+                                  setFeedingAmounts((amounts) => ({
+                                    ...amounts,
+                                    [preset.key]: amounts[preset.key] ?? { value: "", unitPreset: "ml", unitOther: "" },
+                                  }));
+                                  return [...prev, preset.key];
+                                });
+                              }}
+                              aria-pressed={active}
+                              className={`focus-ring rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                                active
+                                  ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
+                                  : "border-[var(--border)] bg-white text-[var(--muted)] hover:border-[var(--lavender)]/40"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {feedingComponents.map((key) => (
+                        <input key={key} type="hidden" name="feeding_item_subtype" value={key} />
+                      ))}
+                    </div>
+                    {feedingComponents.includes("other") && (
+                      <label className="block text-sm font-bold">
+                        Qual alimento?
+                        <input
+                          disabled={disabled}
+                          name="feeding_custom_label"
+                          value={feedingCustomLabel}
+                          onChange={(event) => setFeedingCustomLabel(event.target.value)}
+                          className="field mt-2"
+                          placeholder="Ex.: Frango cozido"
+                          aria-required="true"
+                        />
+                      </label>
+                    )}
+                    {feedingComponents.length > 0 && (
+                      <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-white/70 p-3">
+                        <p className="text-xs font-bold text-[var(--muted)]">Quantidades (opcional)</p>
+                        {feedingComponents.map((key) => {
+                          const preset = FEEDING_CARE_PRESETS.find((entry) => entry.key === key)!;
+                          const amount = feedingAmounts[key] ?? { value: "", unitPreset: "ml" as FeedingUnitPreset, unitOther: "" };
+                          return (
+                            <div key={key} className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem]">
+                              <p className="text-sm font-semibold self-center">{preset.label}</p>
+                              <input
+                                disabled={disabled}
+                                type="number"
+                                name={feedingAmountValueFieldName(key)}
+                                min="0.1"
+                                max="1000"
+                                step="0.1"
+                                inputMode="decimal"
+                                value={amount.value}
+                                onChange={(event) => setFeedingAmounts((prev) => ({
+                                  ...prev,
+                                  [key]: { ...amount, value: event.target.value },
+                                }))}
+                                className="field"
+                                placeholder="Qtd"
+                              />
+                              <select
+                                disabled={disabled}
+                                name={feedingAmountUnitPresetFieldName(key)}
+                                value={amount.unitPreset}
+                                onChange={(event) => setFeedingAmounts((prev) => ({
+                                  ...prev,
+                                  [key]: { ...amount, unitPreset: event.target.value as FeedingUnitPreset },
+                                }))}
+                                className="field"
+                              >
+                                {FEEDING_UNIT_PRESETS.map((unit) => (
+                                  <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
+                                ))}
+                              </select>
+                              {amount.unitPreset === "other" && (
+                                <input
+                                  disabled={disabled}
+                                  name={feedingAmountUnitOtherFieldName(key)}
+                                  value={amount.unitOther}
+                                  onChange={(event) => setFeedingAmounts((prev) => ({
+                                    ...prev,
+                                    [key]: { ...amount, unitOther: event.target.value },
+                                  }))}
+                                  className="field sm:col-span-3"
+                                  placeholder="Qual unidade?"
+                                  maxLength={32}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {visibleSelectedIds.length > 1 && feedingComponents.length > 0 && (
+                      <div className="space-y-3">
+                        <label className="flex cursor-pointer items-start gap-3 text-sm font-bold">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 accent-[var(--graphite)]"
+                            disabled={disabled}
+                            checked={feedingAmountOverridesEnabled}
+                            name={feedingAmountOverridesEnabled ? "include_feeding_amount_overrides" : undefined}
+                            value="1"
+                            onChange={(event) => {
+                              const next = event.target.checked;
+                              setFeedingAmountOverridesEnabled(next);
+                              if (!next) {
+                                setFeedingOverridePets([]);
+                                setFeedingOverrideAmounts({});
+                              }
+                            }}
+                          />
+                          <span>
+                            Quer ajustar as quantidades para algum pet?
+                            <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">
+                              Por padrão, as quantidades acima valem para todos.
+                            </span>
+                          </span>
+                        </label>
+                        {feedingAmountOverridesEnabled && (
+                          <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
+                            <p className="text-sm font-bold">Para qual pet?</p>
+                            <div className="flex flex-wrap gap-2">
+                              {visibleSelectedIds.map((petId) => {
+                                const checked = feedingOverridePets.includes(petId);
+                                return (
+                                  <label
+                                    key={petId}
+                                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                                      checked
+                                        ? "border-[var(--graphite)] bg-[var(--graphite)] text-white"
+                                        : "border-[var(--border)] bg-white text-[var(--graphite)]"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="sr-only"
+                                      name={feedingAmountOverridePetFieldName()}
+                                      value={petId}
+                                      checked={checked}
+                                      onChange={() => {
+                                        setFeedingOverridePets((prev) =>
+                                          prev.includes(petId) ? prev.filter((id) => id !== petId) : [...prev, petId],
+                                        );
+                                      }}
+                                    />
+                                    {petNames.get(petId) ?? "Pet"}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {feedingOverridePets.map((petId) => (
+                              <div key={petId} className="space-y-2 border-t border-[var(--border)] pt-3">
+                                <p className="text-xs font-bold">{petNames.get(petId) ?? "Pet"}</p>
+                                {feedingComponents.map((key) => {
+                                  const preset = FEEDING_CARE_PRESETS.find((entry) => entry.key === key)!;
+                                  const amount = feedingOverrideAmounts[petId]?.[key] ?? { value: "", unitPreset: "ml" as FeedingUnitPreset, unitOther: "" };
+                                  return (
+                                    <div key={key} className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem]">
+                                      <p className="text-sm font-semibold self-center">{preset.label}</p>
+                                      <input
+                                        disabled={disabled}
+                                        type="number"
+                                        name={feedingOverrideAmountValueFieldName(petId, key)}
+                                        min="0.1"
+                                        max="1000"
+                                        step="0.1"
+                                        inputMode="decimal"
+                                        value={amount.value}
+                                        onChange={(event) => setFeedingOverrideAmounts((prev) => ({
+                                          ...prev,
+                                          [petId]: {
+                                            ...(prev[petId] ?? {}),
+                                            [key]: { ...amount, value: event.target.value },
+                                          },
+                                        }))}
+                                        className="field"
+                                        placeholder="Herdar"
+                                      />
+                                      <select
+                                        disabled={disabled}
+                                        name={feedingOverrideAmountUnitPresetFieldName(petId, key)}
+                                        value={amount.unitPreset}
+                                        onChange={(event) => setFeedingOverrideAmounts((prev) => ({
+                                          ...prev,
+                                          [petId]: {
+                                            ...(prev[petId] ?? {}),
+                                            [key]: { ...amount, unitPreset: event.target.value as FeedingUnitPreset },
+                                          },
+                                        }))}
+                                        className="field"
+                                      >
+                                        {FEEDING_UNIT_PRESETS.map((unit) => (
+                                          <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
+                                        ))}
+                                      </select>
+                                      {amount.unitPreset === "other" && (
+                                        <input
+                                          disabled={disabled}
+                                          name={feedingOverrideAmountUnitOtherFieldName(petId, key)}
+                                          value={amount.unitOther}
+                                          onChange={(event) => setFeedingOverrideAmounts((prev) => ({
+                                            ...prev,
+                                            [petId]: {
+                                              ...(prev[petId] ?? {}),
+                                              [key]: { ...amount, unitOther: event.target.value },
+                                            },
+                                          }))}
+                                          className="field sm:col-span-3"
+                                          placeholder="Qual unidade?"
+                                          maxLength={32}
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </section>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {type === "feeding" && useSessionFeedingUi && mode === "edit" && (
+                  <div className="sm:col-span-2 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold">Componentes da refeição</p>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        className="focus-ring text-[11px] font-bold text-[var(--lavender-strong)] underline disabled:opacity-50"
+                        onClick={() => setEditFeedingRows((prev) => [
+                          ...prev,
+                          { key: `${Date.now()}`, subtype: "", customLabel: "", value: "", unitPreset: "ml", unitOther: "" },
+                        ])}
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                    {editFeedingRows.map((row, index) => (
+                      <div key={row.key} className="space-y-2 rounded-[18px] border border-[var(--border)] bg-white/70 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <label className="block flex-1 text-sm font-bold">
+                            Alimento
+                            <select
+                              disabled={disabled}
+                              name={feedingEditItemSubtypeFieldName(index)}
+                              value={row.subtype}
+                              onChange={(event) => {
+                                const next = event.target.value as FeedingCareSubtypeKey | "";
+                                setEditFeedingRows((prev) => prev.map((item, i) => (
+                                  i === index
+                                    ? { ...item, subtype: next, customLabel: next === "other" ? item.customLabel : "" }
+                                    : item
+                                )));
+                              }}
+                              className="field mt-2"
+                              aria-required="true"
+                            >
+                              <option value="" disabled>Escolha…</option>
+                              {FEEDING_CARE_PRESETS.map((preset) => (
+                                <option key={preset.key} value={preset.key}>{preset.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          {editFeedingRows.length > 1 && (
+                            <button
+                              type="button"
+                              disabled={disabled}
+                              className="focus-ring mt-7 text-[11px] font-bold text-[var(--danger)] underline disabled:opacity-50"
+                              onClick={() => setEditFeedingRows((prev) => prev.filter((_, i) => i !== index))}
+                            >
+                              Remover
+                            </button>
+                          )}
+                        </div>
+                        {row.subtype === "other" && (
+                          <label className="block text-sm font-bold">
+                            Qual alimento?
+                            <input
+                              disabled={disabled}
+                              name={feedingEditItemCustomLabelFieldName(index)}
+                              value={row.customLabel}
+                              onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
+                                i === index ? { ...item, customLabel: event.target.value } : item
+                              )))}
+                              className="field mt-2"
+                              placeholder="Ex.: Frango cozido"
+                              aria-required="true"
+                            />
+                          </label>
+                        )}
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="block text-sm font-bold">
+                            Quantidade (opcional)
+                            <input
+                              disabled={disabled}
+                              type="number"
+                              name={feedingEditItemAmountValueFieldName(index)}
+                              min="0.1"
+                              max="1000"
+                              step="0.1"
+                              inputMode="decimal"
+                              value={row.value}
+                              onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
+                                i === index ? { ...item, value: event.target.value } : item
+                              )))}
+                              className="field mt-2"
+                              placeholder="Ex.: 25"
+                            />
+                          </label>
+                          <label className="block text-sm font-bold">
+                            Unidade
+                            <select
+                              disabled={disabled}
+                              name={feedingEditItemAmountUnitPresetFieldName(index)}
+                              value={row.unitPreset}
+                              onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
+                                i === index ? { ...item, unitPreset: event.target.value as FeedingUnitPreset } : item
+                              )))}
+                              className="field mt-2"
+                            >
+                              {FEEDING_UNIT_PRESETS.map((unit) => (
+                                <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
+                              ))}
+                            </select>
+                          </label>
+                          {row.unitPreset === "other" && (
+                            <label className="block text-sm font-bold sm:col-span-2">
+                              Qual unidade?
+                              <input
+                                disabled={disabled}
+                                name={feedingEditItemAmountUnitOtherFieldName(index)}
+                                value={row.unitOther}
+                                onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
+                                  i === index ? { ...item, unitOther: event.target.value } : item
+                                )))}
+                                className="field mt-2"
+                                placeholder="Ex.: sachê"
+                                maxLength={32}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {type === "feeding" && !useSessionFeedingUi && (
                   <>
                     <label className="block text-sm font-bold sm:col-span-2">
                       Tipo de alimentação
@@ -625,7 +1083,7 @@ export function RecordFields({
                         value={feedingSubtype}
                         onChange={(event) => setFeedingSubtype(event.target.value)}
                         className="field mt-2"
-                        aria-required={mode === "create" || !initialFeeding.legacyWithoutSubtype}
+                        aria-required={!initialFeeding.legacyWithoutSubtype}
                       >
                         {mode === "edit" && initialFeeding.legacyWithoutSubtype ? (
                           <option value="">Alimentação (sem subtipo — legado)</option>
@@ -717,6 +1175,7 @@ export function RecordFields({
                     label={multiType ? `Como foi o ${meta?.label.toLowerCase() ?? type}?` : "Como foi?"}
                     disabled={disabled}
                     defaultValue={defaultValues?.quality}
+                    allowEmpty={type === "feeding" && useSessionFeedingUi}
                   />
                 )}
                 {type === "vaccine" && (mode === "create" || mode === "edit") && (

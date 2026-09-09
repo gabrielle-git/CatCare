@@ -1,6 +1,12 @@
-import type { NeonatalRecord } from "@/types/database";
+import type { FeedingSessionWithItems, NeonatalRecord } from "@/types/database";
 import { APP_TIMEZONE, formatDateTime, formatTime } from "@/lib/format";
 import { feedingAmountInMl, formatFeedingAmountFromRow } from "@/lib/neonatal-feeding";
+import {
+  formatFeedingItemAmountLabel,
+  formatFeedingSessionDetail,
+  feedingItemsFromRows,
+  feedingSessionTotalMl,
+} from "@/lib/feeding-care";
 
 export type NeonatalDailyStats = {
   petId: string;
@@ -60,10 +66,25 @@ export function formatTimeAgo(iso: string, now = new Date()) {
   return formatDateTime(iso);
 }
 
+function sessionAmountLabel(session: FeedingSessionWithItems): string | null {
+  const items = feedingItemsFromRows(session.feeding_items ?? []);
+  const joined = items
+    .map((item) => formatFeedingItemAmountLabel(item))
+    .filter((part): part is string => Boolean(part));
+  if (joined.length > 0) return joined.join(" · ");
+  const detail = formatFeedingSessionDetail(items);
+  return detail || null;
+}
+
+/**
+ * Dual-read: legacy neonatal feeding rows + canonical feeding_sessions.
+ * Each session = 1 meal; each legacy feeding row = 1 meal.
+ */
 export function computeNeonatalSummaries(
   records: NeonatalRecord[],
   petIds: string[],
   range?: { from: string; to: string },
+  feedingSessions: FeedingSessionWithItems[] = [],
 ): Map<string, NeonatalPetSummary> {
   const stats = new Map<string, NeonatalPetSummary>(
     petIds.map((petId) => [
@@ -104,6 +125,18 @@ export function computeNeonatalSummaries(
     }
   }
 
+  for (const session of feedingSessions) {
+    if (!stats.has(session.pet_id)) continue;
+    const entry = stats.get(session.pet_id)!;
+    if (!entry.lastFeedingAt || new Date(session.occurred_at) > new Date(entry.lastFeedingAt)) {
+      entry.lastFeedingAt = session.occurred_at;
+      const items = feedingItemsFromRows(session.feeding_items ?? []);
+      const ml = feedingSessionTotalMl(items);
+      entry.lastFeedingMl = ml > 0 ? ml : null;
+      entry.lastFeedingAmountLabel = sessionAmountLabel(session);
+    }
+  }
+
   for (const record of records) {
     if (!stats.has(record.pet_id)) continue;
     if (!inRange(record.occurred_at)) continue;
@@ -117,6 +150,14 @@ export function computeNeonatalSummaries(
     }
     if (record.type === "stool") entry.stoolCount += 1;
     if (record.type === "urine") entry.urineCount += 1;
+  }
+
+  for (const session of feedingSessions) {
+    if (!stats.has(session.pet_id)) continue;
+    if (!inRange(session.occurred_at)) continue;
+    const entry = stats.get(session.pet_id)!;
+    entry.feedingCount += 1;
+    entry.totalMl += feedingSessionTotalMl(feedingItemsFromRows(session.feeding_items ?? []));
   }
 
   return stats;
@@ -135,7 +176,7 @@ export function aggregateHouseholdSummary(summaries: Map<string, NeonatalPetSumm
 
 export function formatNeonatalDailyStats(stats: Pick<NeonatalDailyStats, "totalMl" | "feedingCount" | "stoolCount" | "urineCount">) {
   const ml = `${stats.totalMl.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ml`;
-  const feedings = `${stats.feedingCount} alimentaç${stats.feedingCount === 1 ? "ão" : "ões"}`;
+  const feedings = `${stats.feedingCount} refeiç${stats.feedingCount === 1 ? "ão" : "ões"}`;
   const stools = `${stats.stoolCount} cocô${stats.stoolCount === 1 ? "" : "s"}`;
   const urines = `${stats.urineCount} xixi${stats.urineCount === 1 ? "" : "s"}`;
   return `${ml} · ${feedings} · ${stools} · ${urines}`;
