@@ -413,21 +413,18 @@ export async function getFeedingSession(
   };
 }
 
+/**
+ * Legacy neonatal archive only — neonatal_records.
+ * Canonical feeding_sessions are general meals (adult or baby) and must NOT appear here.
+ */
 export async function listPetNeonatalTimeline(supabase: SupabaseClient, petId: string, limit = 200) {
-  const [records, sessions] = await Promise.all([
-    listPetNeonatalRecords(supabase, petId, limit),
-    listPetFeedingSessions(supabase, petId, limit),
-  ]);
-  return [
-    ...records.map(mapNeonatal),
-    ...sessions.map((session) => mapFeedingSession(session, session.feeding_items)),
-  ]
-    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-    .slice(0, limit);
+  const records = await listPetNeonatalRecords(supabase, petId, limit);
+  return records.map(mapNeonatal);
 }
 
+/** True only for legacy neonatal_records timeline rows — not feeding_sessions. */
 export function isNeonatalTimelineItem(item: TimelineItem) {
-  return item.source === "neonatal" || (item.source === "feeding" && item.kind === "feeding");
+  return item.source === "neonatal";
 }
 
 export async function listUpcomingReminders(supabase: SupabaseClient, householdId: string, limit = 8): Promise<Reminder[]> {

@@ -28,6 +28,7 @@ const neonatalFilters = [
 
 const adultFilters = [
   { value: "all", label: "Todos" },
+  { value: "feeding", label: "Alimentação" },
   { value: "weight", label: "Peso" },
   { value: "vaccine", label: "Vacina" },
   { value: "deworming", label: "Vermífugo" },
