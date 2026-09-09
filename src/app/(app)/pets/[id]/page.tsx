@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Bug, Cpu, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bug, Cpu, FileStack, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
 import { PetMicrochipSummary } from "@/components/pet-microchip-summary";
 import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
 import { PetAvatar } from "@/components/pet-avatar";
@@ -8,6 +8,7 @@ import { TimelineList } from "@/components/timeline-list";
 import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
+import { countPetDocuments } from "@/lib/documents";
 import { getPet } from "@/lib/pets";
 import { isNeonatalTimelineItem, listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
 import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
@@ -23,26 +24,27 @@ async function loadPetPage(id: string) {
   const trace = getPerfTraceId();
   if (!(await timed("/pets/:id.isLiveData", () => isLiveData()))) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: false, editable: false };
+    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: false, editable: false };
   }
   const ctx = await getAuthenticatedContext();
-  if (!ctx) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: true, editable: false };
+  if (!ctx) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: true, editable: false };
   const pet = await timed("/pets/:id.getPet", () => getPet(ctx.supabase, id));
-  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], configured: true, editable: false };
-  const [timeline, weights, vaccineDoses, dewormingDoses] = await Promise.all([
+  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: true, editable: false };
+  const [timeline, weights, vaccineDoses, dewormingDoses, documentCount] = await Promise.all([
     timed("/pets/:id.timeline", () => listPetTimeline(ctx.supabase, id)),
     timed("/pets/:id.weights", () => listPetWeights(ctx.supabase, id)),
     timed("/pets/:id.vaccines", () => listPetVaccineDoses(ctx.supabase, id)),
     timed("/pets/:id.deworming", () => listPetDewormingDoses(ctx.supabase, id)),
+    timed("/pets/:id.documents", () => countPetDocuments(ctx.supabase, id)),
   ]);
   console.log(`[CATCARE_PERF][trace ${trace}][/pets/:id] total=${Math.round(performance.now() - pageStart)}ms`);
-  return { pet, timeline, weights, vaccineDoses, dewormingDoses, configured: true, editable: ctx.editable };
+  return { pet, timeline, weights, vaccineDoses, dewormingDoses, documentCount, configured: true, editable: ctx.editable };
 }
 
 export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string; deleted?: string; error?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, vaccineDoses, dewormingDoses, configured, editable } = await loadPetPage(id);
+  const { pet, timeline, weights, vaccineDoses, dewormingDoses, documentCount, configured, editable } = await loadPetPage(id);
   if (!pet) notFound();
   const neonatal = isNeonatalPet(pet);
   const lifeStage = getPetLifeStage(pet.birth_date);
@@ -169,6 +171,17 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
           />
 
           <PetMicrochipSummary pet={pet} editable={editable} />
+
+          <Link href={`/pets/${pet.id}/documents`} className="focus-ring cat-card flex items-center justify-between gap-3 p-5">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Documentos</p>
+              <h2 className="mt-1 font-bold">{documentCount === 0 ? "Nenhum documento" : documentCount === 1 ? "1 documento" : `${documentCount} documentos`}</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">Carteiras, identificação e arquivos do pet.</p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+              <FileStack size={14} /> Ver documentos
+            </span>
+          </Link>
         </aside>
       </div>
 

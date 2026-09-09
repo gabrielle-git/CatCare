@@ -1,28 +1,10 @@
 import { NextResponse } from "next/server";
+import { EXPORT_HOUSEHOLD_TABLES } from "@/lib/export-tables";
 import { ensureHousehold } from "@/lib/households";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
-const HOUSEHOLD_TABLES = [
-  "pets",
-  "weight_records",
-  "health_records",
-  "vaccine_doses",
-  "neonatal_records",
-  "expenses",
-  "reminders",
-  "documents",
-  "memories",
-  "memory_pets",
-  "memory_media",
-  "products",
-  "purchases",
-  "product_reviews",
-  "health_plans",
-  "health_plan_templates",
-  "health_plan_guides",
-  "benefit_memberships",
-] as const;
+const HOUSEHOLD_TABLES = EXPORT_HOUSEHOLD_TABLES;
 
 async function exportHouseholdTable(
   supabase: Awaited<ReturnType<typeof createClient>>,
