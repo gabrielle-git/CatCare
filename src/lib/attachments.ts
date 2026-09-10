@@ -211,6 +211,11 @@ export function canRemoveStoredAttachment(existingCount: number): boolean {
   return existingCount > 1;
 }
 
+/** Clinical health_records may have zero attachments; last file may be removed. */
+export function canRemoveHealthRecordAttachment(_existingCount: number): boolean {
+  return true;
+}
+
 export const LAST_ATTACHMENT_REMOVAL_MESSAGE =
   "Um documento precisa ter pelo menos um arquivo. Adicione outro antes de remover este.";
 
@@ -297,15 +302,16 @@ export async function validateAttachmentFile(file: File): Promise<{ ok: true; va
 
 export async function validateAttachmentFiles(
   files: File[],
-  options?: { required?: boolean; existingCount?: number },
+  options?: { required?: boolean; existingCount?: number; entityLabel?: string },
 ): Promise<{ ok: true; values: ValidatedAttachmentFile[] } | { ok: false; message: string }> {
   const required = options?.required ?? true;
   const existingCount = options?.existingCount ?? 0;
+  const entityLabel = options?.entityLabel ?? "documento";
   if (required && files.length === 0) {
     return { ok: false, message: "Adicione ao menos um arquivo." };
   }
   if (existingCount + files.length > ATTACHMENT_MAX_PER_DOCUMENT) {
-    return { ok: false, message: `Um documento pode ter no máximo ${ATTACHMENT_MAX_PER_DOCUMENT} arquivos.` };
+    return { ok: false, message: `Um ${entityLabel} pode ter no máximo ${ATTACHMENT_MAX_PER_DOCUMENT} arquivos.` };
   }
   const values: ValidatedAttachmentFile[] = [];
   for (const file of files) {

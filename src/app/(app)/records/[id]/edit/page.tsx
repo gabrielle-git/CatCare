@@ -4,13 +4,14 @@ import { EditRecordForm } from "@/components/edit-record-form";
 import { RecordFields, type RecordFieldDefaults } from "@/components/record-fields";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isNeonatalPet } from "@/lib/format";
+import { listHealthRecordAttachments } from "@/lib/health-record-attachments";
 import { listPets } from "@/lib/pets";
 import type { RecordSource } from "@/lib/record-form";
 import { getEditableRecord } from "@/lib/records";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPerfTraceId, perfLog, timed } from "@/lib/perf";
 import { safeReturnPath } from "@/lib/safe-return-path";
-import { deleteRecord, updateRecord } from "../../actions";
+import { deleteHealthRecordAttachment, deleteRecord, updateRecord } from "../../actions";
 
 export default async function EditRecordPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ source?: string; kind?: string; return_to?: string; error?: string }> }) {
   const pageStart = performance.now();
@@ -33,6 +34,10 @@ export default async function EditRecordPage({ params, searchParams }: { params:
   ]);
   if (!record) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Registro não encontrado.</div>;
 
+  const existingAttachments = source === "health"
+    ? await timed("/records/:id/edit.attachments", () => listHealthRecordAttachments(ctx.supabase, id))
+    : [];
+
   const returnTo = safeReturnPath(query.return_to, `/pets/${record.pet_id}`);
   const petOptions = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet), species: pet.species }));
   const save = updateRecord.bind(null, id, source);
@@ -54,6 +59,8 @@ export default async function EditRecordPage({ params, searchParams }: { params:
           mode="edit"
           allowTypeChange={source === "health"}
           returnTo={returnTo}
+          existingAttachments={existingAttachments}
+          removeAttachmentFormIdFor={(attachmentId) => `remove-health-attachment-${attachmentId}`}
           defaultValues={{
             ...record,
             record_type: record.kind as RecordFieldDefaults["record_type"],
@@ -66,6 +73,16 @@ export default async function EditRecordPage({ params, searchParams }: { params:
           submitLabel="Salvar alterações"
         />
       </EditRecordForm>
+      {source === "health" && existingAttachments.map((item) => (
+        <form
+          key={item.id}
+          id={`remove-health-attachment-${item.id}`}
+          action={deleteHealthRecordAttachment.bind(null, id, record.pet_id, item.id)}
+          className="hidden"
+        >
+          <input type="hidden" name="return_to" value={returnTo} />
+        </form>
+      ))}
       <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
         <h2 className="font-bold">Apagar registro</h2>
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Remove este cuidado do histórico permanentemente.</p>

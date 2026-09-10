@@ -350,6 +350,14 @@ export type DocumentAttachment = {
   created_at: string;
 };
 
+export type HealthRecordAttachment = {
+  health_record_id: string;
+  attachment_id: string;
+  household_id: string;
+  position: number;
+  created_at: string;
+};
+
 export type AttachmentWithUrl = Attachment & {
   url: string | null;
   position: number;

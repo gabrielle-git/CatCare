@@ -4,7 +4,7 @@ import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
 
 export const quickRecordTypes = new Set([
   "weight", "feeding", "urine", "stool", "temperature",
-  "vaccine", "deworming", "medication", "consultation", "observation", "hygiene",
+  "vaccine", "deworming", "medication", "consultation", "exam", "observation", "hygiene",
 ]);
 
 export type RecordSource = "weight" | "health" | "neonatal" | "feeding";

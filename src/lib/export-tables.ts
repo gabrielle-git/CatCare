@@ -9,6 +9,7 @@ export const EXPORT_HOUSEHOLD_TABLES = [
   "documents",
   "attachments",
   "document_attachments",
+  "health_record_attachments",
   "memories",
   "memory_pets",
   "memory_media",

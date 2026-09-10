@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Bath, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { Bug, Bath, ClipboardPlus, Droplets, FlaskConical, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { FactualDateTimeInput } from "@/components/factual-datetime-input";
+import { HealthRecordAttachmentsFields } from "@/components/health-record-attachments-fields";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
+import { isAttachableQuickRecordType } from "@/lib/health-record-type";
+import type { AttachmentWithUrl } from "@/types/database";
 import { gramsToKgInput } from "@/lib/format";
 import { HYGIENE_PRESETS, type HygieneSubtypeKey } from "@/lib/hygiene-care";
 import {
@@ -67,6 +70,7 @@ const options: RecordOption[] = [
   { value: "deworming", label: "Vermífugo", shortLabel: "Vermíf.", icon: Bug },
   { value: "medication", label: "Medicamento", shortLabel: "Remédio", icon: Pill },
   { value: "consultation", label: "Consulta", shortLabel: "Consulta", icon: Stethoscope },
+  { value: "exam", label: "Exame", shortLabel: "Exame", icon: FlaskConical },
   { value: "hygiene", label: "Cuidados de higiene", shortLabel: "Higiene", icon: Bath },
   { value: "observation", label: "Observação", shortLabel: "Nota", icon: ClipboardPlus },
 ];
@@ -194,6 +198,8 @@ export function RecordFields({
   allowTypeChange = false,
   defaultValues,
   submitLabel = "Salvar registro",
+  existingAttachments = [],
+  removeAttachmentFormIdFor,
 }: {
   pets: PetOption[];
   initialPetId?: string;
@@ -211,6 +217,8 @@ export function RecordFields({
   allowTypeChange?: boolean;
   defaultValues?: RecordFieldDefaults;
   submitLabel?: string;
+  existingAttachments?: AttachmentWithUrl[];
+  removeAttachmentFormIdFor?: (attachmentId: string) => string;
 }) {
   const neonatalPets = useMemo(() => neonatalPetPool(pets), [pets]);
   const petNames = useMemo(() => new Map(pets.map((pet) => [pet.id, pet.name])), [pets]);
@@ -278,6 +286,8 @@ export function RecordFields({
   const [feedingOverrideAmounts, setFeedingOverrideAmounts] = useState<
     Record<string, Record<string, { value: string; unitPreset: FeedingUnitPreset; unitOther: string }>>
   >({});
+  /** Stable per-pet health_record ids for create idempotency (once per pet in this form). */
+  const [recordIdsByPet, setRecordIdsByPet] = useState<Record<string, string>>({});
   type EditFeedingRow = {
     key: string;
     subtype: FeedingCareSubtypeKey | "";
@@ -371,13 +381,18 @@ export function RecordFields({
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
   const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
   const hasHealthType = activeTypes.some((type) =>
-    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation" || type === "hygiene",
+    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation" || type === "hygiene",
   );
   const hasReminderType = !multiType && activeTypes.some((type) =>
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
   const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
   const recordCount = countFeedingAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
+  const attachmentsEnabled =
+    !multiType
+    && activeTypes.length === 1
+    && isAttachableQuickRecordType(activeTypes[0] ?? "")
+    && (mode === "edit" || (visibleSelectedIds.length === 1 && !(activeTypes[0] === "hygiene" && hygieneSubtypes.length > 1)));
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
     : recordCount > 1
@@ -471,6 +486,17 @@ export function RecordFields({
       return next;
     });
   }, [visibleSelectedIds]);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    setRecordIdsByPet((prev) => {
+      const next: Record<string, string> = {};
+      for (const id of visibleSelectedIds) {
+        next[id] = prev[id] ?? crypto.randomUUID();
+      }
+      return next;
+    });
+  }, [mode, visibleSelectedIds]);
 
   useEffect(() => {
     if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
@@ -570,6 +596,9 @@ export function RecordFields({
   return (
     <>
       {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
+      {mode === "create" && Object.keys(recordIdsByPet).length > 0 ? (
+        <input type="hidden" name="record_ids_json" value={JSON.stringify(recordIdsByPet)} />
+      ) : null}
       {neonatalContext ? <input type="hidden" name="context" value="neonatal" /> : null}
       <input type="hidden" name="record_types" value={activeTypes.join(",")} />
       {activeTypes.map((type) => (
@@ -692,7 +721,7 @@ export function RecordFields({
             const showCard = multiType;
             const qualityName = multiType ? `quality_${type}` : "quality";
             const titleName = multiType ? `title_${type}` : "title";
-            const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation";
+            const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation";
 
             const fields = (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1350,6 +1379,7 @@ export function RecordFields({
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
                                 : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                  : type === "exam" ? "Ex.: Hemograma"
                                   : "O que você percebeu?"
                           }
                         />
@@ -1364,6 +1394,7 @@ export function RecordFields({
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
                                 : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                  : type === "exam" ? "Ex.: Hemograma"
                                   : "O que você percebeu?"
                           }
                         />
@@ -1371,10 +1402,10 @@ export function RecordFields({
                     </label>
                   )
                 )}
-                {(type === "vaccine" || type === "deworming" || type === "consultation") && !multiType && (
+                {(type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && !multiType && (
                   <label className="block text-sm font-bold sm:col-span-2">
                     Clínica ou veterinário
-                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" />
+                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder={type === "exam" ? "Opcional — clínica, lab ou veterinário" : "Opcional"} />
                   </label>
                 )}
               </div>
@@ -1393,7 +1424,7 @@ export function RecordFields({
           })
         )}
 
-        {hasHealthType && multiType && activeTypes.some((type) => type === "vaccine" || type === "deworming" || type === "consultation") && (
+        {hasHealthType && multiType && activeTypes.some((type) => type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && (
           <label className="block text-sm font-bold">
             Clínica ou veterinário
             <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional — vale para os tipos de saúde" />
@@ -1534,6 +1565,17 @@ export function RecordFields({
         </div>
       )}
 
+      {attachmentsEnabled && (
+        <HealthRecordAttachmentsFields
+          disabled={disabled}
+          existingAttachments={mode === "edit" ? existingAttachments : []}
+          showExisting={mode === "edit"}
+          editableExistingNames={mode === "edit"}
+          removeFormIdFor={removeAttachmentFormIdFor}
+          pickerId={mode === "edit" ? "health-record-edit-attachments" : "health-record-create-attachments"}
+        />
+      )}
+
       {validationMessage && (
         <p className="mt-5 text-sm font-semibold text-[var(--danger)]" role="alert">
           {validationMessage}
@@ -1542,6 +1584,7 @@ export function RecordFields({
 
       <SubmitButton
         disabled={submitBlocked}
+        pendingLabel="Salvando..."
         className="focus-ring mt-3 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 disabled:cursor-not-allowed disabled:opacity-55"
       >
         {resolvedSubmitLabel}
