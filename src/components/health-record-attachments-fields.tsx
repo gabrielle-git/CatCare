@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FilePlus2, Trash2 } from "lucide-react";
+import { ConfirmButton } from "@/components/confirm-button";
 import {
   ATTACHMENT_MAX_PER_DOCUMENT,
   attachmentKindLabel,
@@ -12,6 +13,7 @@ import {
   resolveAttachmentDisplayName,
   type LocalSelectedFile,
 } from "@/lib/attachments";
+import { healthAttachmentFieldNames } from "@/lib/health-record-attachment-form";
 import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
 import type { AttachmentWithUrl } from "@/types/database";
 
@@ -21,14 +23,19 @@ function AccumulatingHealthFilePicker({
   disabled,
   existingStoredCount,
   pickerId,
+  heading,
+  careType,
 }: {
   disabled?: boolean;
   existingStoredCount: number;
   pickerId: string;
+  heading: string;
+  careType?: string | null;
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const syncInputRef = useRef<HTMLInputElement>(null);
+  const fieldNames = healthAttachmentFieldNames(careType);
 
   useEffect(() => {
     const input = syncInputRef.current;
@@ -43,7 +50,7 @@ function AccumulatingHealthFilePicker({
 
   return (
     <div>
-      <p className="text-sm font-bold">Arquivos / Anexos — {slots.label}</p>
+      <p className="text-sm font-bold">{heading} — {slots.label}</p>
       <p className="mt-1 text-xs text-[var(--muted)]">
         Opcional · JPG, PNG, WebP ou PDF · máx. 5 MB cada.
         {remainingSlots === 0 ? " Limite atingido." : ` Você ainda pode adicionar ${remainingSlots}.`}
@@ -78,7 +85,7 @@ function AccumulatingHealthFilePicker({
                   Nome no CatCare
                   <input
                     disabled={disabled}
-                    name="display_names"
+                    name={fieldNames.displayNames}
                     value={item.displayName}
                     onChange={(event) => {
                       const next = event.target.value;
@@ -91,7 +98,7 @@ function AccumulatingHealthFilePicker({
                     placeholder="Ex.: Resultado do hemograma"
                   />
                 </label>
-                <input type="hidden" name="attachment_ids" value={item.id} />
+                <input type="hidden" name={fieldNames.attachmentIds} value={item.id} />
               </li>
             ))}
           </ul>
@@ -101,7 +108,7 @@ function AccumulatingHealthFilePicker({
       <input
         ref={syncInputRef}
         type="file"
-        name="files"
+        name={fieldNames.files}
         multiple
         className="hidden"
         tabIndex={-1}
@@ -212,14 +219,15 @@ export function HealthRecordExistingFilesPanel({
                   Baixar
                 </a>
                 {canRemove ? (
-                  <button
-                    type="submit"
+                  <ConfirmButton
                     form={removeFormId}
-                    disabled={disabled}
+                    title="Remover este arquivo?"
+                    message="Ele será removido deste registro e não poderá ser recuperado por aqui."
+                    confirmLabel="Remover arquivo"
                     className="focus-ring inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
                   >
                     <Trash2 size={12} /> Remover
-                  </button>
+                  </ConfirmButton>
                 ) : null}
               </div>
             </li>
@@ -236,15 +244,21 @@ export function HealthRecordAttachmentsFields({
   pickerId = "health-record-attachments-picker",
   showExisting = false,
   editableExistingNames = false,
+  careType,
+  heading,
 }: {
   disabled?: boolean;
   existingAttachments?: AttachmentWithUrl[];
   pickerId?: string;
   showExisting?: boolean;
   editableExistingNames?: boolean;
+  /** When set, FormData fields are scoped so multi-type create keeps files per health_record. */
+  careType?: string | null;
+  heading?: string;
 }) {
+  const resolvedHeading = heading ?? "Arquivos / Anexos";
   return (
-    <section className="mt-5 space-y-5" aria-label="Anexos do registro">
+    <section className="mt-5 space-y-5" aria-label={resolvedHeading}>
       {showExisting ? (
         <HealthRecordExistingFilesPanel
           attachments={existingAttachments}
@@ -256,6 +270,8 @@ export function HealthRecordAttachmentsFields({
         disabled={disabled}
         existingStoredCount={existingAttachments.length}
         pickerId={pickerId}
+        heading={resolvedHeading}
+        careType={careType}
       />
     </section>
   );

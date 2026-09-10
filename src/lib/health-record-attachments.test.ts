@@ -9,6 +9,14 @@ import {
   resolveDocumentCreateOwnership,
 } from "@/lib/attachments";
 import { EXPORT_HOUSEHOLD_TABLES } from "@/lib/export-tables";
+import {
+  attachmentHeadingForCareType,
+  healthAttachmentFieldNames,
+  readAttachmentFiles,
+  readAttachmentIds,
+  readDisplayNamesForCareType,
+  readStableRecordIdForPetType,
+} from "@/lib/health-record-attachment-form";
 import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
 import {
   mapFormTypeToHealthRecordType,
@@ -131,6 +139,101 @@ describe("health_record edit RSC regression (#441)", () => {
   it("exam remains a first-class edit type in RecordFields options", () => {
     assert.match(recordFields, /value: "exam"/);
     assert.match(recordFields, /label: "Exame"/);
+  });
+
+  it("edit remove uses ConfirmButton before mutation (not silent submit)", () => {
+    assert.match(attachmentFields, /ConfirmButton/);
+    assert.match(attachmentFields, /Remover este arquivo\?/);
+    assert.match(attachmentFields, /não poderá ser recuperado por aqui/);
+    assert.match(attachmentFields, /confirmLabel="Remover arquivo"/);
+  });
+});
+
+describe("health_record multi-type attachments", () => {
+  const recordFields = readFileSync(join(process.cwd(), "src/components/record-fields.tsx"), "utf8");
+  const createActions = readFileSync(join(process.cwd(), "src/app/(app)/records/new/actions.ts"), "utf8");
+  const examId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const vaccineId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const examAtt1 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const examAtt2 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const vaccineAtt = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+
+  it("single and multi health types keep attachment UI (no !multiType gate)", () => {
+    assert.doesNotMatch(recordFields, /attachmentsEnabled\s*=\s*\n?\s*!multiType/);
+    assert.match(recordFields, /createAttachmentsAllowed/);
+    assert.match(recordFields, /showCreateAttachmentsForType/);
+    assert.match(recordFields, /careType=\{type\}/);
+  });
+
+  it("scopes FormData fields per care type so exam files stay on exam", () => {
+    assert.deepEqual(healthAttachmentFieldNames("exam"), {
+      files: "files__exam",
+      attachmentIds: "attachment_ids__exam",
+      displayNames: "display_names__exam",
+    });
+    assert.deepEqual(healthAttachmentFieldNames("vaccine"), {
+      files: "files__vaccine",
+      attachmentIds: "attachment_ids__vaccine",
+      displayNames: "display_names__vaccine",
+    });
+    assert.equal(attachmentHeadingForCareType("exam"), "Arquivos do exame");
+    assert.equal(attachmentHeadingForCareType("vaccine"), "Arquivos da vacina");
+  });
+
+  it("reads nested record_ids_json per pet+type (idempotent multi-type)", () => {
+    const form = new FormData();
+    form.set(
+      "record_ids_json",
+      JSON.stringify({
+        [PET_A]: { exam: examId, vaccine: vaccineId },
+      }),
+    );
+    assert.equal(readStableRecordIdForPetType(form, PET_A, "exam", [PET_A]), examId);
+    assert.equal(readStableRecordIdForPetType(form, PET_A, "vaccine", [PET_A]), vaccineId);
+    assert.notEqual(
+      readStableRecordIdForPetType(form, PET_A, "exam", [PET_A]),
+      readStableRecordIdForPetType(form, PET_A, "vaccine", [PET_A]),
+    );
+  });
+
+  it("distributes exam 2 + vaccine 1 files to the correct scoped fields", () => {
+    const form = new FormData();
+    const examFile1 = new File(["hemograma"], "hemograma.pdf", { type: "application/pdf" });
+    const examFile2 = new File(["coleta"], "coleta.jpg", { type: "image/jpeg" });
+    const vaccineFile = new File(["carteira"], "carteira.jpg", { type: "image/jpeg" });
+
+    form.append("files__exam", examFile1);
+    form.append("files__exam", examFile2);
+    form.append("attachment_ids__exam", examAtt1);
+    form.append("attachment_ids__exam", examAtt2);
+    form.append("display_names__exam", "Resultado do hemograma");
+    form.append("display_names__exam", "Foto da coleta");
+
+    form.append("files__vaccine", vaccineFile);
+    form.append("attachment_ids__vaccine", vaccineAtt);
+    form.append("display_names__vaccine", "Carteira de vacinação");
+
+    const examFiles = readAttachmentFiles(form, "exam");
+    const vaccineFiles = readAttachmentFiles(form, "vaccine");
+    assert.equal(examFiles.length, 2);
+    assert.equal(vaccineFiles.length, 1);
+    assert.deepEqual(readAttachmentIds(form, 2, "exam"), [examAtt1, examAtt2]);
+    assert.deepEqual(readAttachmentIds(form, 1, "vaccine"), [vaccineAtt]);
+    assert.deepEqual(readDisplayNamesForCareType(form, 2, "exam"), ["Resultado do hemograma", "Foto da coleta"]);
+    assert.deepEqual(readDisplayNamesForCareType(form, 1, "vaccine"), ["Carteira de vacinação"]);
+  });
+
+  it("create action wires per-type record ids and scoped attachment attach", () => {
+    assert.match(createActions, /readStableRecordIdForPetType/);
+    assert.match(createActions, /ensureHealthRecordAttachments\([\s\S]*?, type\)/);
+    assert.match(createActions, /isAttachableQuickRecordType\(type\)/);
+    assert.doesNotMatch(createActions, /wantsAttachments = !multi &&/);
+  });
+
+  it("Documents already confirm attachment removal (report-only; untouched)", () => {
+    const docs = readFileSync(join(process.cwd(), "src/components/document-fields.tsx"), "utf8");
+    assert.match(docs, /ConfirmButton/);
+    assert.match(docs, /Remover arquivo\?/);
   });
 });
 

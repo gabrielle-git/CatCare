@@ -38,6 +38,7 @@ import {
   readAttachmentFiles,
   readAttachmentIds,
   readDisplayNames,
+  readDisplayNamesForCareType,
   readExistingAttachmentIds,
 } from "@/lib/health-record-attachment-form";
 import { isAttachableQuickRecordType, mapFormTypeToHealthRecordType } from "@/lib/health-record-type";
@@ -303,13 +304,13 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
         if (renameError) return failHere(renameError.message);
       }
 
-      const newFiles = readAttachmentFiles(formData);
+      const newFiles = readAttachmentFiles(formData, type);
       if (newFiles.length > 0) {
         let attachmentIds: string[] = [];
         let displayNames: Array<string | null> = [];
         try {
-          attachmentIds = readAttachmentIds(formData, newFiles.length);
-          displayNames = readDisplayNames(formData, "display_names", newFiles.length);
+          attachmentIds = readAttachmentIds(formData, newFiles.length, type);
+          displayNames = readDisplayNamesForCareType(formData, newFiles.length, type);
         } catch (error) {
           return failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
         }

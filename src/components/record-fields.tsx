@@ -6,6 +6,7 @@ import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { HealthRecordAttachmentsFields } from "@/components/health-record-attachments-fields";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
+import { attachmentHeadingForCareType } from "@/lib/health-record-attachment-form";
 import { isAttachableQuickRecordType } from "@/lib/health-record-type";
 import type { AttachmentWithUrl } from "@/types/database";
 import { gramsToKgInput } from "@/lib/format";
@@ -284,8 +285,8 @@ export function RecordFields({
   const [feedingOverrideAmounts, setFeedingOverrideAmounts] = useState<
     Record<string, Record<string, { value: string; unitPreset: FeedingUnitPreset; unitOther: string }>>
   >({});
-  /** Stable per-pet health_record ids for create idempotency (once per pet in this form). */
-  const [recordIdsByPet, setRecordIdsByPet] = useState<Record<string, string>>({});
+  /** Stable health_record ids: petId → careType → uuid (create idempotency). */
+  const [recordIdsByPetType, setRecordIdsByPetType] = useState<Record<string, Record<string, string>>>({});
   type EditFeedingRow = {
     key: string;
     subtype: FeedingCareSubtypeKey | "";
@@ -386,11 +387,14 @@ export function RecordFields({
   );
   const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
   const recordCount = countFeedingAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
-  const attachmentsEnabled =
-    !multiType
+  const createAttachmentsAllowed =
+    mode === "create"
+    && visibleSelectedIds.length === 1
+    && activeTypes.some((type) => isAttachableQuickRecordType(type));
+  const editAttachmentsAllowed =
+    mode === "edit"
     && activeTypes.length === 1
-    && isAttachableQuickRecordType(activeTypes[0] ?? "")
-    && (mode === "edit" || (visibleSelectedIds.length === 1 && !(activeTypes[0] === "hygiene" && hygieneSubtypes.length > 1)));
+    && isAttachableQuickRecordType(activeTypes[0] ?? "");
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
     : recordCount > 1
@@ -487,14 +491,19 @@ export function RecordFields({
 
   useEffect(() => {
     if (mode !== "create") return;
-    setRecordIdsByPet((prev) => {
-      const next: Record<string, string> = {};
-      for (const id of visibleSelectedIds) {
-        next[id] = prev[id] ?? crypto.randomUUID();
+    setRecordIdsByPetType((prev) => {
+      const next: Record<string, Record<string, string>> = {};
+      for (const petId of visibleSelectedIds) {
+        const prevPet = prev[petId] ?? {};
+        const nextPet: Record<string, string> = {};
+        for (const type of activeTypes) {
+          nextPet[type] = prevPet[type] ?? crypto.randomUUID();
+        }
+        next[petId] = nextPet;
       }
       return next;
     });
-  }, [mode, visibleSelectedIds]);
+  }, [mode, visibleSelectedIds, activeTypes]);
 
   useEffect(() => {
     if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
@@ -594,8 +603,8 @@ export function RecordFields({
   return (
     <>
       {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
-      {mode === "create" && Object.keys(recordIdsByPet).length > 0 ? (
-        <input type="hidden" name="record_ids_json" value={JSON.stringify(recordIdsByPet)} />
+      {mode === "create" && Object.keys(recordIdsByPetType).length > 0 ? (
+        <input type="hidden" name="record_ids_json" value={JSON.stringify(recordIdsByPetType)} />
       ) : null}
       {neonatalContext ? <input type="hidden" name="context" value="neonatal" /> : null}
       <input type="hidden" name="record_types" value={activeTypes.join(",")} />
@@ -1409,14 +1418,34 @@ export function RecordFields({
               </div>
             );
 
+            const showCreateAttachmentsForType =
+              createAttachmentsAllowed
+              && isAttachableQuickRecordType(type)
+              && !(type === "hygiene" && hygieneSubtypes.length > 1);
+
+            const attachmentsBlock = showCreateAttachmentsForType ? (
+              <HealthRecordAttachmentsFields
+                disabled={disabled}
+                careType={type}
+                heading={attachmentHeadingForCareType(type, meta?.label)}
+                pickerId={`health-record-create-attachments-${type}`}
+              />
+            ) : null;
+
             if (!showCard) {
-              return <div key={type}>{fields}</div>;
+              return (
+                <div key={type}>
+                  {fields}
+                  {attachmentsBlock}
+                </div>
+              );
             }
 
             return (
               <div key={type} className="rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">{meta?.label ?? type}</p>
                 <div className="mt-3">{fields}</div>
+                {attachmentsBlock}
               </div>
             );
           })
@@ -1563,13 +1592,15 @@ export function RecordFields({
         </div>
       )}
 
-      {attachmentsEnabled && (
+      {editAttachmentsAllowed && (
         <HealthRecordAttachmentsFields
           disabled={disabled}
-          existingAttachments={mode === "edit" ? existingAttachments : []}
-          showExisting={mode === "edit"}
-          editableExistingNames={mode === "edit"}
-          pickerId={mode === "edit" ? "health-record-edit-attachments" : "health-record-create-attachments"}
+          existingAttachments={existingAttachments}
+          showExisting
+          editableExistingNames
+          pickerId="health-record-edit-attachments"
+          heading={attachmentHeadingForCareType(activeTypes[0] ?? "other", optionByType[activeTypes[0] as QuickRecordType]?.label)}
+          careType={activeTypes[0]}
         />
       )}
 
