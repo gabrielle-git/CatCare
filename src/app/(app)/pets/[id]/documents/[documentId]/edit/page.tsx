@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
-import { DocumentExistingFilesPanel, DocumentFields } from "@/components/document-fields";
+import { DocumentFields } from "@/components/document-fields";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPetDocument } from "@/lib/documents";
@@ -17,6 +17,10 @@ async function loadPage(petId: string, documentId: string) {
   if (!pet) return { pet: null, document: null, configured: true, editable: false };
   const document = await getPetDocument(ctx.supabase, documentId, petId);
   return { pet, document, configured: true, editable: ctx.editable };
+}
+
+function removeFormId(attachmentId: string) {
+  return `remove-attachment-${attachmentId}`;
 }
 
 export default async function EditPetDocumentPage({
@@ -53,21 +57,27 @@ export default async function EditPetDocumentPage({
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
       <div className="cat-card mt-6 space-y-6 p-5 md:p-7">
-        <DocumentExistingFilesPanel
-          attachments={document.attachments}
-          removeAttachmentAction={(attachmentId) => deleteDocumentAttachment.bind(null, pet.id, document.id, attachmentId, "edit")}
-        />
-
         <form action={save}>
           <DocumentFields
             defaultTitle={document.title}
             defaultCategory={document.category}
-            existingStoredCount={document.attachments.length}
+            existingAttachments={document.attachments}
             requireFiles={false}
             submitLabel="Salvar alterações"
+            removeFormIdFor={removeFormId}
           />
         </form>
       </div>
+
+      {document.attachments.map((attachment) => (
+        <form
+          key={attachment.id}
+          id={removeFormId(attachment.id)}
+          action={deleteDocumentAttachment.bind(null, pet.id, document.id, attachment.id, "edit")}
+          className="hidden"
+          aria-hidden="true"
+        />
+      ))}
 
       <form action={removeDoc} className="mt-6">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Zona de perigo</p>

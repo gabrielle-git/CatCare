@@ -334,6 +334,8 @@ export type Attachment = {
   household_id: string;
   storage_path: string;
   original_filename: string;
+  /** Friendly UI label. Null → fall back to basename(original_filename). */
+  display_name: string | null;
   mime_type: string;
   byte_size: number;
   created_by: string | null;

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   attachmentPayloadForRpc,
   isUuid,
+  normalizeDisplayNameInput,
   prepareAttachmentUploads,
   removeStoragePaths,
   resolveDocumentCreateOwnership,
@@ -40,6 +41,26 @@ function readAttachmentIds(formData: FormData, fileCount: number) {
   if (fileCount === 0) return [] as string[];
   if (ids.length !== fileCount || ids.some((id) => !isUuid(id))) {
     throw new Error("Seleção de arquivos inconsistente. Recarregue a página e tente de novo.");
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("IDs de anexos duplicados na mesma intenção.");
+  }
+  return ids;
+}
+
+function readDisplayNames(formData: FormData, field: "display_names" | "existing_display_names", count: number) {
+  if (count === 0) return [] as Array<string | null>;
+  const raw = formData.getAll(field).map((entry) => String(entry ?? ""));
+  if (raw.length !== count) {
+    throw new Error("Nomes de arquivo inconsistentes. Recarregue a página e tente de novo.");
+  }
+  return raw.map((entry) => normalizeDisplayNameInput(entry));
+}
+
+function readExistingAttachmentIds(formData: FormData) {
+  const ids = formData.getAll("existing_attachment_ids").map((entry) => String(entry).trim()).filter(Boolean);
+  if (ids.some((id) => !isUuid(id))) {
+    throw new Error("Anexos existentes inválidos. Recarregue a página.");
   }
   if (new Set(ids).size !== ids.length) {
     throw new Error("IDs de anexos duplicados na mesma intenção.");
@@ -119,15 +140,17 @@ export async function createPetDocument(petId: string, formData: FormData) {
 
   const files = readFiles(formData);
   let attachmentIds: string[] = [];
+  let displayNames: Array<string | null> = [];
   try {
     attachmentIds = readAttachmentIds(formData, files.length);
+    displayNames = readDisplayNames(formData, "display_names", files.length);
   } catch (error) {
     fail(error instanceof Error ? error.message : "Arquivos inválidos.");
   }
 
   const validated = await validateAttachmentFiles(files, { required: true });
   const validatedFiles = validated.ok ? validated.values : fail(validated.message);
-  const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, attachmentIds);
+  const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, attachmentIds, displayNames);
   let uploaded: string[] = [];
   try {
     uploaded = await uploadPreparedAttachments(supabase, prepared);
@@ -196,11 +219,30 @@ export async function updatePetDocument(petId: string, documentId: string, formD
   });
   if (metaError) fail(metaError.message);
 
+  let existingIds: string[] = [];
+  let existingDisplayNames: Array<string | null> = [];
+  try {
+    existingIds = readExistingAttachmentIds(formData);
+    existingDisplayNames = readDisplayNames(formData, "existing_display_names", existingIds.length);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Arquivos inválidos.");
+  }
+
+  for (let index = 0; index < existingIds.length; index += 1) {
+    const { error: renameError } = await supabase.rpc("update_attachment_display_name", {
+      p_attachment_id: existingIds[index],
+      p_display_name: existingDisplayNames[index],
+    });
+    if (renameError) fail(renameError.message);
+  }
+
   const newFiles = readFiles(formData);
   if (newFiles.length > 0) {
     let attachmentIds: string[] = [];
+    let displayNames: Array<string | null> = [];
     try {
       attachmentIds = readAttachmentIds(formData, newFiles.length);
+      displayNames = readDisplayNames(formData, "display_names", newFiles.length);
     } catch (error) {
       fail(error instanceof Error ? error.message : "Arquivos inválidos.");
     }
@@ -223,13 +265,14 @@ export async function updatePetDocument(petId: string, documentId: string, formD
 
       const pendingFiles = pendingIndexes.map((item) => newFiles[item.index]);
       const pendingIds = pendingIndexes.map((item) => item.id);
+      const pendingDisplayNames = pendingIndexes.map((item) => displayNames[item.index]);
       const validated = await validateAttachmentFiles(pendingFiles, {
         required: false,
         existingCount: count ?? 0,
       });
       const validatedFiles = validated.ok ? validated.values : fail(validated.message);
 
-      const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, pendingIds);
+      const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, pendingIds, pendingDisplayNames);
       let uploaded: string[] = [];
       try {
         uploaded = await uploadPreparedAttachments(supabase, prepared);

@@ -11,6 +11,7 @@ import {
   canRemoveStoredAttachment,
   formatAttachmentBytes,
   mergeLocalFileSelections,
+  resolveAttachmentDisplayName,
   type LocalSelectedFile,
 } from "@/lib/attachments";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -115,23 +116,45 @@ function AccumulatingFilePicker({
       {selected.length > 0 && (
         <div className="mt-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">
-            {existingStoredCount > 0 ? "Novos arquivos" : "Arquivos selecionados"} — {selected.length}
+            {existingStoredCount > 0 ? "Novos arquivos" : "Arquivos"} — {selected.length}
+            {existingStoredCount === 0 ? ` de ${ATTACHMENT_MAX_PER_DOCUMENT}` : ""}
           </p>
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-2 space-y-3">
             {selected.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-2.5 text-xs">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{item.file.name}</p>
-                  <p className="mt-0.5 text-[var(--muted)]">{attachmentKindLabel(item.file.type)} · {formatAttachmentBytes(item.file.size)}</p>
+              <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[var(--muted)]">{item.file.name}</p>
+                    <p className="mt-0.5 text-[var(--muted)]">
+                      {attachmentKindLabel(item.file.type)} · {formatAttachmentBytes(item.file.size)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
+                    className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
+                  >
+                    <Trash2 size={12} /> Remover
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
-                  className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
-                >
-                  <Trash2 size={12} /> Remover
-                </button>
+                <label className="mt-3 block text-[11px] font-bold text-[var(--graphite)]">
+                  Nome no CatCare
+                  <input
+                    disabled={disabled}
+                    name="display_names"
+                    value={item.displayName}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setSelected((current) =>
+                        current.map((entry) => (entry.id === item.id ? { ...entry, displayName: next } : entry)),
+                      );
+                    }}
+                    maxLength={160}
+                    className="field mt-1.5 text-sm font-semibold"
+                    placeholder="Ex.: CNH — Frente"
+                  />
+                </label>
                 <input type="hidden" name="attachment_ids" value={item.id} />
               </li>
             ))}
@@ -182,15 +205,18 @@ function AccumulatingFilePicker({
   );
 }
 
-/** Existing attachments with view/remove — must stay OUTSIDE the save form (no nested forms). */
+/** Existing attachments — display_name inputs live in the parent save form; remove uses external form ids. */
 export function DocumentExistingFilesPanel({
   attachments,
   disabled = false,
-  removeAttachmentAction,
+  editableNames = false,
+  removeFormIdFor,
 }: {
   attachments: AttachmentWithUrl[];
   disabled?: boolean;
-  removeAttachmentAction?: (attachmentId: string) => (formData: FormData) => void | Promise<void>;
+  editableNames?: boolean;
+  /** When set, Remover submits that external form id (avoids nested forms). */
+  removeFormIdFor?: (attachmentId: string) => string;
 }) {
   if (attachments.length === 0) return null;
   const slots = attachmentSlotsSummary(attachments.length, 0);
@@ -200,47 +226,77 @@ export function DocumentExistingFilesPanel({
     <div>
       <p className="text-sm font-bold">Arquivos deste documento — {slots.label}</p>
       <p className="mt-1 text-xs text-[var(--muted)]">Cada item é um arquivo do mesmo documento, não um documento separado.</p>
-      <ul className="mt-3 space-y-2">
+      <ul className="mt-3 space-y-3">
         {attachments.map((item) => {
           const isPdf = item.mime_type === "application/pdf";
-          const remove = !disabled ? removeAttachmentAction?.(item.id) : undefined;
+          const label = resolveAttachmentDisplayName(item.display_name, item.original_filename);
+          const removeFormId = removeFormIdFor?.(item.id);
           return (
             <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              {editableNames ? (
+                <>
+                  <input type="hidden" name="existing_attachment_ids" value={item.id} />
+                  <label className="block text-[11px] font-bold text-[var(--graphite)]">
+                    Nome no CatCare
+                    <input
+                      disabled={disabled}
+                      name="existing_display_names"
+                      defaultValue={label}
+                      maxLength={160}
+                      className="field mt-1.5 text-sm font-semibold"
+                      placeholder="Ex.: CNH — Frente"
+                    />
+                  </label>
+                  <p className="mt-2 text-[11px] text-[var(--muted)]">
+                    Arquivo original: <span className="font-semibold text-[var(--graphite)]">{item.original_filename}</span>
+                  </p>
+                  <p className="mt-0.5 text-[var(--muted)]">
+                    {attachmentKindLabel(item.mime_type)} · {formatAttachmentBytes(item.byte_size)}
+                  </p>
+                </>
+              ) : (
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{item.original_filename}</p>
+                  <p className="truncate font-semibold">{label}</p>
+                  <p className="mt-0.5 text-[var(--muted)]">
+                    Arquivo original: {item.original_filename}
+                  </p>
                   <p className="mt-0.5 text-[var(--muted)]">
                     {attachmentKindLabel(item.mime_type)} · {formatAttachmentBytes(item.byte_size)}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {item.url && (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[11px] font-bold text-[var(--lavender-strong)]"
-                    >
-                      {isPdf ? "Abrir" : "Visualizar"}
-                    </a>
-                  )}
-                  {remove && canRemove ? (
-                    <form action={remove}>
-                      <ConfirmButton
-                        title="Remover arquivo?"
-                        message="Remover este arquivo do documento? O documento continua existindo."
-                        confirmLabel="Remover arquivo"
-                        className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]"
-                      >
-                        <Trash2 size={12} /> Remover
-                      </ConfirmButton>
-                    </form>
-                  ) : remove && !canRemove ? (
-                    <span className="rounded-xl px-3 py-2 text-[11px] font-semibold text-[var(--muted)]">Último arquivo</span>
-                  ) : null}
-                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="focus-ring rounded-xl bg-[var(--lavender-soft)] px-3 py-2 text-[11px] font-bold text-[var(--lavender-strong)]"
+                  >
+                    {isPdf ? "Abrir" : "Visualizar"}
+                  </a>
+                )}
+                <a
+                  href={`/api/attachments/${item.id}/download`}
+                  className="focus-ring rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-[11px] font-bold"
+                >
+                  Baixar
+                </a>
+                {removeFormId && canRemove ? (
+                  <ConfirmButton
+                    form={removeFormId}
+                    title="Remover arquivo?"
+                    message="Remover este arquivo do documento? O documento continua existindo."
+                    confirmLabel="Remover arquivo"
+                    className="focus-ring inline-flex items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-bold text-[var(--danger)]"
+                  >
+                    <Trash2 size={12} /> Remover
+                  </ConfirmButton>
+                ) : removeFormId && !canRemove ? (
+                  <span className="rounded-xl px-3 py-2 text-[11px] font-semibold text-[var(--muted)]">Último arquivo</span>
+                ) : null}
               </div>
-              {!canRemove && remove && (
+              {!canRemove && removeFormId && (
                 <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">{LAST_ATTACHMENT_REMOVAL_MESSAGE}</p>
               )}
             </li>
@@ -256,20 +312,26 @@ export function DocumentFields({
   defaultTitle = "",
   defaultCategory = "",
   existingStoredCount = 0,
+  existingAttachments,
   requireFiles = true,
   documentId,
   submitLabel,
+  removeFormIdFor,
 }: {
   disabled?: boolean;
   defaultTitle?: string;
   defaultCategory?: string;
-  /** Count of already-saved attachments (for slot math). Render list via DocumentExistingFilesPanel outside this form. */
+  /** Count of already-saved attachments (for slot math). */
   existingStoredCount?: number;
+  /** When provided, renders editable display names inside this form. */
+  existingAttachments?: AttachmentWithUrl[];
   requireFiles?: boolean;
   documentId?: string;
   submitLabel: string;
+  removeFormIdFor?: (attachmentId: string) => string;
 }) {
   const pickerId = useId();
+  const storedCount = existingAttachments?.length ?? existingStoredCount;
 
   return (
     <div className="space-y-5">
@@ -291,12 +353,21 @@ export function DocumentFields({
 
       <CategoryFields disabled={disabled} defaultCategory={defaultCategory} />
 
+      {existingAttachments && existingAttachments.length > 0 ? (
+        <DocumentExistingFilesPanel
+          attachments={existingAttachments}
+          disabled={disabled}
+          editableNames
+          removeFormIdFor={removeFormIdFor}
+        />
+      ) : null}
+
       <AccumulatingFilePicker
         disabled={disabled}
         requireFiles={requireFiles}
-        existingStoredCount={existingStoredCount}
+        existingStoredCount={storedCount}
         pickerId={pickerId}
-        heading={existingStoredCount > 0 ? "Adicionar mais arquivos" : "Arquivos"}
+        heading={storedCount > 0 ? "Adicionar mais arquivos" : "Arquivos"}
       />
 
       <SubmitButton
@@ -320,23 +391,25 @@ export function DocumentAttachmentActions({
   deleteAction?: (formData: FormData) => void | Promise<void>;
 }) {
   const isPdf = attachment.mime_type === "application/pdf";
+  const label = resolveAttachmentDisplayName(attachment.display_name, attachment.original_filename);
   return (
     <div className="cat-card overflow-hidden">
       <div className="bg-[var(--cream)] p-4">
         {isPdf ? (
           <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-[18px] bg-white">
             <FileText size={28} className="text-[var(--lavender-strong)]" />
-            <p className="px-4 text-center text-xs font-bold">{attachment.original_filename}</p>
+            <p className="px-4 text-center text-xs font-bold">{label}</p>
           </div>
         ) : attachment.url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={attachment.url} alt={attachment.original_filename} className="aspect-[4/3] w-full rounded-[18px] object-cover" />
+          <img src={attachment.url} alt={label} className="aspect-[4/3] w-full rounded-[18px] object-cover" />
         ) : (
           <div className="flex aspect-[4/3] items-center justify-center rounded-[18px] bg-white text-xs text-[var(--muted)]">Prévia indisponível</div>
         )}
       </div>
       <div className="space-y-2 p-4">
-        <p className="truncate text-sm font-bold">{attachment.original_filename}</p>
+        <p className="truncate text-sm font-bold">{label}</p>
+        <p className="text-xs text-[var(--muted)]">Arquivo original: {attachment.original_filename}</p>
         <p className="text-xs text-[var(--muted)]">
           {attachmentKindLabel(attachment.mime_type)} · {formatAttachmentBytes(attachment.byte_size)}
         </p>

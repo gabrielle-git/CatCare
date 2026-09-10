@@ -7,7 +7,9 @@ import {
   ATTACHMENT_MAX_PER_DOCUMENT,
   LAST_ATTACHMENT_REMOVAL_MESSAGE,
   assertAttachmentStoragePath,
+  attachmentPayloadForRpc,
   attachmentSlotsSummary,
+  basenameWithoutExtension,
   buildAttachmentStoragePath,
   canRemoveStoredAttachment,
   contentDispositionAttachment,
@@ -18,7 +20,9 @@ import {
   isStorageObjectAlreadyExists,
   mergeLocalFileSelections,
   mimeMatchesMagicBytes,
+  normalizeDisplayNameInput,
   prepareAttachmentUploads,
+  resolveAttachmentDisplayName,
   resolveDocumentCreateOwnership,
   sanitizeOriginalFilename,
   validateAttachmentFile,
@@ -281,11 +285,90 @@ describe("create idempotency + multi-file selection", () => {
     assert.equal(isStorageObjectAlreadyExists({ message: "boom" }), false);
   });
 
-  it("delete cascade contract remains in migration 0033 (no 0034)", () => {
+  it("delete cascade contract remains in migration 0033 (0034 is display_name only)", () => {
     const sql = readFileSync(join(process.cwd(), "supabase/migrations/0033_attachments_pet_documents.sql"), "utf8");
     assert.match(sql, /delete_pet_document/);
     assert.match(sql, /on delete cascade/);
     assert.equal(existsSync(join(process.cwd(), "supabase/migrations/0034_attachments_pet_documents.sql")), false);
+    assert.equal(existsSync(join(process.cwd(), "supabase/migrations/0034_attachment_display_name.sql")), true);
+  });
+});
+
+describe("attachment display_name", () => {
+  it("accepts display_name in prepare + RPC payload while keeping original_filename intact", async () => {
+    const files = [
+      fileFrom("CNH Digital - Evandro (1).pdf", "application/pdf", pdfBytes()),
+      fileFrom("IMG_8372.jpg", "image/jpeg", jpegBytes()),
+    ];
+    const validated = await validateAttachmentFiles(files);
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+    const prepared = prepareAttachmentUploads(
+      HOUSEHOLD,
+      validated.values,
+      0,
+      [ATTACHMENT, ATTACHMENT_B],
+      ["CNH — Frente", "CNH — Verso"],
+    );
+    assert.equal(prepared[0].original_filename, "CNH Digital - Evandro (1).pdf");
+    assert.equal(prepared[1].original_filename, "IMG_8372.jpg");
+    assert.equal(prepared[0].display_name, "CNH — Frente");
+    assert.equal(prepared[1].display_name, "CNH — Verso");
+    const payload = attachmentPayloadForRpc(prepared);
+    assert.equal(payload[0].display_name, "CNH — Frente");
+    assert.equal(payload[0].original_filename, "CNH Digital - Evandro (1).pdf");
+    assert.equal(payload[1].display_name, "CNH — Verso");
+  });
+
+  it("fallback UI label uses basename without extension when display_name is null", () => {
+    assert.equal(basenameWithoutExtension("CNH Digital - Evandro (1).pdf"), "CNH Digital - Evandro (1)");
+    assert.equal(resolveAttachmentDisplayName(null, "CNH Digital - Evandro (1).pdf"), "CNH Digital - Evandro (1)");
+    assert.equal(resolveAttachmentDisplayName("  ", "foto.jpg"), "foto");
+    assert.equal(resolveAttachmentDisplayName("CNH — Frente", "x.pdf"), "CNH — Frente");
+    assert.ok(!resolveAttachmentDisplayName(null, "a.pdf").endsWith(".pdf"));
+  });
+
+  it("normalizeDisplayNameInput trims and maps empty to null", () => {
+    assert.equal(normalizeDisplayNameInput("  Frente  "), "Frente");
+    assert.equal(normalizeDisplayNameInput("   "), null);
+    assert.throws(() => normalizeDisplayNameInput("x".repeat(161)), /160/);
+  });
+
+  it("multi-file merge prefills distinct editable displayName per file", () => {
+    const a = fileFrom("CNH Digital - Evandro (1).pdf", "application/pdf", pdfBytes(), undefined, 10);
+    const b = fileFrom("IMG_8372.jpg", "image/jpeg", jpegBytes(), undefined, 20);
+    const merged = mergeLocalFileSelections([], [a, b], {
+      createId: (() => {
+        let i = 0;
+        return () => (i++ === 0 ? ATTACHMENT : ATTACHMENT_B);
+      })(),
+    });
+    assert.equal(merged.items[0].displayName, "CNH Digital - Evandro (1)");
+    assert.equal(merged.items[1].displayName, "IMG_8372");
+    merged.items[0].displayName = "CNH — Frente";
+    merged.items[1].displayName = "CNH — Verso";
+    assert.notEqual(merged.items[0].displayName, merged.items[1].displayName);
+    assert.equal(merged.items[0].file.name, "CNH Digital - Evandro (1).pdf");
+  });
+
+  it("download Content-Disposition continues to use original_filename, not display_name", () => {
+    const header = contentDispositionAttachment("CNH Digital - Evandro (1).pdf");
+    assert.match(header, /CNH Digital - Evandro \(1\)\.pdf/);
+    assert.doesNotMatch(header, /CNH — Frente/);
+  });
+
+  it("export includes attachments table so display_name ships with row metadata", async () => {
+    const { EXPORT_HOUSEHOLD_TABLES } = await import("@/lib/export-tables");
+    assert.ok(EXPORT_HOUSEHOLD_TABLES.includes("attachments"));
+    const route = readFileSync(join(process.cwd(), "src/app/api/export/route.ts"), "utf8");
+    assert.match(route, /select\("\*"\)/);
+  });
+
+  it("editing display_name is a metadata RPC concern (no reupload path change)", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/0034_attachment_display_name.sql"), "utf8");
+    assert.match(sql, /update_attachment_display_name/);
+    assert.match(sql, /set display_name = display_clean/);
+    assert.doesNotMatch(sql, /storage_path\s*=/);
   });
 });
 
@@ -317,6 +400,7 @@ describe("document vs attachment UX rules", () => {
     assert.equal("title" in prepared[0], false);
     assert.equal("category" in prepared[0], false);
     assert.ok("original_filename" in prepared[0]);
+    assert.ok("display_name" in prepared[0]);
   });
 
   it("removing one attachment conceptually leaves document + siblings (count rules)", () => {

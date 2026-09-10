@@ -135,6 +135,7 @@ export type LocalSelectedFile<T extends { name: string; size: number; lastModifi
   id: string;
   key: string;
   file: T;
+  displayName: string;
 };
 
 export function mergeLocalFileSelections<T extends { name: string; size: number; lastModified: number }>(
@@ -165,7 +166,13 @@ export function mergeLocalFileSelections<T extends { name: string; size: number;
       break;
     }
     keys.add(key);
-    items.push({ id: createId(), key, file });
+    const original = "name" in file ? String((file as { name: string }).name) : "arquivo";
+    items.push({
+      id: createId(),
+      key,
+      file,
+      displayName: basenameWithoutExtension(original),
+    });
   }
 
   return { items, truncated, skippedDuplicates };
@@ -222,6 +229,30 @@ export function attachmentKindLabel(mimeType: string) {
   if (mimeType === "application/pdf") return "PDF";
   if (mimeType.startsWith("image/")) return "Imagem";
   return mimeType || "Arquivo";
+}
+
+/** Basename without extension for UI fallback (does not mutate stored original_filename). */
+export function basenameWithoutExtension(filename: string): string {
+  const base = sanitizeOriginalFilename(filename);
+  const stripped = base.replace(/\.[A-Za-z0-9]{1,12}$/, "");
+  return stripped || base;
+}
+
+export function resolveAttachmentDisplayName(
+  displayName: string | null | undefined,
+  originalFilename: string,
+): string {
+  const trimmed = displayName?.trim();
+  if (trimmed) return trimmed;
+  return basenameWithoutExtension(originalFilename);
+}
+
+/** Empty → null (UI falls back). Non-empty trimmed, max 160. */
+export function normalizeDisplayNameInput(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 160) throw new Error("O nome no CatCare deve ter até 160 caracteres.");
+  return trimmed;
 }
 
 export function isStorageObjectAlreadyExists(error: { message?: string; statusCode?: string | number } | null | undefined): boolean {
@@ -289,6 +320,7 @@ export type PreparedAttachmentUpload = {
   id: string;
   storage_path: string;
   original_filename: string;
+  display_name: string | null;
   mime_type: AttachmentMimeType;
   byte_size: number;
   position: number;
@@ -300,6 +332,7 @@ export function prepareAttachmentUploads(
   files: ValidatedAttachmentFile[],
   startingPosition = 0,
   attachmentIds?: string[],
+  displayNames?: Array<string | null>,
 ): PreparedAttachmentUpload[] {
   if (attachmentIds && attachmentIds.length !== files.length) {
     throw new Error("IDs de anexos incompatíveis com os arquivos.");
@@ -307,12 +340,19 @@ export function prepareAttachmentUploads(
   if (attachmentIds?.some((id) => !isUuid(id))) {
     throw new Error("ID de anexo inválido.");
   }
+  if (displayNames && displayNames.length !== files.length) {
+    throw new Error("Nomes de exibição incompatíveis com os arquivos.");
+  }
   return files.map((item, index) => {
     const id = attachmentIds?.[index] ?? crypto.randomUUID();
+    const display_name = displayNames
+      ? normalizeDisplayNameInput(String(displayNames[index] ?? ""))
+      : normalizeDisplayNameInput(basenameWithoutExtension(item.originalFilename));
     return {
       id,
       storage_path: buildAttachmentStoragePath(householdId, id, item.mimeType),
       original_filename: item.originalFilename,
+      display_name,
       mime_type: item.mimeType,
       byte_size: item.byteSize,
       position: startingPosition + index,
@@ -370,10 +410,11 @@ export function contentDispositionAttachment(filename: string): string {
 }
 
 export function attachmentPayloadForRpc(prepared: PreparedAttachmentUpload[]) {
-  return prepared.map(({ id, storage_path, original_filename, mime_type, byte_size, position }) => ({
+  return prepared.map(({ id, storage_path, original_filename, display_name, mime_type, byte_size, position }) => ({
     id,
     storage_path,
     original_filename,
+    display_name,
     mime_type,
     byte_size,
     position,
