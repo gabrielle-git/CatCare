@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Bug, Cpu, FileStack, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, Bug, Cpu, FileStack, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
 import { PetMicrochipSummary } from "@/components/pet-microchip-summary";
 import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
 import { PetAvatar } from "@/components/pet-avatar";
@@ -112,6 +112,20 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
         )}
       </section>
 
+      <Link
+        href={`/pets/${pet.id}/documents`}
+        className="focus-ring mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/80 px-4 py-2.5 text-sm"
+      >
+        <span className="inline-flex min-w-0 items-center gap-2 font-bold">
+          <FileStack size={16} className="shrink-0 text-[var(--lavender-strong)]" />
+          <span className="truncate">Documentos · {documentCount}</span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-[var(--muted)]">
+          Carteiras e arquivos
+          <ArrowRight size={14} />
+        </span>
+      </Link>
+
       {neonatal && editable && (
         <Link href={preselectRecordHref({ pet: pet.id, returnTo: petReturnTo })} className="focus-ring mt-4 flex items-center justify-between rounded-[22px] bg-[var(--rose)] p-4 font-bold text-white">
           <span className="flex items-center gap-2"><HeartPulse size={19} /> Registrar cuidado neonatal</span><Plus size={18} />
@@ -171,17 +185,6 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
           />
 
           <PetMicrochipSummary pet={pet} editable={editable} />
-
-          <Link href={`/pets/${pet.id}/documents`} className="focus-ring cat-card flex items-center justify-between gap-3 p-5">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Documentos</p>
-              <h2 className="mt-1 font-bold">{documentCount === 0 ? "Nenhum documento" : documentCount === 1 ? "1 documento" : `${documentCount} documentos`}</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">Carteiras, identificação e arquivos do pet.</p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
-              <FileStack size={14} /> Ver documentos
-            </span>
-          </Link>
         </aside>
       </div>
 

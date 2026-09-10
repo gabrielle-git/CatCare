@@ -431,3 +431,29 @@ describe("document vs attachment UX rules", () => {
     assert.equal(afterRemove[0].file.name, "b.pdf");
   });
 });
+
+describe("pet profile documents discovery", () => {
+  const petPage = readFileSync(join(process.cwd(), "src/app/(app)/pets/[id]/page.tsx"), "utf8");
+
+  it("exposes a compact documents shortcut near the header with correct href", () => {
+    assert.match(petPage, /href=\{`\/pets\/\$\{pet\.id\}\/documents`\}/);
+    assert.match(petPage, /Documentos · \{documentCount\}/);
+    assert.match(petPage, /Carteiras e arquivos/);
+    // Shortcut sits before long sections (weight chart / timeline), not inside the aside.
+    const shortcutIdx = petPage.indexOf("Documentos · {documentCount}");
+    const weightIdx = petPage.indexOf("<WeightChart");
+    const asideIdx = petPage.indexOf("<aside");
+    assert.ok(shortcutIdx > 0 && weightIdx > shortcutIdx);
+    assert.ok(asideIdx > shortcutIdx);
+  });
+
+  it("reuses countPetDocuments already loaded for the profile (no heavy list fetch)", () => {
+    assert.match(petPage, /countPetDocuments/);
+    assert.doesNotMatch(petPage, /listPetDocuments/);
+  });
+
+  it("does not keep a second documents card in the aside", () => {
+    assert.doesNotMatch(petPage, /Ver documentos/);
+    assert.doesNotMatch(petPage, /Nenhum documento/);
+  });
+});
