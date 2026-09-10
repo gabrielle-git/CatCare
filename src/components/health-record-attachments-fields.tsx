@@ -12,6 +12,7 @@ import {
   resolveAttachmentDisplayName,
   type LocalSelectedFile,
 } from "@/lib/attachments";
+import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
 import type { AttachmentWithUrl } from "@/types/database";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
@@ -143,12 +144,10 @@ export function HealthRecordExistingFilesPanel({
   attachments,
   disabled = false,
   editableNames = false,
-  removeFormIdFor,
 }: {
   attachments: AttachmentWithUrl[];
   disabled?: boolean;
   editableNames?: boolean;
-  removeFormIdFor?: (attachmentId: string) => string;
 }) {
   if (attachments.length === 0) return null;
   const slots = attachmentSlotsSummary(attachments.length, 0);
@@ -162,7 +161,7 @@ export function HealthRecordExistingFilesPanel({
         {attachments.map((item) => {
           const isPdf = item.mime_type === "application/pdf";
           const label = resolveAttachmentDisplayName(item.display_name, item.original_filename);
-          const removeFormId = removeFormIdFor?.(item.id);
+          const removeFormId = healthRecordAttachmentRemoveFormId(item.id);
           return (
             <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
               {editableNames ? (
@@ -212,7 +211,7 @@ export function HealthRecordExistingFilesPanel({
                 >
                   Baixar
                 </a>
-                {canRemove && removeFormId ? (
+                {canRemove ? (
                   <button
                     type="submit"
                     form={removeFormId}
@@ -237,14 +236,12 @@ export function HealthRecordAttachmentsFields({
   pickerId = "health-record-attachments-picker",
   showExisting = false,
   editableExistingNames = false,
-  removeFormIdFor,
 }: {
   disabled?: boolean;
   existingAttachments?: AttachmentWithUrl[];
   pickerId?: string;
   showExisting?: boolean;
   editableExistingNames?: boolean;
-  removeFormIdFor?: (attachmentId: string) => string;
 }) {
   return (
     <section className="mt-5 space-y-5" aria-label="Anexos do registro">
@@ -253,7 +250,6 @@ export function HealthRecordAttachmentsFields({
           attachments={existingAttachments}
           disabled={disabled}
           editableNames={editableExistingNames}
-          removeFormIdFor={removeFormIdFor}
         />
       ) : null}
       <AccumulatingHealthFilePicker

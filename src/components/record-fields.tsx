@@ -199,7 +199,6 @@ export function RecordFields({
   defaultValues,
   submitLabel = "Salvar registro",
   existingAttachments = [],
-  removeAttachmentFormIdFor,
 }: {
   pets: PetOption[];
   initialPetId?: string;
@@ -218,7 +217,6 @@ export function RecordFields({
   defaultValues?: RecordFieldDefaults;
   submitLabel?: string;
   existingAttachments?: AttachmentWithUrl[];
-  removeAttachmentFormIdFor?: (attachmentId: string) => string;
 }) {
   const neonatalPets = useMemo(() => neonatalPetPool(pets), [pets]);
   const petNames = useMemo(() => new Map(pets.map((pet) => [pet.id, pet.name])), [pets]);
@@ -1571,7 +1569,6 @@ export function RecordFields({
           existingAttachments={mode === "edit" ? existingAttachments : []}
           showExisting={mode === "edit"}
           editableExistingNames={mode === "edit"}
-          removeFormIdFor={removeAttachmentFormIdFor}
           pickerId={mode === "edit" ? "health-record-edit-attachments" : "health-record-create-attachments"}
         />
       )}

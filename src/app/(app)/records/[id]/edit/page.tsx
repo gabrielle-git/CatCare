@@ -4,6 +4,7 @@ import { EditRecordForm } from "@/components/edit-record-form";
 import { RecordFields, type RecordFieldDefaults } from "@/components/record-fields";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isNeonatalPet } from "@/lib/format";
+import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
 import { listHealthRecordAttachments } from "@/lib/health-record-attachments";
 import { listPets } from "@/lib/pets";
 import type { RecordSource } from "@/lib/record-form";
@@ -60,7 +61,6 @@ export default async function EditRecordPage({ params, searchParams }: { params:
           allowTypeChange={source === "health"}
           returnTo={returnTo}
           existingAttachments={existingAttachments}
-          removeAttachmentFormIdFor={(attachmentId) => `remove-health-attachment-${attachmentId}`}
           defaultValues={{
             ...record,
             record_type: record.kind as RecordFieldDefaults["record_type"],
@@ -76,7 +76,7 @@ export default async function EditRecordPage({ params, searchParams }: { params:
       {source === "health" && existingAttachments.map((item) => (
         <form
           key={item.id}
-          id={`remove-health-attachment-${item.id}`}
+          id={healthRecordAttachmentRemoveFormId(item.id)}
           action={deleteHealthRecordAttachment.bind(null, id, record.pet_id, item.id)}
           className="hidden"
         >

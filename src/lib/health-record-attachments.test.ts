@@ -9,6 +9,7 @@ import {
   resolveDocumentCreateOwnership,
 } from "@/lib/attachments";
 import { EXPORT_HOUSEHOLD_TABLES } from "@/lib/export-tables";
+import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
 import {
   mapFormTypeToHealthRecordType,
   resolveHealthRecordCreateOwnership,
@@ -19,6 +20,7 @@ const HOUSEHOLD_B = "22222222-2222-4222-8222-222222222222";
 const PET_A = "33333333-3333-4333-8333-333333333333";
 const PET_B = "44444444-4444-4444-8444-444444444444";
 const RECORD_ID = "55555555-5555-4555-8555-555555555555";
+const ATTACHMENT_ID = "66666666-6666-4666-8666-666666666666";
 
 describe("health_record type mapper", () => {
   it("maps exam create/edit to exam (never silent other)", () => {
@@ -72,6 +74,63 @@ describe("health_record create idempotency ownership", () => {
       resolveHealthRecordCreateOwnership(RECORD_ID, HOUSEHOLD_A, PET_A, null),
       { ok: true, status: "create" },
     );
+  });
+});
+
+describe("health_record edit RSC regression (#441)", () => {
+  const editPage = readFileSync(join(process.cwd(), "src/app/(app)/records/[id]/edit/page.tsx"), "utf8");
+  const recordFields = readFileSync(join(process.cwd(), "src/components/record-fields.tsx"), "utf8");
+  const attachmentFields = readFileSync(join(process.cwd(), "src/components/health-record-attachments-fields.tsx"), "utf8");
+
+  it("does not pass a function prop from the Server edit page into RecordFields", () => {
+    // Root cause of React #441 on consultation/vaccine edit: inline arrow was not RSC-serializable.
+    assert.doesNotMatch(editPage, /removeAttachmentFormIdFor\s*=\s*\{/);
+    assert.doesNotMatch(editPage, /removeAttachmentFormIdFor=\{\(attachmentId\)/);
+    assert.doesNotMatch(recordFields, /removeAttachmentFormIdFor/);
+  });
+
+  it("keeps remove form ids via shared import (server + client), not via props", () => {
+    assert.match(editPage, /healthRecordAttachmentRemoveFormId/);
+    assert.match(attachmentFields, /healthRecordAttachmentRemoveFormId/);
+    assert.equal(
+      healthRecordAttachmentRemoveFormId(ATTACHMENT_ID),
+      `remove-health-attachment-${ATTACHMENT_ID}`,
+    );
+  });
+
+  it("edit path accepts zero attachments as [] (consultation/vaccine/exam)", () => {
+    assert.equal(canRemoveHealthRecordAttachment(0), true);
+    const empty: unknown[] = [];
+    assert.equal(empty.length, 0);
+    assert.match(editPage, /existingAttachments/);
+    assert.match(editPage, /listHealthRecordAttachments/);
+  });
+
+  it("serializable attachment-shaped payloads survive JSON (legacy/null-safe)", () => {
+    const withFiles = [
+      {
+        id: ATTACHMENT_ID,
+        household_id: HOUSEHOLD_A,
+        storage_path: `${HOUSEHOLD_A}/attachments/${ATTACHMENT_ID}/file.pdf`,
+        original_filename: "IMG_20260910_192833.pdf",
+        display_name: "Resultado do hemograma",
+        mime_type: "application/pdf",
+        byte_size: 1024,
+        created_by: null,
+        created_at: "2026-09-10T00:00:00.000Z",
+        url: null,
+        position: 0,
+      },
+    ];
+    const withoutFiles: typeof withFiles = [];
+    assert.equal(JSON.parse(JSON.stringify(withoutFiles)).length, 0);
+    assert.equal(JSON.parse(JSON.stringify(withFiles))[0].display_name, "Resultado do hemograma");
+    assert.equal(JSON.parse(JSON.stringify(withFiles))[0].original_filename, "IMG_20260910_192833.pdf");
+  });
+
+  it("exam remains a first-class edit type in RecordFields options", () => {
+    assert.match(recordFields, /value: "exam"/);
+    assert.match(recordFields, /label: "Exame"/);
   });
 });
 
