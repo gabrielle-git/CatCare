@@ -314,6 +314,52 @@ export type Memory = {
   updated_at: string;
 };
 
+export type Document = {
+  id: string;
+  household_id: string;
+  pet_id: string | null;
+  /** @deprecated Health attachments will use a dedicated link table. */
+  health_record_id: string | null;
+  category: string;
+  title: string;
+  /** @deprecated LEGACY — new documents use attachments via document_attachments. */
+  storage_path: string | null;
+  /** @deprecated LEGACY — prefer attachments.mime_type. */
+  mime_type: string | null;
+  created_at: string;
+};
+
+export type Attachment = {
+  id: string;
+  household_id: string;
+  storage_path: string;
+  original_filename: string;
+  /** Friendly UI label. Null → fall back to basename(original_filename). */
+  display_name: string | null;
+  mime_type: string;
+  byte_size: number;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type DocumentAttachment = {
+  document_id: string;
+  attachment_id: string;
+  household_id: string;
+  position: number;
+  created_at: string;
+};
+
+export type AttachmentWithUrl = Attachment & {
+  url: string | null;
+  position: number;
+};
+
+export type DocumentWithAttachments = Document & {
+  attachments: AttachmentWithUrl[];
+  attachment_count: number;
+};
+
 export type MemoryMedia = {
   id: string;
   household_id: string;

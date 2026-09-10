@@ -13,11 +13,12 @@ async function listFolderPaths(supabase: SupabaseClient, prefix: string): Promis
 }
 
 export async function removeHouseholdMedia(supabase: SupabaseClient, householdId: string) {
-  const [pets, memories, media, documents, expenses] = await Promise.all([
+  const [pets, memories, media, documents, attachments, expenses] = await Promise.all([
     supabase.from("pets").select("photo_path").eq("household_id", householdId),
     supabase.from("memories").select("media_path").eq("household_id", householdId),
     supabase.from("memory_media").select("storage_path").eq("household_id", householdId),
     supabase.from("documents").select("storage_path").eq("household_id", householdId),
+    supabase.from("attachments").select("storage_path").eq("household_id", householdId),
     supabase.from("expenses").select("receipt_path").eq("household_id", householdId),
   ]);
 
@@ -26,6 +27,7 @@ export async function removeHouseholdMedia(supabase: SupabaseClient, householdId
     ...(memories.data ?? []).map((row) => row.media_path),
     ...(media.data ?? []).map((row) => row.storage_path),
     ...(documents.data ?? []).map((row) => row.storage_path),
+    ...(attachments.data ?? []).map((row) => row.storage_path),
     ...(expenses.data ?? []).map((row) => row.receipt_path),
   ].filter((path): path is string => Boolean(path));
 

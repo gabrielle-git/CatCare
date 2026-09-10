@@ -9,12 +9,15 @@ export function ConfirmButton({
   className,
   title = "Tem certeza?",
   confirmLabel = "Confirmar",
+  form,
 }: {
   message: string;
   children: React.ReactNode;
   className?: string;
   title?: string;
   confirmLabel?: string;
+  /** Associates the hidden submit with an external form (avoids nested forms). */
+  form?: string;
 }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
@@ -34,7 +37,7 @@ export function ConfirmButton({
       <button type="button" className={className} onClick={() => setOpen(true)}>
         {children}
       </button>
-      <button ref={submitRef} type="submit" hidden tabIndex={-1} aria-hidden="true" />
+      <button ref={submitRef} type="submit" form={form} hidden tabIndex={-1} aria-hidden="true" />
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" role="presentation" onClick={() => setOpen(false)}>
           <div
