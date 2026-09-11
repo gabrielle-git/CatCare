@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FilePlus2, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
@@ -15,6 +15,10 @@ import {
 } from "@/lib/attachments";
 import { healthAttachmentFieldNames } from "@/lib/health-record-attachment-form";
 import { healthRecordAttachmentRemoveFormId } from "@/lib/health-record-attachment-form-ids";
+import {
+  registerPendingAttachmentFile,
+  unregisterPendingAttachmentFile,
+} from "@/lib/attachment-file-registry";
 import type { AttachmentWithUrl } from "@/types/database";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
@@ -36,15 +40,17 @@ function AccumulatingHealthFilePicker({
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-  const syncInputRef = useRef<HTMLInputElement>(null);
   const fieldNames = healthAttachmentFieldNames(careType, petId);
 
   useEffect(() => {
-    const input = syncInputRef.current;
-    if (!input) return;
-    const transfer = new DataTransfer();
-    selected.forEach((item) => transfer.items.add(item.file));
-    input.files = transfer.files;
+    for (const item of selected) {
+      registerPendingAttachmentFile(item.id, item.file);
+    }
+    return () => {
+      for (const item of selected) {
+        unregisterPendingAttachmentFile(item.id);
+      }
+    };
   }, [selected]);
 
   const slots = attachmentSlotsSummary(existingStoredCount, selected.length);
@@ -77,7 +83,10 @@ function AccumulatingHealthFilePicker({
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
+                    onClick={() => {
+                      unregisterPendingAttachmentFile(item.id);
+                      setSelected((current) => current.filter((entry) => entry.id !== item.id));
+                    }}
                     className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
                   >
                     <Trash2 size={12} /> Remover
@@ -106,16 +115,6 @@ function AccumulatingHealthFilePicker({
           </ul>
         </div>
       )}
-
-      <input
-        ref={syncInputRef}
-        type="file"
-        name={fieldNames.files}
-        multiple
-        className="hidden"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
 
       <label
         htmlFor={pickerId}

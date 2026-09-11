@@ -315,7 +315,15 @@ describe("health_record multi-type attachments", () => {
     assert.match(createActions, /pet\.id/);
     assert.match(createActions, /pets\.length/);
     assert.match(createActions, /isAttachableQuickRecordType\(type\)/);
+    assert.match(createActions, /readAttachmentsPayload|finalizeDirectUploadedAttachments/);
+    assert.doesNotMatch(createActions, /uploadPreparedAttachments/);
     assert.doesNotMatch(createActions, /wantsAttachments = !multi &&/);
+  });
+
+  it("new record page uses DirectUploadForm (no File in Server Action body)", () => {
+    const newPage = readFileSync(join(process.cwd(), "src/app/(app)/records/new/page.tsx"), "utf8");
+    assert.match(newPage, /DirectUploadForm/);
+    assert.match(createActions, /instanceof File/);
   });
 
   it("edit page does not pass removeAttachmentFormIdFor as a Client prop (#441 regression)", () => {

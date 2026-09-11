@@ -27,20 +27,18 @@ import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
 import { parseFeedingEditItemsFromForm } from "@/lib/feeding-care";
 import { getNeonatalRecord } from "@/lib/records";
 import {
-  attachmentPayloadForRpc,
   isUuid,
-  prepareAttachmentUploads,
   removeStoragePaths,
-  uploadPreparedAttachments,
-  validateAttachmentFiles,
 } from "@/lib/attachments";
 import {
-  readAttachmentFiles,
-  readAttachmentIds,
   readDisplayNames,
-  readDisplayNamesForCareType,
   readExistingAttachmentIds,
 } from "@/lib/health-record-attachment-form";
+import {
+  filterIntentsForScope,
+  finalizeDirectUploadedAttachments,
+  readAttachmentsPayload,
+} from "@/lib/attachment-finalize";
 import { isAttachableQuickRecordType, mapFormTypeToHealthRecordType } from "@/lib/health-record-type";
 import { countHealthRecordAttachments } from "@/lib/health-record-attachments";
 
@@ -88,11 +86,18 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const trace = getPerfTraceId();
   perfLog("updateRecord", "start");
 
+  const failHere = (message: string): UpdateRecordResult => ({ ok: false, error: message });
+
+  for (const entry of formData.values()) {
+    if (typeof File !== "undefined" && entry instanceof File && entry.size > 0) {
+      return failHere("Envie os arquivos pelo fluxo de upload direto. Recarregue a página e tente de novo.");
+    }
+  }
+
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
   const type = value(formData, "record_type");
   const returnTo = resolveReturnTo(value(formData, "return_to"));
-  const failHere = (message: string): UpdateRecordResult => ({ ok: false, error: message });
 
   if (!petId || !quickRecordTypes.has(type)) return failHere("Escolha o pet e confira o registro.");
 
@@ -304,60 +309,52 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
         if (renameError) return failHere(renameError.message);
       }
 
-      const newFiles = readAttachmentFiles(formData, type);
-      if (newFiles.length > 0) {
-        let attachmentIds: string[] = [];
-        let displayNames: Array<string | null> = [];
-        try {
-          attachmentIds = readAttachmentIds(formData, newFiles.length, type);
-          displayNames = readDisplayNamesForCareType(formData, newFiles.length, type);
-        } catch (error) {
-          return failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
-        }
-
+      let newIntents;
+      try {
+        newIntents = filterIntentsForScope(readAttachmentsPayload(formData), type, petId);
+      } catch (error) {
+        return failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
+      }
+      if (newIntents.length > 0) {
+        const attachmentIds = newIntents.map((item) => item.attachment_id);
         const { data: alreadyLinked } = await supabase
           .from("health_record_attachments")
           .select("attachment_id")
           .eq("health_record_id", recordId)
           .in("attachment_id", attachmentIds);
         const alreadyIds = new Set((alreadyLinked ?? []).map((row) => row.attachment_id));
-        const pendingIndexes = attachmentIds
-          .map((id, index) => ({ id, index }))
-          .filter((item) => !alreadyIds.has(item.id));
+        const pending = newIntents.filter((item) => !alreadyIds.has(item.attachment_id));
 
-        if (pendingIndexes.length > 0) {
+        if (pending.length > 0) {
           const count = await countHealthRecordAttachments(supabase, recordId);
-          const pendingFiles = pendingIndexes.map((item) => newFiles[item.index]);
-          const pendingIds = pendingIndexes.map((item) => item.id);
-          const pendingDisplayNames = pendingIndexes.map((item) => displayNames[item.index]);
-          const validated = await validateAttachmentFiles(pendingFiles, {
-            required: false,
+          const finalized = await finalizeDirectUploadedAttachments({
+            supabase,
+            householdId: household.id,
+            intents: pending,
+            alreadyLinkedIds: alreadyIds,
             existingCount: count,
             entityLabel: "registro",
           });
-          if (!validated.ok) return failHere(validated.message);
-
-          const prepared = prepareAttachmentUploads(household.id, validated.values, 0, pendingIds, pendingDisplayNames);
-          let uploaded: string[] = [];
-          try {
-            uploaded = await uploadPreparedAttachments(supabase, prepared);
-          } catch (error) {
-            return failHere(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
-          }
-          const { error: addError } = await supabase.rpc("add_health_record_attachments", {
-            p_health_record_id: recordId,
-            p_attachments: attachmentPayloadForRpc(prepared),
-          });
-          if (addError) {
-            const { data: linkedNow } = await supabase
-              .from("health_record_attachments")
-              .select("attachment_id")
-              .eq("health_record_id", recordId)
-              .in("attachment_id", pendingIds);
-            const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
-            if (!pendingIds.every((id) => linked.has(id))) {
-              await removeStoragePaths(supabase, uploaded);
-              return failHere(addError.message);
+          if (!finalized.ok) return failHere(finalized.message);
+          const payload = finalized.payload;
+          if (payload.length > 0) {
+            const { error: addError } = await supabase.rpc("add_health_record_attachments", {
+              p_health_record_id: recordId,
+              p_attachments: payload,
+            });
+            if (addError) {
+              const pendingIds = payload.map((item) => item.id);
+              const { data: linkedNow } = await supabase
+                .from("health_record_attachments")
+                .select("attachment_id")
+                .eq("health_record_id", recordId)
+                .in("attachment_id", pendingIds);
+              const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
+              if (!pendingIds.every((id) => linked.has(id))) {
+                const orphanPaths = payload.filter((item) => !linked.has(item.id)).map((item) => item.storage_path);
+                if (orphanPaths.length) await removeStoragePaths(supabase, orphanPaths).catch(() => undefined);
+                return failHere(addError.message);
+              }
             }
           }
         }

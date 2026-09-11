@@ -41,18 +41,16 @@ import {
   readFeedingDefaultAmountsFromForm,
 } from "@/lib/feeding-care";
 import {
-  attachmentPayloadForRpc,
-  prepareAttachmentUploads,
   removeStoragePaths,
-  uploadPreparedAttachments,
-  validateAttachmentFiles,
 } from "@/lib/attachments";
 import {
-  readAttachmentFiles,
-  readAttachmentIds,
-  readDisplayNamesForCareType,
   readStableRecordIdForPetType,
 } from "@/lib/health-record-attachment-form";
+import {
+  filterIntentsForScope,
+  readAttachmentsPayload,
+  finalizeDirectUploadedAttachments,
+} from "@/lib/attachment-finalize";
 import {
   isAttachableQuickRecordType,
   mapFormTypeToHealthRecordType,
@@ -109,59 +107,47 @@ async function ensureHealthRecordAttachments(
   failHere: (message: string) => never,
   careType: string,
   petId: string,
-  petCount: number,
 ) {
-  const allowLegacyFallback = petCount === 1;
-  const files = readAttachmentFiles(formData, careType, petId, { allowLegacyFallback });
-  if (files.length === 0) return;
-
-  let attachmentIds: string[] = [];
-  let displayNames: Array<string | null> = [];
+  let allIntents;
   try {
-    attachmentIds = readAttachmentIds(formData, files.length, careType, petId, { allowLegacyFallback });
-    displayNames = readDisplayNamesForCareType(formData, files.length, careType, petId, { allowLegacyFallback });
+    allIntents = readAttachmentsPayload(formData);
   } catch (error) {
     failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
   }
+  const intents = filterIntentsForScope(allIntents, careType, petId);
+  if (intents.length === 0) return;
 
+  const attachmentIds = intents.map((item) => item.attachment_id);
   const { data: alreadyLinked } = await supabase
     .from("health_record_attachments")
     .select("attachment_id")
     .eq("health_record_id", healthRecordId)
     .in("attachment_id", attachmentIds);
   const linkedIds = new Set((alreadyLinked ?? []).map((row) => row.attachment_id));
-  const pendingIndexes = attachmentIds
-    .map((id, index) => ({ id, index }))
-    .filter((item) => !linkedIds.has(item.id));
-  if (pendingIndexes.length === 0) return;
+  if (attachmentIds.every((id) => linkedIds.has(id))) return;
 
   const { count } = await supabase
     .from("health_record_attachments")
     .select("attachment_id", { count: "exact", head: true })
     .eq("health_record_id", healthRecordId);
 
-  const pendingFiles = pendingIndexes.map((item) => files[item.index]);
-  const pendingIds = pendingIndexes.map((item) => item.id);
-  const pendingDisplayNames = pendingIndexes.map((item) => displayNames[item.index]);
-  const validated = await validateAttachmentFiles(pendingFiles, {
-    required: false,
+  const finalized = await finalizeDirectUploadedAttachments({
+    supabase,
+    householdId,
+    intents,
+    alreadyLinkedIds: linkedIds,
     existingCount: count ?? 0,
     entityLabel: "registro",
   });
-  const validatedFiles = validated.ok ? validated.values : failHere(validated.message);
-  const prepared = prepareAttachmentUploads(householdId, validatedFiles, 0, pendingIds, pendingDisplayNames);
-  let uploaded: string[] = [];
-  try {
-    uploaded = await uploadPreparedAttachments(supabase, prepared);
-  } catch (error) {
-    failHere(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
-  }
+  const payload = finalized.ok ? finalized.payload : failHere(finalized.message);
+  if (payload.length === 0) return;
 
   const { error } = await supabase.rpc("add_health_record_attachments", {
     p_health_record_id: healthRecordId,
-    p_attachments: attachmentPayloadForRpc(prepared),
+    p_attachments: payload,
   });
   if (error) {
+    const pendingIds = payload.map((item) => item.id);
     const { data: linkedNow } = await supabase
       .from("health_record_attachments")
       .select("attachment_id")
@@ -169,13 +155,30 @@ async function ensureHealthRecordAttachments(
       .in("attachment_id", pendingIds);
     const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
     if (!pendingIds.every((id) => linked.has(id))) {
-      await removeStoragePaths(supabase, uploaded);
+      const orphanPaths = payload.filter((item) => !linked.has(item.id)).map((item) => item.storage_path);
+      if (orphanPaths.length) await removeStoragePaths(supabase, orphanPaths).catch(() => undefined);
       failHere(error.message);
     }
   }
 }
 
 export async function createRecord(formData: FormData) {
+  // Hard guard: binaries must never reach this Server Action (Vercel/Next body limits).
+  for (const entry of formData.values()) {
+    if (typeof File !== "undefined" && entry instanceof File && entry.size > 0) {
+      const petIdsEarly = parsePetIds(formData);
+      const typesEarly = parseRecordTypes(formData);
+      fail(
+        petIdsEarly,
+        typesEarly[0] ?? "",
+        "Envie os arquivos pelo fluxo de upload direto. Recarregue a página e tente de novo.",
+        resolveReturnTo(String(formData.get("return_to") ?? "")),
+        String(formData.get("context") ?? "") === "neonatal",
+        { types: typesEarly },
+      );
+    }
+  }
+
   const petIds = parsePetIds(formData);
   const types = parseRecordTypes(formData);
   const primaryType = types[0] ?? "";
@@ -446,7 +449,6 @@ export async function createRecord(formData: FormData) {
               failHere,
               "hygiene",
               pet.id,
-              pets.length,
             );
           }
           created += 1;
@@ -601,7 +603,6 @@ export async function createRecord(formData: FormData) {
           failHere,
           type,
           pet.id,
-          pets.length,
         );
       }
     }

@@ -1,34 +1,32 @@
 "use client";
 
-/**
- * Edit-only form: direct-to-Storage uploads first (metadata-only Server Action),
- * then after success force full document navigation via window.location.replace.
- */
 import { useState, useTransition } from "react";
 import {
   collectAttachmentIntentsFromForm,
   compensateIfNeeded,
   runDirectAttachmentUploads,
 } from "@/lib/attachment-direct-upload-client";
-import { resolveReturnTo } from "@/lib/safe-return-path";
 
-export type EditRecordResult =
-  | { ok: true; redirectTo: string }
-  | { ok: false; error: string };
+type Mode = "records-create" | "records-edit" | "documents";
 
-function internalRedirectPath(raw: string): string {
-  return resolveReturnTo(raw) ?? "/pets";
-}
-
-export function EditRecordForm({
+/**
+ * Wraps a Server Action form: uploads files direct-to-Supabase first,
+ * then calls the factual action with metadata-only FormData.
+ */
+export function DirectUploadForm({
   action,
-  children,
   className,
+  children,
+  mode,
+  onActionResult,
   initialError,
 }: {
-  action: (formData: FormData) => Promise<EditRecordResult>;
-  children: React.ReactNode;
+  action: (formData: FormData) => void | Promise<unknown>;
   className?: string;
+  children: React.ReactNode;
+  mode: Mode;
+  /** For edit-record style results that return { ok, redirectTo }. */
+  onActionResult?: (result: unknown) => void;
   initialError?: string | null;
 }) {
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -44,23 +42,32 @@ export function EditRecordForm({
           setStatus(null);
           let newlyCreatedPaths: string[] = [];
           try {
-            const intents = collectAttachmentIntentsFromForm(formData);
+            const intents = collectAttachmentIntentsFromForm(formData, {
+              unscoped: mode === "documents",
+            });
+            if (mode === "documents" && formData.get("require_files") === "1" && intents.length === 0) {
+              throw new Error("Adicione ao menos um arquivo.");
+            }
             const upload = await runDirectAttachmentUploads(formData, intents, (progress) => {
               setStatus(progress.message);
             });
             newlyCreatedPaths = upload.newlyCreatedPaths;
             setStatus("Salvando...");
             const result = await action(formData);
-            if (!result.ok) {
-              if (newlyCreatedPaths.length) await compensateIfNeeded(newlyCreatedPaths);
-              setError(result.error);
-              setStatus(null);
-              return;
-            }
-            window.location.replace(internalRedirectPath(result.redirectTo));
+            if (onActionResult) onActionResult(result);
           } catch (cause) {
-            if (newlyCreatedPaths.length) await compensateIfNeeded(newlyCreatedPaths);
-            setError(cause instanceof Error ? cause.message : "Não foi possível salvar. Tente novamente.");
+            // Next.js redirect throws; rethrow so navigation proceeds.
+            const digest = cause && typeof cause === "object" && "digest" in cause
+              ? String((cause as { digest?: string }).digest ?? "")
+              : "";
+            if (digest.startsWith("NEXT_REDIRECT")) throw cause;
+            if (newlyCreatedPaths.length) {
+              await compensateIfNeeded(newlyCreatedPaths);
+            }
+            const message = cause instanceof Error
+              ? cause.message
+              : "Não foi possível salvar. Tente novamente.";
+            setError(message);
             setStatus(null);
           }
         });

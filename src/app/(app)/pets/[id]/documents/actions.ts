@@ -3,15 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  attachmentPayloadForRpc,
   isUuid,
   normalizeDisplayNameInput,
-  prepareAttachmentUploads,
   removeStoragePaths,
   resolveDocumentCreateOwnership,
-  uploadPreparedAttachments,
-  validateAttachmentFiles,
 } from "@/lib/attachments";
+import {
+  finalizeDirectUploadedAttachments,
+  readAttachmentsPayload,
+} from "@/lib/attachment-finalize";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -32,22 +32,6 @@ function readMeta(formData: FormData) {
   return { title, category };
 }
 
-function readFiles(formData: FormData) {
-  return formData.getAll("files").filter((entry): entry is File => entry instanceof File && entry.size > 0);
-}
-
-function readAttachmentIds(formData: FormData, fileCount: number) {
-  const ids = formData.getAll("attachment_ids").map((entry) => String(entry).trim()).filter(Boolean);
-  if (fileCount === 0) return [] as string[];
-  if (ids.length !== fileCount || ids.some((id) => !isUuid(id))) {
-    throw new Error("Seleção de arquivos inconsistente. Recarregue a página e tente de novo.");
-  }
-  if (new Set(ids).size !== ids.length) {
-    throw new Error("IDs de anexos duplicados na mesma intenção.");
-  }
-  return ids;
-}
-
 function readDisplayNames(formData: FormData, field: "display_names" | "existing_display_names", count: number) {
   if (count === 0) return [] as Array<string | null>;
   const raw = formData.getAll(field).map((entry) => String(entry ?? ""));
@@ -66,6 +50,14 @@ function readExistingAttachmentIds(formData: FormData) {
     throw new Error("IDs de anexos duplicados na mesma intenção.");
   }
   return ids;
+}
+
+function assertNoBinaryFiles(formData: FormData, fail: (message: string) => never) {
+  for (const entry of formData.values()) {
+    if (typeof File !== "undefined" && entry instanceof File && entry.size > 0) {
+      fail("Envie os arquivos pelo fluxo de upload direto. Recarregue a página e tente de novo.");
+    }
+  }
 }
 
 async function authContext() {
@@ -103,6 +95,8 @@ export async function createPetDocument(petId: string, formData: FormData) {
     redirect(`${documentsBase(petId)}/new?error=${encodeURIComponent(message)}`);
   };
 
+  assertNoBinaryFiles(formData, fail);
+
   let meta: ReturnType<typeof readMeta>;
   try {
     meta = readMeta(formData);
@@ -138,32 +132,30 @@ export async function createPetDocument(petId: string, formData: FormData) {
     finishCreate(petId, documentId);
   }
 
-  const files = readFiles(formData);
-  let attachmentIds: string[] = [];
-  let displayNames: Array<string | null> = [];
+  let intents: ReturnType<typeof readAttachmentsPayload> = [];
   try {
-    attachmentIds = readAttachmentIds(formData, files.length);
-    displayNames = readDisplayNames(formData, "display_names", files.length);
+    intents = readAttachmentsPayload(formData);
   } catch (error) {
     fail(error instanceof Error ? error.message : "Arquivos inválidos.");
   }
+  if (intents.length === 0) fail("Adicione ao menos um arquivo.");
 
-  const validated = await validateAttachmentFiles(files, { required: true });
-  const validatedFiles = validated.ok ? validated.values : fail(validated.message);
-  const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, attachmentIds, displayNames);
-  let uploaded: string[] = [];
-  try {
-    uploaded = await uploadPreparedAttachments(supabase, prepared);
-  } catch (error) {
-    fail(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
-  }
+  const finalized = await finalizeDirectUploadedAttachments({
+    supabase,
+    householdId: household.id,
+    intents,
+    alreadyLinkedIds: new Set(),
+    existingCount: 0,
+    entityLabel: "documento",
+  });
+  const payload = finalized.ok ? finalized.payload : fail(finalized.message);
 
   const { error } = await supabase.rpc("create_pet_document", {
     p_document_id: documentId,
     p_pet_id: petId,
     p_title: meta!.title,
     p_category: meta!.category,
-    p_attachments: attachmentPayloadForRpc(prepared),
+    p_attachments: payload,
   });
 
   if (error) {
@@ -176,7 +168,7 @@ export async function createPetDocument(petId: string, formData: FormData) {
     if (retry.ok && retry.status === "reuse") {
       finishCreate(petId, documentId);
     }
-    await removeStoragePaths(supabase, uploaded);
+    await removeStoragePaths(supabase, payload.map((item) => item.storage_path)).catch(() => undefined);
     fail(error.message);
   }
 
@@ -188,6 +180,8 @@ export async function updatePetDocument(petId: string, documentId: string, formD
   const fail = (message: string): never => {
     redirect(`${editPath}?error=${encodeURIComponent(message)}`);
   };
+
+  assertNoBinaryFiles(formData, fail);
 
   let meta: ReturnType<typeof readMeta>;
   try {
@@ -236,63 +230,58 @@ export async function updatePetDocument(petId: string, documentId: string, formD
     if (renameError) fail(renameError.message);
   }
 
-  const newFiles = readFiles(formData);
-  if (newFiles.length > 0) {
-    let attachmentIds: string[] = [];
-    let displayNames: Array<string | null> = [];
-    try {
-      attachmentIds = readAttachmentIds(formData, newFiles.length);
-      displayNames = readDisplayNames(formData, "display_names", newFiles.length);
-    } catch (error) {
-      fail(error instanceof Error ? error.message : "Arquivos inválidos.");
-    }
+  let intents: ReturnType<typeof readAttachmentsPayload> = [];
+  try {
+    intents = readAttachmentsPayload(formData);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Arquivos inválidos.");
+  }
 
+  if (intents.length > 0) {
+    const attachmentIds = intents.map((item) => item.attachment_id);
     const { data: alreadyLinked } = await supabase
       .from("attachments")
       .select("id")
       .eq("household_id", household.id)
       .in("id", attachmentIds);
     const alreadyIds = new Set((alreadyLinked ?? []).map((row) => row.id));
-    const pendingIndexes = attachmentIds
-      .map((id, index) => ({ id, index }))
-      .filter((item) => !alreadyIds.has(item.id));
+    const pending = intents.filter((item) => !alreadyIds.has(item.attachment_id));
 
-    if (pendingIndexes.length > 0) {
+    if (pending.length > 0) {
       const { count } = await supabase
         .from("document_attachments")
         .select("attachment_id", { count: "exact", head: true })
         .eq("document_id", documentId);
 
-      const pendingFiles = pendingIndexes.map((item) => newFiles[item.index]);
-      const pendingIds = pendingIndexes.map((item) => item.id);
-      const pendingDisplayNames = pendingIndexes.map((item) => displayNames[item.index]);
-      const validated = await validateAttachmentFiles(pendingFiles, {
-        required: false,
+      const finalized = await finalizeDirectUploadedAttachments({
+        supabase,
+        householdId: household.id,
+        intents: pending,
+        alreadyLinkedIds: alreadyIds,
         existingCount: count ?? 0,
+        entityLabel: "documento",
       });
-      const validatedFiles = validated.ok ? validated.values : fail(validated.message);
-
-      const prepared = prepareAttachmentUploads(household.id, validatedFiles, 0, pendingIds, pendingDisplayNames);
-      let uploaded: string[] = [];
-      try {
-        uploaded = await uploadPreparedAttachments(supabase, prepared);
-      } catch (error) {
-        fail(error instanceof Error ? error.message : "Não foi possível enviar os arquivos.");
-      }
-      const { error } = await supabase.rpc("add_document_attachments", {
-        p_document_id: documentId,
-        p_attachments: attachmentPayloadForRpc(prepared),
-      });
-      if (error) {
-        const { data: linkedNow } = await supabase
-          .from("document_attachments")
-          .select("attachment_id")
-          .eq("document_id", documentId)
-          .in("attachment_id", pendingIds);
-        const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
-        if (!pendingIds.every((id) => linked.has(id))) {
-          await removeStoragePaths(supabase, uploaded);
-          fail(error.message);
+      const payload = finalized.ok ? finalized.payload : fail(finalized.message);
+      if (payload.length > 0) {
+        const { error: addError } = await supabase.rpc("add_document_attachments", {
+          p_document_id: documentId,
+          p_attachments: payload,
+        });
+        if (addError) {
+          const pendingIds = payload.map((item: { id: string }) => item.id);
+          const { data: linkedNow } = await supabase
+            .from("document_attachments")
+            .select("attachment_id")
+            .eq("document_id", documentId)
+            .in("attachment_id", pendingIds);
+          const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
+          if (!pendingIds.every((id: string) => linked.has(id))) {
+            const orphanPaths = payload
+              .filter((item: { id: string; storage_path: string }) => !linked.has(item.id))
+              .map((item: { storage_path: string }) => item.storage_path);
+            if (orphanPaths.length) await removeStoragePaths(supabase, orphanPaths).catch(() => undefined);
+            fail(addError.message);
+          }
         }
       }
     }

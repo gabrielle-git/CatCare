@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FilePlus2, FileText, Trash2 } from "lucide-react";
 import {
   ATTACHMENT_MAX_PER_DOCUMENT,
@@ -14,6 +14,10 @@ import {
   resolveAttachmentDisplayName,
   type LocalSelectedFile,
 } from "@/lib/attachments";
+import {
+  registerPendingAttachmentFile,
+  unregisterPendingAttachmentFile,
+} from "@/lib/attachment-file-registry";
 import { ConfirmButton } from "@/components/confirm-button";
 import { SubmitButton } from "@/components/submit-button";
 import type { AttachmentWithUrl } from "@/types/database";
@@ -90,14 +94,16 @@ function AccumulatingFilePicker({
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-  const syncInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const input = syncInputRef.current;
-    if (!input) return;
-    const transfer = new DataTransfer();
-    selected.forEach((item) => transfer.items.add(item.file));
-    input.files = transfer.files;
+    for (const item of selected) {
+      registerPendingAttachmentFile(item.id, item.file);
+    }
+    return () => {
+      for (const item of selected) {
+        unregisterPendingAttachmentFile(item.id);
+      }
+    };
   }, [selected]);
 
   const slots = attachmentSlotsSummary(existingStoredCount, selected.length);
@@ -132,7 +138,10 @@ function AccumulatingFilePicker({
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => setSelected((current) => current.filter((entry) => entry.id !== item.id))}
+                    onClick={() => {
+                      unregisterPendingAttachmentFile(item.id);
+                      setSelected((current) => current.filter((entry) => entry.id !== item.id));
+                    }}
                     className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
                   >
                     <Trash2 size={12} /> Remover
@@ -162,16 +171,9 @@ function AccumulatingFilePicker({
         </div>
       )}
 
-      <input
-        ref={syncInputRef}
-        type="file"
-        name="files"
-        multiple
-        className="hidden"
-        required={requireFiles && existingStoredCount === 0}
-        tabIndex={-1}
-        aria-hidden="true"
-      />
+      {requireFiles && existingStoredCount === 0 ? (
+        <input type="hidden" name="require_files" value="1" />
+      ) : null}
 
       <label
         htmlFor={pickerId}
@@ -201,6 +203,9 @@ function AccumulatingFilePicker({
         }}
       />
       {notice && <p className="mt-2 text-xs text-[var(--muted)]">{notice}</p>}
+      {requireFiles && existingStoredCount === 0 && selected.length === 0 ? (
+        <p className="mt-2 text-xs text-[var(--danger)]">Adicione ao menos um arquivo.</p>
+      ) : null}
     </div>
   );
 }
