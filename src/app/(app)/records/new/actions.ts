@@ -59,11 +59,16 @@ import {
   resolveHealthRecordCreateOwnership,
 } from "@/lib/health-record-type";
 
-function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
+function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string; types?: string[] }): never {
   const params = new URLSearchParams();
   const pet = petIds[0] ?? "";
   if (pet) params.set("pet", pet);
-  if (type) params.set("type", type);
+  const typeList = extras?.types?.filter(Boolean) ?? [];
+  if (typeList.length > 1) {
+    params.set("types", typeList.join(","));
+  } else if (type) {
+    params.set("type", type);
+  }
   params.set("error", message);
   if (returnTo) params.set("return_to", returnTo);
   if (neonatalContext) params.set("context", "neonatal");
@@ -102,16 +107,19 @@ async function ensureHealthRecordAttachments(
   healthRecordId: string,
   formData: FormData,
   failHere: (message: string) => never,
-  careType?: string | null,
+  careType: string,
+  petId: string,
+  petCount: number,
 ) {
-  const files = readAttachmentFiles(formData, careType);
+  const allowLegacyFallback = petCount === 1;
+  const files = readAttachmentFiles(formData, careType, petId, { allowLegacyFallback });
   if (files.length === 0) return;
 
   let attachmentIds: string[] = [];
   let displayNames: Array<string | null> = [];
   try {
-    attachmentIds = readAttachmentIds(formData, files.length, careType);
-    displayNames = readDisplayNamesForCareType(formData, files.length, careType);
+    attachmentIds = readAttachmentIds(formData, files.length, careType, petId, { allowLegacyFallback });
+    displayNames = readDisplayNamesForCareType(formData, files.length, careType, petId, { allowLegacyFallback });
   } catch (error) {
     failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
   }
@@ -180,6 +188,7 @@ export async function createRecord(formData: FormData) {
     vaccineKey: vaccineKeyEarly || undefined,
     doseLabel: doseLabelEarly || undefined,
     title: value(formData, "title") || undefined,
+    types,
   });
 
   if (petIds.length === 0 || types.length === 0) failHere("Escolha ao menos um pet e o tipo de cuidado.");
@@ -232,9 +241,6 @@ export async function createRecord(formData: FormData) {
   let created = 0;
 
   const wantsAttachments = types.some((type) => isAttachableQuickRecordType(type));
-  if (wantsAttachments && pets.length !== 1) {
-    failHere("Anexos clínicos ficam disponíveis ao registrar para um pet por vez.");
-  }
   if (wantsAttachments && types.includes("hygiene")) {
     const hygienePreview = buildHygieneFieldsList(
       formData.getAll("hygiene_subtype").map((item) => String(item)),
@@ -431,8 +437,17 @@ export async function createRecord(formData: FormData) {
 
           if (!recordId) failHere("Não foi possível salvar o registro.");
           const hygieneRecordId = recordId as string;
-          if (wantsAttachments && pets.length === 1 && hygieneItems.length === 1) {
-            await ensureHealthRecordAttachments(supabase, household.id, hygieneRecordId, formData, failHere, "hygiene");
+          if (wantsAttachments && hygieneItems.length === 1 && isAttachableQuickRecordType("hygiene")) {
+            await ensureHealthRecordAttachments(
+              supabase,
+              household.id,
+              hygieneRecordId,
+              formData,
+              failHere,
+              "hygiene",
+              pet.id,
+              pets.length,
+            );
           }
           created += 1;
         }
@@ -577,8 +592,17 @@ export async function createRecord(formData: FormData) {
         }
       }
 
-      if (wantsAttachments && pets.length === 1 && isAttachableQuickRecordType(type)) {
-        await ensureHealthRecordAttachments(supabase, household.id, recordId, formData, failHere, type);
+      if (wantsAttachments && isAttachableQuickRecordType(type)) {
+        await ensureHealthRecordAttachments(
+          supabase,
+          household.id,
+          recordId,
+          formData,
+          failHere,
+          type,
+          pet.id,
+          pets.length,
+        );
       }
     }
   }

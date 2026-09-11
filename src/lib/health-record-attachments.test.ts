@@ -7,11 +7,14 @@ import {
   canRemoveStoredAttachment,
   contentDispositionAttachment,
   resolveDocumentCreateOwnership,
+  ATTACHMENT_MAX_PER_DOCUMENT,
 } from "@/lib/attachments";
 import { EXPORT_HOUSEHOLD_TABLES } from "@/lib/export-tables";
 import {
   attachmentHeadingForCareType,
+  attachmentHeadingForPetCareType,
   healthAttachmentFieldNames,
+  healthAttachmentRecordKey,
   readAttachmentFiles,
   readAttachmentIds,
   readDisplayNamesForCareType,
@@ -165,6 +168,16 @@ describe("health_record multi-type attachments", () => {
     assert.match(recordFields, /careType=\{type\}/);
   });
 
+  it("multi-pet create keeps attachment pickers (no single-pet-only gate)", () => {
+    assert.match(recordFields, /visibleSelectedIds\.length >= 1/);
+    assert.match(recordFields, /multiPetAttachments/);
+    assert.match(recordFields, /Arquivos por pet/);
+    assert.match(recordFields, /petId=\{petId\}/);
+    assert.doesNotMatch(createActions, /Anexos clínicos ficam disponíveis ao registrar para um pet por vez/);
+    assert.doesNotMatch(createActions, /wantsAttachments && pets\.length !== 1/);
+    assert.doesNotMatch(createActions, /wantsAttachments && pets\.length === 1 && isAttachableQuickRecordType/);
+  });
+
   it("scopes FormData fields per care type so exam files stay on exam", () => {
     assert.deepEqual(healthAttachmentFieldNames("exam"), {
       files: "files__exam",
@@ -178,6 +191,22 @@ describe("health_record multi-type attachments", () => {
     });
     assert.equal(attachmentHeadingForCareType("exam"), "Arquivos do exame");
     assert.equal(attachmentHeadingForCareType("vaccine"), "Arquivos da vacina");
+  });
+
+  it("scopes FormData fields per pet + care type for multi-pet create", () => {
+    assert.deepEqual(healthAttachmentFieldNames("exam", PET_A), {
+      files: `files__${PET_A}__exam`,
+      attachmentIds: `attachment_ids__${PET_A}__exam`,
+      displayNames: `display_names__${PET_A}__exam`,
+    });
+    assert.deepEqual(healthAttachmentFieldNames("vaccine", PET_B), {
+      files: `files__${PET_B}__vaccine`,
+      attachmentIds: `attachment_ids__${PET_B}__vaccine`,
+      displayNames: `display_names__${PET_B}__vaccine`,
+    });
+    assert.equal(healthAttachmentRecordKey(PET_A, "exam"), `${PET_A}:exam`);
+    assert.equal(attachmentHeadingForPetCareType("Dobby", "exam"), "Arquivos do Dobby — exame");
+    assert.equal(attachmentHeadingForPetCareType("Anya", "vaccine"), "Arquivos da Anya — vacina");
   });
 
   it("reads nested record_ids_json per pet+type (idempotent multi-type)", () => {
@@ -194,6 +223,63 @@ describe("health_record multi-type attachments", () => {
       readStableRecordIdForPetType(form, PET_A, "exam", [PET_A]),
       readStableRecordIdForPetType(form, PET_A, "vaccine", [PET_A]),
     );
+  });
+
+  it("2 pets × 2 types keep four independent attachment buckets", () => {
+    const form = new FormData();
+    const dobbyExam = new File(["a"], "dobby-exam.pdf", { type: "application/pdf" });
+    const dobbyVac = new File(["b"], "dobby-vac.jpg", { type: "image/jpeg" });
+    const anyaExam = new File(["c"], "anya-exam.pdf", { type: "application/pdf" });
+    const anyaVac = new File(["d"], "anya-vac.jpg", { type: "image/jpeg" });
+    const ids = {
+      de: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      dv: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      ae: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      av: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
+    };
+
+    form.append(`files__${PET_A}__exam`, dobbyExam);
+    form.append(`attachment_ids__${PET_A}__exam`, ids.de);
+    form.append(`display_names__${PET_A}__exam`, "Exame Dobby");
+    form.append(`files__${PET_A}__vaccine`, dobbyVac);
+    form.append(`attachment_ids__${PET_A}__vaccine`, ids.dv);
+    form.append(`display_names__${PET_A}__vaccine`, "Vacina Dobby");
+    form.append(`files__${PET_B}__exam`, anyaExam);
+    form.append(`attachment_ids__${PET_B}__exam`, ids.ae);
+    form.append(`display_names__${PET_B}__exam`, "Exame Anya");
+    form.append(`files__${PET_B}__vaccine`, anyaVac);
+    form.append(`attachment_ids__${PET_B}__vaccine`, ids.av);
+    form.append(`display_names__${PET_B}__vaccine`, "Vacina Anya");
+
+    const opts = { allowLegacyFallback: false };
+    assert.equal(readAttachmentFiles(form, "exam", PET_A, opts)[0]?.name, "dobby-exam.pdf");
+    assert.equal(readAttachmentFiles(form, "exam", PET_B, opts)[0]?.name, "anya-exam.pdf");
+    assert.equal(readAttachmentFiles(form, "vaccine", PET_A, opts)[0]?.name, "dobby-vac.jpg");
+    assert.equal(readAttachmentFiles(form, "vaccine", PET_B, opts)[0]?.name, "anya-vac.jpg");
+    assert.equal(readAttachmentFiles(form, "exam", PET_A, opts).length, 1);
+    assert.deepEqual(readAttachmentIds(form, 1, "exam", PET_A, opts), [ids.de]);
+    assert.deepEqual(readAttachmentIds(form, 1, "exam", PET_B, opts), [ids.ae]);
+    assert.notEqual(
+      readAttachmentIds(form, 1, "exam", PET_A, opts)[0],
+      readAttachmentIds(form, 1, "exam", PET_B, opts)[0],
+    );
+    assert.notEqual(
+      readAttachmentIds(form, 1, "vaccine", PET_A, opts)[0],
+      readAttachmentIds(form, 1, "exam", PET_A, opts)[0],
+    );
+  });
+
+  it("does not leak type-only files into multi-pet buckets", () => {
+    const form = new FormData();
+    form.append("files__exam", new File(["x"], "shared.pdf", { type: "application/pdf" }));
+    form.append("attachment_ids__exam", examAtt1);
+    form.append("display_names__exam", "Shared");
+    assert.equal(readAttachmentFiles(form, "exam", PET_A, { allowLegacyFallback: false }).length, 0);
+    assert.equal(readAttachmentFiles(form, "exam", PET_A, { allowLegacyFallback: true }).length, 1);
+  });
+
+  it("enforces max 8 attachments per health_record via shared slots helper", () => {
+    assert.equal(ATTACHMENT_MAX_PER_DOCUMENT, 8);
   });
 
   it("distributes exam 2 + vaccine 1 files to the correct scoped fields", () => {
@@ -223,11 +309,28 @@ describe("health_record multi-type attachments", () => {
     assert.deepEqual(readDisplayNamesForCareType(form, 1, "vaccine"), ["Carteira de vacinação"]);
   });
 
-  it("create action wires per-type record ids and scoped attachment attach", () => {
+  it("create action wires per-type record ids and scoped attachment attach with pet id", () => {
     assert.match(createActions, /readStableRecordIdForPetType/);
-    assert.match(createActions, /ensureHealthRecordAttachments\([\s\S]*?, type\)/);
+    assert.match(createActions, /ensureHealthRecordAttachments\(/);
+    assert.match(createActions, /pet\.id/);
+    assert.match(createActions, /pets\.length/);
     assert.match(createActions, /isAttachableQuickRecordType\(type\)/);
     assert.doesNotMatch(createActions, /wantsAttachments = !multi &&/);
+  });
+
+  it("edit page does not pass removeAttachmentFormIdFor as a Client prop (#441 regression)", () => {
+    const editPage = readFileSync(join(process.cwd(), "src/app/(app)/records/[id]/edit/page.tsx"), "utf8");
+    const attachmentsFields = readFileSync(join(process.cwd(), "src/components/health-record-attachments-fields.tsx"), "utf8");
+    assert.doesNotMatch(editPage, /removeAttachmentFormIdFor=\{/);
+    assert.doesNotMatch(editPage, /removeFormIdFor=\{/);
+    assert.match(editPage, /healthRecordAttachmentRemoveFormId/);
+    assert.match(attachmentsFields, /ConfirmButton/);
+  });
+
+  it("historico accepts saved banner after multi-pet create redirect", () => {
+    const historico = readFileSync(join(process.cwd(), "src/app/(app)/historico/page.tsx"), "utf8");
+    assert.match(historico, /saved\?:/);
+    assert.match(historico, /flags\.saved/);
   });
 
   it("Documents already confirm attachment removal (report-only; untouched)", () => {

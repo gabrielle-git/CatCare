@@ -6,7 +6,10 @@ import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { HealthRecordAttachmentsFields } from "@/components/health-record-attachments-fields";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
-import { attachmentHeadingForCareType } from "@/lib/health-record-attachment-form";
+import {
+  attachmentHeadingForCareType,
+  attachmentHeadingForPetCareType,
+} from "@/lib/health-record-attachment-form";
 import { isAttachableQuickRecordType } from "@/lib/health-record-type";
 import type { AttachmentWithUrl } from "@/types/database";
 import { gramsToKgInput } from "@/lib/format";
@@ -389,8 +392,9 @@ export function RecordFields({
   const recordCount = countFeedingAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
   const createAttachmentsAllowed =
     mode === "create"
-    && visibleSelectedIds.length === 1
+    && visibleSelectedIds.length >= 1
     && activeTypes.some((type) => isAttachableQuickRecordType(type));
+  const multiPetAttachments = mode === "create" && visibleSelectedIds.length > 1;
   const editAttachmentsAllowed =
     mode === "edit"
     && activeTypes.length === 1
@@ -1424,12 +1428,52 @@ export function RecordFields({
               && !(type === "hygiene" && hygieneSubtypes.length > 1);
 
             const attachmentsBlock = showCreateAttachmentsForType ? (
-              <HealthRecordAttachmentsFields
-                disabled={disabled}
-                careType={type}
-                heading={attachmentHeadingForCareType(type, meta?.label)}
-                pickerId={`health-record-create-attachments-${type}`}
-              />
+              multiPetAttachments ? (
+                <section className="mt-5 space-y-3" aria-label={`Arquivos por pet — ${meta?.label ?? type}`}>
+                  <p className="text-sm font-bold">Arquivos por pet</p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Cada arquivo fica só no registro deste pet e deste tipo.
+                  </p>
+                  <div className="space-y-2">
+                    {visibleSelectedIds.map((petId) => {
+                      const petName = petNames.get(petId) ?? "Pet";
+                      return (
+                        <details
+                          key={`${petId}:${type}`}
+                          className="rounded-[16px] border border-[var(--border)] bg-white/70 px-3 py-2 open:pb-3"
+                        >
+                          <summary className="focus-ring cursor-pointer list-none rounded-xl py-1.5 text-sm font-bold text-[var(--graphite)]">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--lavender-strong)]">
+                                {petName}
+                              </span>
+                              <span className="text-xs font-semibold text-[var(--muted)]">Arquivos · toque para abrir</span>
+                            </span>
+                          </summary>
+                          <div className="mt-2">
+                            <HealthRecordAttachmentsFields
+                              disabled={disabled}
+                              careType={type}
+                              petId={petId}
+                              compact
+                              heading={attachmentHeadingForPetCareType(petName, type, meta?.label)}
+                              pickerId={`health-record-create-attachments-${petId}-${type}`}
+                            />
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : (
+                <HealthRecordAttachmentsFields
+                  disabled={disabled}
+                  careType={type}
+                  petId={visibleSelectedIds[0]}
+                  heading={attachmentHeadingForCareType(type, meta?.label)}
+                  pickerId={`health-record-create-attachments-${type}`}
+                />
+              )
             ) : null;
 
             if (!showCard) {

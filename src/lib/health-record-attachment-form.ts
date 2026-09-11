@@ -1,37 +1,82 @@
 import { isUuid, normalizeDisplayNameInput } from "@/lib/attachments";
 
-/** FormData field names for clinical attachments, optionally scoped to a care type. */
-export function healthAttachmentFieldNames(careType?: string | null) {
+export type HealthAttachmentFieldScope = {
+  careType?: string | null;
+  petId?: string | null;
+};
+
+/** FormData field names for clinical attachments, scoped by pet and/or care type. */
+export function healthAttachmentFieldNames(careType?: string | null, petId?: string | null) {
   const scope = careType?.trim();
-  if (!scope) {
+  const pet = petId?.trim();
+  if (scope && pet) {
     return {
-      files: "files",
-      attachmentIds: "attachment_ids",
-      displayNames: "display_names",
+      files: `files__${pet}__${scope}`,
+      attachmentIds: `attachment_ids__${pet}__${scope}`,
+      displayNames: `display_names__${pet}__${scope}`,
+    } as const;
+  }
+  if (scope) {
+    return {
+      files: `files__${scope}`,
+      attachmentIds: `attachment_ids__${scope}`,
+      displayNames: `display_names__${scope}`,
     } as const;
   }
   return {
-    files: `files__${scope}`,
-    attachmentIds: `attachment_ids__${scope}`,
-    displayNames: `display_names__${scope}`,
+    files: "files",
+    attachmentIds: "attachment_ids",
+    displayNames: "display_names",
   } as const;
 }
 
-export function readAttachmentFiles(formData: FormData, careType?: string | null) {
-  const names = healthAttachmentFieldNames(careType);
-  const scoped = formData.getAll(names.files).filter((entry): entry is File => entry instanceof File && entry.size > 0);
-  if (scoped.length > 0 || careType) return scoped;
-  // Single-type legacy/unscoped fallback
+/**
+ * Read files for one health_record intention.
+ * Prefer pet+type keys. Type-only / unscoped fallbacks are only for single-pet creates and edit.
+ */
+export function readAttachmentFiles(
+  formData: FormData,
+  careType?: string | null,
+  petId?: string | null,
+  options?: { allowLegacyFallback?: boolean },
+) {
+  const allowLegacy = options?.allowLegacyFallback !== false;
+  const petScoped = healthAttachmentFieldNames(careType, petId);
+  const petFiles = formData.getAll(petScoped.files).filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  if (petFiles.length > 0) return petFiles;
+  if (petId && careType) {
+    // Multi-pet must not inherit another pet's type-only bucket.
+    if (!allowLegacy) return [] as File[];
+  }
+  if (careType) {
+    const typeScoped = healthAttachmentFieldNames(careType);
+    const typeFiles = formData.getAll(typeScoped.files).filter((entry): entry is File => entry instanceof File && entry.size > 0);
+    if (typeFiles.length > 0 || !allowLegacy) return typeFiles;
+  }
+  if (!allowLegacy) return [] as File[];
   return formData.getAll("files").filter((entry): entry is File => entry instanceof File && entry.size > 0);
 }
 
-export function readAttachmentIds(formData: FormData, fileCount: number, careType?: string | null) {
-  const names = healthAttachmentFieldNames(careType);
+export function readAttachmentIds(
+  formData: FormData,
+  fileCount: number,
+  careType?: string | null,
+  petId?: string | null,
+  options?: { allowLegacyFallback?: boolean },
+) {
+  if (fileCount === 0) return [] as string[];
+  const allowLegacy = options?.allowLegacyFallback !== false;
+  const names = healthAttachmentFieldNames(careType, petId);
   let ids = formData.getAll(names.attachmentIds).map((entry) => String(entry).trim()).filter(Boolean);
-  if (ids.length === 0 && !careType) {
+  if (ids.length === 0 && allowLegacy && petId && careType) {
+    ids = formData.getAll(healthAttachmentFieldNames(careType).attachmentIds).map((entry) => String(entry).trim()).filter(Boolean);
+  }
+  if (ids.length === 0 && allowLegacy && !careType) {
     ids = formData.getAll("attachment_ids").map((entry) => String(entry).trim()).filter(Boolean);
   }
-  if (fileCount === 0) return [] as string[];
+  if (ids.length === 0 && allowLegacy && careType && !petId) {
+    ids = formData.getAll("attachment_ids").map((entry) => String(entry).trim()).filter(Boolean);
+  }
   if (ids.length !== fileCount || ids.some((id) => !isUuid(id))) {
     throw new Error("Seleção de arquivos inconsistente. Recarregue a página e tente de novo.");
   }
@@ -54,11 +99,27 @@ export function readDisplayNames(
   return raw.map((entry) => normalizeDisplayNameInput(entry));
 }
 
-export function readDisplayNamesForCareType(formData: FormData, fileCount: number, careType?: string | null) {
-  const names = healthAttachmentFieldNames(careType);
+export function readDisplayNamesForCareType(
+  formData: FormData,
+  fileCount: number,
+  careType?: string | null,
+  petId?: string | null,
+  options?: { allowLegacyFallback?: boolean },
+) {
+  if (fileCount === 0) return [] as Array<string | null>;
+  const allowLegacy = options?.allowLegacyFallback !== false;
+  const names = healthAttachmentFieldNames(careType, petId);
   try {
     return readDisplayNames(formData, names.displayNames, fileCount);
   } catch (error) {
+    if (!allowLegacy) throw error;
+    if (petId && careType) {
+      try {
+        return readDisplayNames(formData, healthAttachmentFieldNames(careType).displayNames, fileCount);
+      } catch {
+        // fall through
+      }
+    }
     if (!careType) return readDisplayNames(formData, "display_names", fileCount);
     throw error;
   }
@@ -134,4 +195,35 @@ export function attachmentHeadingForCareType(careType: string, label?: string): 
     default:
       return named ? `Arquivos — ${named}` : "Arquivos / Anexos";
   }
+}
+
+export function attachmentHeadingForPetCareType(petName: string, careType: string, typeLabel?: string): string {
+  const name = petName.trim() || "Pet";
+  const endsWithA = /a$/i.test(name);
+  const article = endsWithA ? "da" : "do";
+  switch (careType) {
+    case "exam":
+      return `Arquivos ${article} ${name} — exame`;
+    case "vaccine":
+      return `Arquivos ${article} ${name} — vacina`;
+    case "consultation":
+      return `Arquivos ${article} ${name} — consulta`;
+    case "deworming":
+      return `Arquivos ${article} ${name} — vermífugo`;
+    case "medication":
+      return `Arquivos ${article} ${name} — medicamento`;
+    case "hygiene":
+      return `Arquivos ${article} ${name} — higiene`;
+    case "observation":
+      return `Arquivos ${article} ${name} — observação`;
+    default: {
+      const named = typeLabel?.trim();
+      return named ? `Arquivos ${article} ${name} — ${named}` : `Arquivos ${article} ${name}`;
+    }
+  }
+}
+
+/** Stable client key for local selection maps: petId + careType. */
+export function healthAttachmentRecordKey(petId: string, careType: string) {
+  return `${petId}:${careType}`;
 }

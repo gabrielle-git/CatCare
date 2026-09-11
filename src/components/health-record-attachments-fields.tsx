@@ -25,17 +25,19 @@ function AccumulatingHealthFilePicker({
   pickerId,
   heading,
   careType,
+  petId,
 }: {
   disabled?: boolean;
   existingStoredCount: number;
   pickerId: string;
   heading: string;
   careType?: string | null;
+  petId?: string | null;
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const syncInputRef = useRef<HTMLInputElement>(null);
-  const fieldNames = healthAttachmentFieldNames(careType);
+  const fieldNames = healthAttachmentFieldNames(careType, petId);
 
   useEffect(() => {
     const input = syncInputRef.current;
@@ -245,7 +247,9 @@ export function HealthRecordAttachmentsFields({
   showExisting = false,
   editableExistingNames = false,
   careType,
+  petId,
   heading,
+  compact = false,
 }: {
   disabled?: boolean;
   existingAttachments?: AttachmentWithUrl[];
@@ -254,11 +258,15 @@ export function HealthRecordAttachmentsFields({
   editableExistingNames?: boolean;
   /** When set, FormData fields are scoped so multi-type create keeps files per health_record. */
   careType?: string | null;
+  /** With careType, scopes FormData to petId+careType for multi-pet create. */
+  petId?: string | null;
   heading?: string;
+  /** Tighter spacing when nested under per-pet groups. */
+  compact?: boolean;
 }) {
   const resolvedHeading = heading ?? "Arquivos / Anexos";
   return (
-    <section className="mt-5 space-y-5" aria-label={resolvedHeading}>
+    <section className={compact ? "space-y-3" : "mt-5 space-y-5"} aria-label={resolvedHeading}>
       {showExisting ? (
         <HealthRecordExistingFilesPanel
           attachments={existingAttachments}
@@ -272,6 +280,7 @@ export function HealthRecordAttachmentsFields({
         pickerId={pickerId}
         heading={resolvedHeading}
         careType={careType}
+        petId={petId}
       />
     </section>
   );
