@@ -68,3 +68,52 @@ export function findActiveHomonymPets<T extends { id: string; name: string; arch
     return normalizePetNameForComparison(pet.name) === needle;
   });
 }
+
+const draftValue = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
+
+/** Snapshot of create-pet fields for restoring UI after a soft server response (homonym warning). */
+export type PetCreateFormDraft = {
+  name: string;
+  sex: string;
+  birth_date: string;
+  birth_date_estimated: boolean;
+  breed: string;
+  color: string;
+  initial_weight_kg: string;
+  neutered: boolean;
+  neutered_at: string;
+  neutered_place: string;
+  has_microchip: boolean;
+  microchip_number: string;
+  microchip_implanted_at: string;
+  microchip_location: string;
+  notes: string;
+  pet_id: string;
+  initial_weight_record_id: string;
+};
+
+/**
+ * Capture submitted create-pet values before React may reset the uncontrolled form.
+ * Intent IDs are included so confirm/cancel keep the same intention.
+ */
+export function readPetCreateFormDraft(formData: FormData): PetCreateFormDraft {
+  return {
+    name: draftValue(formData, "name"),
+    sex: draftValue(formData, "sex") || "unknown",
+    birth_date: draftValue(formData, "birth_date"),
+    birth_date_estimated: formData.get("birth_date_estimated") === "on",
+    breed: draftValue(formData, "breed"),
+    color: draftValue(formData, "color"),
+    initial_weight_kg: draftValue(formData, "initial_weight_kg"),
+    neutered: formData.get("neutered") === "on",
+    neutered_at: draftValue(formData, "neutered_at"),
+    neutered_place: draftValue(formData, "neutered_place"),
+    has_microchip: formData.get("has_microchip") === "on",
+    microchip_number: draftValue(formData, "microchip_number"),
+    microchip_implanted_at: draftValue(formData, "microchip_implanted_at"),
+    microchip_location: draftValue(formData, "microchip_location"),
+    notes: draftValue(formData, "notes"),
+    pet_id: draftValue(formData, "pet_id"),
+    initial_weight_record_id: draftValue(formData, "initial_weight_record_id"),
+  };
+}

@@ -4,10 +4,13 @@ import { useId, useRef, useState, useTransition } from "react";
 import { PetFields } from "@/components/pet-fields";
 import { SubmitButton } from "@/components/submit-button";
 import type { CreatePetResult } from "@/app/(app)/pets/actions";
+import { readPetCreateFormDraft, type PetCreateFormDraft } from "@/lib/pet-create";
 
 /**
  * New-pet form: stable pet_id + weight intent across retries,
  * pending UX, and server-driven active-homonym confirmation.
+ * Draft snapshot restores uncontrolled fields after soft server responses
+ * (React may reset the form when the action Promise resolves).
  */
 export function CreatePetForm({
   action,
@@ -23,8 +26,15 @@ export function CreatePetForm({
   const [weightRecordId] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
+  const [draft, setDraft] = useState<PetCreateFormDraft | null>(null);
+  const [fieldsKey, setFieldsKey] = useState(0);
   const allowDuplicateRef = useRef(false);
   const [pending, startTransition] = useTransition();
+
+  function restoreDraft(next: PetCreateFormDraft) {
+    setDraft(next);
+    setFieldsKey((value) => value + 1);
+  }
 
   return (
     <form
@@ -33,6 +43,10 @@ export function CreatePetForm({
         startTransition(async () => {
           setError(null);
           const allowDuplicate = allowDuplicateRef.current;
+          // Snapshot BEFORE awaiting — form may reset when the action settles.
+          const snapshot = readPetCreateFormDraft(formData);
+          snapshot.pet_id = petId;
+          snapshot.initial_weight_record_id = weightRecordId;
           if (!allowDuplicate) setDuplicate(null);
           try {
             formData.set("pet_id", petId);
@@ -47,13 +61,16 @@ export function CreatePetForm({
             }
             if ("duplicateName" in result && result.duplicateName) {
               allowDuplicateRef.current = false;
+              restoreDraft(snapshot);
               setDuplicate({ name: result.name, existingLabel: result.existingLabel });
               return;
             }
             allowDuplicateRef.current = false;
+            restoreDraft(snapshot);
             setError("error" in result ? result.error : "Não foi possível salvar. Tente novamente.");
           } catch (cause) {
             allowDuplicateRef.current = false;
+            restoreDraft(snapshot);
             setError(cause instanceof Error ? cause.message : "Não foi possível salvar. Tente novamente.");
           }
         });
@@ -88,6 +105,8 @@ export function CreatePetForm({
               onClick={() => {
                 allowDuplicateRef.current = false;
                 setDuplicate(null);
+                // Keep draft — cancel must not wipe filled fields.
+                if (draft) restoreDraft(draft);
               }}
             >
               Cancelar
@@ -111,7 +130,32 @@ export function CreatePetForm({
         </p>
       ) : null}
 
-      <PetFields includeInitialWeight disabled={!configured || pending} />
+      <PetFields
+        key={fieldsKey}
+        includeInitialWeight
+        disabled={!configured}
+        initialWeightKg={draft?.initial_weight_kg ?? ""}
+        defaultValues={
+          draft
+            ? {
+                name: draft.name,
+                sex: (draft.sex as "male" | "female" | "unknown") || "unknown",
+                birth_date: draft.birth_date || null,
+                birth_date_estimated: draft.birth_date_estimated,
+                breed: draft.breed || null,
+                color: draft.color || null,
+                neutered: draft.neutered,
+                neutered_at: draft.neutered_at || null,
+                neutered_place: draft.neutered_place || null,
+                has_microchip: draft.has_microchip,
+                microchip_number: draft.microchip_number || null,
+                microchip_implanted_at: draft.microchip_implanted_at || null,
+                microchip_location: draft.microchip_location || null,
+                notes: draft.notes || null,
+              }
+            : undefined
+        }
+      />
       <SubmitButton
         disabled={!configured || pending}
         pendingLabel="Salvando..."

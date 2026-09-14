@@ -6,6 +6,7 @@ import {
   findActiveHomonymPets,
   isUniqueViolation,
   normalizePetNameForComparison,
+  readPetCreateFormDraft,
   resolveInitialWeightOwnership,
   resolvePetCreateOwnership,
 } from "@/lib/pet-create";
@@ -96,12 +97,64 @@ describe("pet create idempotency helpers", () => {
 
     assert.equal(findActiveHomonymPets(pets, "Dobby", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee").length, 0);
   });
+
+  it("readPetCreateFormDraft preserves name and all create fields including intent ids", () => {
+    const formData = new FormData();
+    formData.set("name", "  Zabuza  ");
+    formData.set("sex", "male");
+    formData.set("birth_date", "2024-05-01");
+    formData.set("birth_date_estimated", "on");
+    formData.set("breed", "SRD");
+    formData.set("color", "preto");
+    formData.set("initial_weight_kg", "4,2");
+    formData.set("neutered", "on");
+    formData.set("neutered_at", "2025-01-10");
+    formData.set("neutered_place", "Clínica");
+    formData.set("has_microchip", "on");
+    formData.set("microchip_number", "985");
+    formData.set("microchip_implanted_at", "2025-02-01");
+    formData.set("microchip_location", "pescoço");
+    formData.set("notes", "bravo mas fofo");
+    formData.set("pet_id", PET_A);
+    formData.set("initial_weight_record_id", WEIGHT_A);
+
+    const draft = readPetCreateFormDraft(formData);
+    assert.equal(draft.name, "Zabuza");
+    assert.equal(draft.sex, "male");
+    assert.equal(draft.birth_date, "2024-05-01");
+    assert.equal(draft.birth_date_estimated, true);
+    assert.equal(draft.breed, "SRD");
+    assert.equal(draft.color, "preto");
+    assert.equal(draft.initial_weight_kg, "4,2");
+    assert.equal(draft.neutered, true);
+    assert.equal(draft.neutered_at, "2025-01-10");
+    assert.equal(draft.neutered_place, "Clínica");
+    assert.equal(draft.has_microchip, true);
+    assert.equal(draft.microchip_number, "985");
+    assert.equal(draft.microchip_implanted_at, "2025-02-01");
+    assert.equal(draft.microchip_location, "pescoço");
+    assert.equal(draft.notes, "bravo mas fofo");
+    assert.equal(draft.pet_id, PET_A);
+    assert.equal(draft.initial_weight_record_id, WEIGHT_A);
+  });
+
+  it("readPetCreateFormDraft keeps unchecked estimated/neutered/microchip false", () => {
+    const formData = new FormData();
+    formData.set("name", "Dobby");
+    formData.set("sex", "unknown");
+    const draft = readPetCreateFormDraft(formData);
+    assert.equal(draft.birth_date_estimated, false);
+    assert.equal(draft.neutered, false);
+    assert.equal(draft.has_microchip, false);
+    assert.equal(draft.sex, "unknown");
+  });
 });
 
 describe("pet create wiring (source contracts)", () => {
   const root = process.cwd();
   const actions = readFileSync(join(root, "src/app/(app)/pets/actions.ts"), "utf8");
   const form = readFileSync(join(root, "src/components/create-pet-form.tsx"), "utf8");
+  const fields = readFileSync(join(root, "src/components/pet-fields.tsx"), "utf8");
   const page = readFileSync(join(root, "src/app/(app)/pets/new/page.tsx"), "utf8");
 
   it("createPet uses explicit pet_id and returns structured results (no blind redirect create)", () => {
@@ -123,6 +176,36 @@ describe("pet create wiring (source contracts)", () => {
     assert.match(form, /allowDuplicateRef/);
     assert.match(form, /Criar mesmo assim/);
     assert.match(page, /CreatePetForm/);
+  });
+
+  it("duplicate warning restores draft fields and keeps the same intent ids", () => {
+    assert.match(form, /readPetCreateFormDraft/);
+    assert.match(form, /restoreDraft\(snapshot\)/);
+    assert.match(form, /defaultValues=\{[\s\S]*draft\.name/);
+    assert.match(form, /initialWeightKg=\{draft\?\.initial_weight_kg/);
+    assert.match(form, /key=\{fieldsKey\}/);
+    // Confirm path reuses the same useState UUIDs — never mint new ones on warning.
+    assert.match(form, /const \[petId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
+    assert.match(form, /const \[weightRecordId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
+    assert.match(form, /formData\.set\("pet_id", petId\)/);
+    assert.match(form, /formData\.set\("initial_weight_record_id", weightRecordId\)/);
+    assert.equal((form.match(/crypto\.randomUUID\(\)/g) ?? []).length, 2);
+  });
+
+  it("cancel keeps draft and does not create a new intent", () => {
+    assert.match(form, /Cancelar/);
+    assert.match(form, /setDuplicate\(null\)/);
+    assert.match(form, /if \(draft\) restoreDraft\(draft\)/);
+    assert.doesNotMatch(form, /setPetId|setWeightRecordId|randomUUID\(\).*Cancelar/);
+  });
+
+  it("Data estimada sits under Nascimento with accessible checkbox label", () => {
+    assert.match(fields, /Data estimada/);
+    assert.doesNotMatch(fields, /A data de nascimento é estimada/);
+    assert.match(fields, /name="birth_date_estimated"/);
+    assert.match(fields, /Nascimento[\s\S]*birth_date[\s\S]*birth_date_estimated[\s\S]*Data estimada/);
+    // Not a full-width cream card anymore.
+    assert.doesNotMatch(fields, /birth_date_estimated[\s\S]{0,200}bg-\[var\(--cream\)\]/);
   });
 
   it("does not introduce migration 0036 or delete Zabuza", () => {

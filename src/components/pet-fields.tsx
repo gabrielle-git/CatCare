@@ -5,7 +5,18 @@ import type { Pet } from "@/types/database";
 import { FactualDateInput } from "@/components/factual-datetime-input";
 import { MicrochipFields } from "@/components/microchip-fields";
 
-export function PetFields({ defaultValues, includeInitialWeight = false, disabled = false }: { defaultValues?: Partial<Pet>; includeInitialWeight?: boolean; disabled?: boolean }) {
+export function PetFields({
+  defaultValues,
+  includeInitialWeight = false,
+  initialWeightKg = "",
+  disabled = false,
+}: {
+  defaultValues?: Partial<Pet>;
+  includeInitialWeight?: boolean;
+  /** Create-only: restore peso inicial after soft server responses. */
+  initialWeightKg?: string;
+  disabled?: boolean;
+}) {
   const [isNeutered, setIsNeutered] = useState(defaultValues?.neutered ?? false);
 
   return (
@@ -24,16 +35,23 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
             <option value="female">Fêmea</option>
           </select>
         </label>
-        <label className="block text-sm font-bold">
-          Nascimento
-          <FactualDateInput disabled={disabled} name="birth_date" defaultValue={defaultValues?.birth_date ?? ""} className="field mt-2" />
-        </label>
+        <div>
+          <label className="block text-sm font-bold">
+            Nascimento
+            <FactualDateInput disabled={disabled} name="birth_date" defaultValue={defaultValues?.birth_date ?? ""} className="field mt-2" />
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+            <input
+              disabled={disabled}
+              type="checkbox"
+              name="birth_date_estimated"
+              defaultChecked={defaultValues?.birth_date_estimated ?? false}
+              className="size-4 accent-[var(--lavender)]"
+            />
+            Data estimada
+          </label>
+        </div>
       </div>
-
-      <label className="flex items-center gap-3 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">
-        <input disabled={disabled} type="checkbox" name="birth_date_estimated" defaultChecked={defaultValues?.birth_date_estimated ?? false} className="size-4 accent-[var(--lavender)]" />
-        A data de nascimento é estimada
-      </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-bold">
@@ -49,7 +67,15 @@ export function PetFields({ defaultValues, includeInitialWeight = false, disable
       {includeInitialWeight && (
         <label className="block text-sm font-bold">
           Peso inicial (kg)
-          <input disabled={disabled} type="text" name="initial_weight_kg" className="field mt-2" placeholder="Ex.: 4,2" inputMode="decimal" />
+          <input
+            disabled={disabled}
+            type="text"
+            name="initial_weight_kg"
+            defaultValue={initialWeightKg}
+            className="field mt-2"
+            placeholder="Ex.: 4,2"
+            inputMode="decimal"
+          />
           <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">A primeira pesagem já aparecerá no histórico.</span>
         </label>
       )}
