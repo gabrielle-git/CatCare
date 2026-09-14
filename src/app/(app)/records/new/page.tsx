@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Plus } from "lucide-react";
 import { RecordFields } from "@/components/record-fields";
+import { DirectUploadForm } from "@/components/direct-upload-form";
 import { isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
@@ -55,7 +56,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
       {configured && pets.length === 0 ? (
         <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
       ) : (
-        <form action={createRecord} className="cat-card mt-6 p-5 md:p-7">
+        <DirectUploadForm action={createRecord} mode="records-create" className="cat-card mt-6 p-5 md:p-7">
           <RecordFields
             key={`${query.pet ?? ""}-${query.type ?? ""}-${query.types ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${query.vaccine_key ?? ""}-${query.dose_label ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`}
             pets={options}
@@ -70,7 +71,7 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
             neonatalContext={neonatalContext}
             disabled={!configured}
           />
-        </form>
+        </DirectUploadForm>
       )}
     </div>
   );

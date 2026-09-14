@@ -26,6 +26,21 @@ import {
 import { buildHygieneFields, hygieneRecordTitle } from "@/lib/hygiene-care";
 import { parseFeedingEditItemsFromForm } from "@/lib/feeding-care";
 import { getNeonatalRecord } from "@/lib/records";
+import {
+  isUuid,
+  removeStoragePaths,
+} from "@/lib/attachments";
+import {
+  readDisplayNames,
+  readExistingAttachmentIds,
+} from "@/lib/health-record-attachment-form";
+import {
+  filterIntentsForScope,
+  finalizeDirectUploadedAttachments,
+  readAttachmentsPayload,
+} from "@/lib/attachment-finalize";
+import { isAttachableQuickRecordType, mapFormTypeToHealthRecordType } from "@/lib/health-record-type";
+import { countHealthRecordAttachments } from "@/lib/health-record-attachments";
 
 export type UpdateRecordResult =
   | { ok: true; redirectTo: string }
@@ -71,11 +86,18 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
   const trace = getPerfTraceId();
   perfLog("updateRecord", "start");
 
+  const failHere = (message: string): UpdateRecordResult => ({ ok: false, error: message });
+
+  for (const entry of formData.values()) {
+    if (typeof File !== "undefined" && entry instanceof File && entry.size > 0) {
+      return failHere("Envie os arquivos pelo fluxo de upload direto. Recarregue a página e tente de novo.");
+    }
+  }
+
   const petIds = parsePetIds(formData);
   const petId = petIds[0];
   const type = value(formData, "record_type");
   const returnTo = resolveReturnTo(value(formData, "return_to"));
-  const failHere = (message: string): UpdateRecordResult => ({ ok: false, error: message });
 
   if (!petId || !quickRecordTypes.has(type)) return failHere("Escolha o pet e confira o registro.");
 
@@ -182,10 +204,7 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
     );
     if (error) return failHere(error.message);
   } else {
-    const healthType: HealthRecordType =
-      type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "hygiene"
-        ? type
-        : "other";
+    const healthType = mapFormTypeToHealthRecordType(type);
     const defaults: Record<HealthRecordType, string> = {
       vaccine: "Vacina",
       deworming: "Vermífugo",
@@ -271,6 +290,76 @@ export async function updateRecord(recordId: string, source: RecordSource, formD
       const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
       return failHere(message);
     }
+
+    if (isAttachableQuickRecordType(type)) {
+      let existingIds: string[] = [];
+      let existingDisplayNames: Array<string | null> = [];
+      try {
+        existingIds = readExistingAttachmentIds(formData);
+        existingDisplayNames = readDisplayNames(formData, "existing_display_names", existingIds.length);
+      } catch (error) {
+        return failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
+      }
+
+      for (let index = 0; index < existingIds.length; index += 1) {
+        const { error: renameError } = await supabase.rpc("update_attachment_display_name", {
+          p_attachment_id: existingIds[index],
+          p_display_name: existingDisplayNames[index],
+        });
+        if (renameError) return failHere(renameError.message);
+      }
+
+      let newIntents;
+      try {
+        newIntents = filterIntentsForScope(readAttachmentsPayload(formData), type, petId);
+      } catch (error) {
+        return failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
+      }
+      if (newIntents.length > 0) {
+        const attachmentIds = newIntents.map((item) => item.attachment_id);
+        const { data: alreadyLinked } = await supabase
+          .from("health_record_attachments")
+          .select("attachment_id")
+          .eq("health_record_id", recordId)
+          .in("attachment_id", attachmentIds);
+        const alreadyIds = new Set((alreadyLinked ?? []).map((row) => row.attachment_id));
+        const pending = newIntents.filter((item) => !alreadyIds.has(item.attachment_id));
+
+        if (pending.length > 0) {
+          const count = await countHealthRecordAttachments(supabase, recordId);
+          const finalized = await finalizeDirectUploadedAttachments({
+            supabase,
+            householdId: household.id,
+            intents: pending,
+            alreadyLinkedIds: alreadyIds,
+            existingCount: count,
+            entityLabel: "registro",
+          });
+          if (!finalized.ok) return failHere(finalized.message);
+          const payload = finalized.payload;
+          if (payload.length > 0) {
+            const { error: addError } = await supabase.rpc("add_health_record_attachments", {
+              p_health_record_id: recordId,
+              p_attachments: payload,
+            });
+            if (addError) {
+              const pendingIds = payload.map((item) => item.id);
+              const { data: linkedNow } = await supabase
+                .from("health_record_attachments")
+                .select("attachment_id")
+                .eq("health_record_id", recordId)
+                .in("attachment_id", pendingIds);
+              const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
+              if (!pendingIds.every((id) => linked.has(id))) {
+                const orphanPaths = payload.filter((item) => !linked.has(item.id)).map((item) => item.storage_path);
+                if (orphanPaths.length) await removeStoragePaths(supabase, orphanPaths).catch(() => undefined);
+                return failHere(addError.message);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   const beforeRevalidate = Math.round(performance.now() - actionStart);
@@ -291,6 +380,17 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   const { supabase, household } = await authContext();
   const table = tableForSource(source);
 
+  let storagePaths: string[] = [];
+  if (source === "health") {
+    const { data: paths, error: purgeError } = await supabase.rpc("purge_health_record_attachments", {
+      p_health_record_id: recordId,
+    });
+    if (purgeError && !/health record not found/i.test(purgeError.message)) {
+      redirect(redirectPathWithParam(returnTo, "error", purgeError.message));
+    }
+    storagePaths = Array.isArray(paths) ? paths.filter((item): item is string => typeof item === "string") : [];
+  }
+
   // Linked vaccine_doses are removed by FK ON DELETE CASCADE on health_record_id.
   // feeding_sessions has no household_id — RLS via pets; cascade deletes items.
   let data: { id: string }[] | null = null;
@@ -307,8 +407,55 @@ export async function deleteRecord(recordId: string, source: RecordSource, petId
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
   if (!data?.length) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado ou sem permissão para apagar."));
 
+  if (storagePaths.length) {
+    try {
+      await removeStoragePaths(supabase, storagePaths);
+    } catch {
+      revalidateRecordPaths(petId, source);
+      redirect(redirectPathWithParam(redirectPathWithParam(returnTo, "deleted", "1"), "storage_warning", "1"));
+    }
+  }
+
   revalidateRecordPaths(petId, source);
   redirectWithDeleted(returnTo, 1);
+}
+
+export async function deleteHealthRecordAttachment(
+  recordId: string,
+  petId: string,
+  attachmentId: string,
+  formData: FormData,
+) {
+  if (!petId || !isUuid(recordId) || !isUuid(attachmentId)) redirect("/pets");
+  const returnTo = safeReturnPath(value(formData, "return_to"), `/records/${recordId}/edit?source=health`);
+  const editPath = `/records/${recordId}/edit?source=health&return_to=${encodeURIComponent(returnTo)}`;
+  const { supabase, household } = await authContext();
+
+  const { data: record } = await supabase
+    .from("health_records")
+    .select("id")
+    .eq("id", recordId)
+    .eq("pet_id", petId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (!record) redirect(redirectPathWithParam(returnTo, "error", "Registro não encontrado."));
+
+  const { data: path, error } = await supabase.rpc("delete_health_record_attachment", {
+    p_attachment_id: attachmentId,
+  });
+  if (error) {
+    redirect(`${editPath}&error=${encodeURIComponent(error.message)}`);
+  }
+  if (typeof path === "string" && path) {
+    try {
+      await removeStoragePaths(supabase, [path]);
+    } catch {
+      redirect(`${editPath}&error=${encodeURIComponent("Arquivo removido do registro, mas a limpeza no Storage falhou. Tente novamente mais tarde.")}`);
+    }
+  }
+
+  revalidateRecordPaths(petId, "health");
+  redirect(`${editPath}&updated=1`);
 }
 
 export async function deleteRecords(formData: FormData) {
@@ -327,8 +474,17 @@ export async function deleteRecords(formData: FormData) {
   const petIds = new Set<string>();
   const sourcesByPet = new Map<string, Set<RecordSource>>();
   let deleted = 0;
+  const allStoragePaths: string[] = [];
 
   for (const record of records) {
+    if (record.source === "health") {
+      const { data: paths } = await supabase.rpc("purge_health_record_attachments", {
+        p_health_record_id: record.id,
+      });
+      if (Array.isArray(paths)) {
+        allStoragePaths.push(...paths.filter((item): item is string => typeof item === "string"));
+      }
+    }
     // Linked vaccine_doses cascade-delete with health_records (FK ON DELETE CASCADE).
     const table = tableForSource(record.source);
     const result = record.source === "feeding"
@@ -345,6 +501,14 @@ export async function deleteRecords(formData: FormData) {
   }
 
   if (deleted === 0) redirect(redirectPathWithParam(returnTo, "error", "Nenhum registro foi apagado."));
+
+  if (allStoragePaths.length) {
+    try {
+      await removeStoragePaths(supabase, allStoragePaths);
+    } catch {
+      // Metadata already deleted — do not restore; warn via query like Documents.
+    }
+  }
 
   for (const petId of petIds) {
     const sources = sourcesByPet.get(petId);

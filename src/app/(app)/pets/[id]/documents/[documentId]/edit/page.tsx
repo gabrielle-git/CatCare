@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { DocumentFields } from "@/components/document-fields";
+import { DirectUploadForm } from "@/components/direct-upload-form";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPetDocument } from "@/lib/documents";
@@ -57,7 +58,7 @@ export default async function EditPetDocumentPage({
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
       <div className="cat-card mt-6 space-y-6 p-5 md:p-7">
-        <form action={save}>
+        <DirectUploadForm action={save} mode="documents">
           <DocumentFields
             defaultTitle={document.title}
             defaultCategory={document.category}
@@ -66,7 +67,7 @@ export default async function EditPetDocumentPage({
             submitLabel="Salvar alterações"
             removeFormIdFor={removeFormId}
           />
-        </form>
+        </DirectUploadForm>
       </div>
 
       {document.attachments.map((attachment) => (

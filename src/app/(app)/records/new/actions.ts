@@ -21,7 +21,11 @@ import {
 import { validateFactualInstant } from "@/lib/factual-datetime";
 import { createClient } from "@/lib/supabase/server";
 import type { HealthRecordType, NeonatalRecordType } from "@/types/database";
-import { findExistingVaccineDose, insertVaccineDose } from "@/lib/vaccine-doses";
+import {
+  findExistingVaccineDose,
+  findVaccineDoseByHealthRecordId,
+  insertVaccineDose,
+} from "@/lib/vaccine-doses";
 import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
 import {
   notesFieldNameForPet,
@@ -36,12 +40,33 @@ import {
   parseFeedingSubtypeList,
   readFeedingDefaultAmountsFromForm,
 } from "@/lib/feeding-care";
+import {
+  removeStoragePaths,
+} from "@/lib/attachments";
+import {
+  readStableRecordIdForPetType,
+} from "@/lib/health-record-attachment-form";
+import {
+  filterIntentsForScope,
+  readAttachmentsPayload,
+  finalizeDirectUploadedAttachments,
+} from "@/lib/attachment-finalize";
+import {
+  isAttachableQuickRecordType,
+  mapFormTypeToHealthRecordType,
+  resolveHealthRecordCreateOwnership,
+} from "@/lib/health-record-type";
 
-function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string }): never {
+function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string; types?: string[] }): never {
   const params = new URLSearchParams();
   const pet = petIds[0] ?? "";
   if (pet) params.set("pet", pet);
-  if (type) params.set("type", type);
+  const typeList = extras?.types?.filter(Boolean) ?? [];
+  if (typeList.length > 1) {
+    params.set("types", typeList.join(","));
+  } else if (type) {
+    params.set("type", type);
+  }
   params.set("error", message);
   if (returnTo) params.set("return_to", returnTo);
   if (neonatalContext) params.set("context", "neonatal");
@@ -74,7 +99,86 @@ function titleForType(formData: FormData, type: string, multi: boolean, fallback
   return value(formData, "title") || fallback;
 }
 
+async function ensureHealthRecordAttachments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  householdId: string,
+  healthRecordId: string,
+  formData: FormData,
+  failHere: (message: string) => never,
+  careType: string,
+  petId: string,
+) {
+  let allIntents;
+  try {
+    allIntents = readAttachmentsPayload(formData);
+  } catch (error) {
+    failHere(error instanceof Error ? error.message : "Arquivos inválidos.");
+  }
+  const intents = filterIntentsForScope(allIntents, careType, petId);
+  if (intents.length === 0) return;
+
+  const attachmentIds = intents.map((item) => item.attachment_id);
+  const { data: alreadyLinked } = await supabase
+    .from("health_record_attachments")
+    .select("attachment_id")
+    .eq("health_record_id", healthRecordId)
+    .in("attachment_id", attachmentIds);
+  const linkedIds = new Set((alreadyLinked ?? []).map((row) => row.attachment_id));
+  if (attachmentIds.every((id) => linkedIds.has(id))) return;
+
+  const { count } = await supabase
+    .from("health_record_attachments")
+    .select("attachment_id", { count: "exact", head: true })
+    .eq("health_record_id", healthRecordId);
+
+  const finalized = await finalizeDirectUploadedAttachments({
+    supabase,
+    householdId,
+    intents,
+    alreadyLinkedIds: linkedIds,
+    existingCount: count ?? 0,
+    entityLabel: "registro",
+  });
+  const payload = finalized.ok ? finalized.payload : failHere(finalized.message);
+  if (payload.length === 0) return;
+
+  const { error } = await supabase.rpc("add_health_record_attachments", {
+    p_health_record_id: healthRecordId,
+    p_attachments: payload,
+  });
+  if (error) {
+    const pendingIds = payload.map((item) => item.id);
+    const { data: linkedNow } = await supabase
+      .from("health_record_attachments")
+      .select("attachment_id")
+      .eq("health_record_id", healthRecordId)
+      .in("attachment_id", pendingIds);
+    const linked = new Set((linkedNow ?? []).map((row) => row.attachment_id));
+    if (!pendingIds.every((id) => linked.has(id))) {
+      const orphanPaths = payload.filter((item) => !linked.has(item.id)).map((item) => item.storage_path);
+      if (orphanPaths.length) await removeStoragePaths(supabase, orphanPaths).catch(() => undefined);
+      failHere(error.message);
+    }
+  }
+}
+
 export async function createRecord(formData: FormData) {
+  // Hard guard: binaries must never reach this Server Action (Vercel/Next body limits).
+  for (const entry of formData.values()) {
+    if (typeof File !== "undefined" && entry instanceof File && entry.size > 0) {
+      const petIdsEarly = parsePetIds(formData);
+      const typesEarly = parseRecordTypes(formData);
+      fail(
+        petIdsEarly,
+        typesEarly[0] ?? "",
+        "Envie os arquivos pelo fluxo de upload direto. Recarregue a página e tente de novo.",
+        resolveReturnTo(String(formData.get("return_to") ?? "")),
+        String(formData.get("context") ?? "") === "neonatal",
+        { types: typesEarly },
+      );
+    }
+  }
+
   const petIds = parsePetIds(formData);
   const types = parseRecordTypes(formData);
   const primaryType = types[0] ?? "";
@@ -87,6 +191,7 @@ export async function createRecord(formData: FormData) {
     vaccineKey: vaccineKeyEarly || undefined,
     doseLabel: doseLabelEarly || undefined,
     title: value(formData, "title") || undefined,
+    types,
   });
 
   if (petIds.length === 0 || types.length === 0) failHere("Escolha ao menos um pet e o tipo de cuidado.");
@@ -137,6 +242,17 @@ export async function createRecord(formData: FormData) {
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
   const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
   let created = 0;
+
+  const wantsAttachments = types.some((type) => isAttachableQuickRecordType(type));
+  if (wantsAttachments && types.includes("hygiene")) {
+    const hygienePreview = buildHygieneFieldsList(
+      formData.getAll("hygiene_subtype").map((item) => String(item)),
+      value(formData, "hygiene_custom_label"),
+    );
+    if (hygienePreview.ok && hygienePreview.items.length > 1 && types.length === 1) {
+      failHere("Anexos clínicos ficam disponíveis ao registrar um cuidado de higiene por vez.");
+    }
+  }
 
   for (const type of types) {
     if (type === "weight") {
@@ -243,10 +359,7 @@ export async function createRecord(formData: FormData) {
       continue;
     }
 
-    const healthType: HealthRecordType =
-      type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "hygiene"
-        ? type
-        : "other";
+    const healthType: HealthRecordType = mapFormTypeToHealthRecordType(type);
     const defaults: Record<HealthRecordType, string> = {
       vaccine: "Vacina",
       deworming: "Vermífugo",
@@ -270,18 +383,74 @@ export async function createRecord(formData: FormData) {
       for (const pet of pets) {
         const petNotes = notesForPet(pet.id);
         for (const fields of hygieneItems) {
-          const { error } = await supabase.from("health_records").insert({
-            household_id: household.id,
-            pet_id: pet.id,
-            type: "hygiene",
-            title: hygieneRecordTitle(fields.hygiene_subtype, fields.hygiene_custom_label),
-            occurred_at: occurredAt,
-            clinic_or_vet: null,
-            notes: petNotes,
-            hygiene_subtype: fields.hygiene_subtype,
-            hygiene_custom_label: fields.hygiene_custom_label,
-          });
-          if (error) failHere(error.message);
+          const stableId = hygieneItems.length === 1 && pets.length === 1
+            ? readStableRecordIdForPetType(formData, pet.id, "hygiene", pets.map((row) => row.id))
+            : null;
+          let recordId: string | null = null;
+          let reused = false;
+
+          if (stableId) {
+            const { data: existing } = await supabase
+              .from("health_records")
+              .select("id, household_id, pet_id")
+              .eq("id", stableId)
+              .maybeSingle();
+            const ownership = resolveHealthRecordCreateOwnership(stableId, household.id, pet.id, existing);
+            if (!ownership.ok) failHere("Não foi possível reutilizar este registro.");
+            else if (ownership.status === "reuse") {
+              recordId = stableId;
+              reused = true;
+            }
+          }
+
+          if (!reused) {
+            const insertPayload: Record<string, unknown> = {
+              household_id: household.id,
+              pet_id: pet.id,
+              type: "hygiene",
+              title: hygieneRecordTitle(fields.hygiene_subtype, fields.hygiene_custom_label),
+              occurred_at: occurredAt,
+              clinic_or_vet: null,
+              notes: petNotes,
+              hygiene_subtype: fields.hygiene_subtype,
+              hygiene_custom_label: fields.hygiene_custom_label,
+            };
+            if (stableId) insertPayload.id = stableId;
+            const { data, error } = await supabase.from("health_records").insert(insertPayload).select("id").single();
+            if (error) {
+              if (stableId) {
+                const { data: again } = await supabase
+                  .from("health_records")
+                  .select("id, household_id, pet_id")
+                  .eq("id", stableId)
+                  .maybeSingle();
+                const retry = resolveHealthRecordCreateOwnership(stableId, household.id, pet.id, again);
+                if (retry.ok && retry.status === "reuse") {
+                  recordId = stableId;
+                } else {
+                  failHere(error.message);
+                }
+              } else {
+                failHere(error.message);
+              }
+            } else {
+              recordId = data.id;
+            }
+          }
+
+          if (!recordId) failHere("Não foi possível salvar o registro.");
+          const hygieneRecordId = recordId as string;
+          if (wantsAttachments && hygieneItems.length === 1 && isAttachableQuickRecordType("hygiene")) {
+            await ensureHealthRecordAttachments(
+              supabase,
+              household.id,
+              hygieneRecordId,
+              formData,
+              failHere,
+              "hygiene",
+              pet.id,
+            );
+          }
           created += 1;
         }
       }
@@ -312,55 +481,129 @@ export async function createRecord(formData: FormData) {
 
     const clinicOrVet = value(formData, "clinic_or_vet") || null;
     for (const pet of pets) {
-      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
-        const existing = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
-        if (existing) failHere("Esta dose já está registrada como aplicada.");
+      const stableIdRaw = readStableRecordIdForPetType(formData, pet.id, type, pets.map((row) => row.id));
+      if (!stableIdRaw) failHere("Intenção de criação inválida. Recarregue a página.");
+      const stableId = stableIdRaw as string;
+
+      const { data: existing } = await supabase
+        .from("health_records")
+        .select("id, household_id, pet_id")
+        .eq("id", stableId)
+        .maybeSingle();
+      const ownership = resolveHealthRecordCreateOwnership(stableId, household.id, pet.id, existing);
+      if (!ownership.ok) {
+        failHere(
+          ownership.reason === "foreign_household" || ownership.reason === "pet_mismatch"
+            ? "Não foi possível reutilizar este registro."
+            : "Intenção de criação inválida. Recarregue a página.",
+        );
+      }
+
+      let recordId = stableId;
+      let reused = ownership.ok && ownership.status === "reuse";
+
+      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel && !reused) {
+        const existingDose = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
+        if (existingDose) failHere("Esta dose já está registrada como aplicada.");
       }
 
       const petNotes = notesForPet(pet.id);
-      const { data, error } = await supabase.from("health_records").insert({
-        household_id: household.id,
-        pet_id: pet.id,
-        type: healthType,
-        title,
-        occurred_at: occurredAt,
-        clinic_or_vet: clinicOrVet,
-        notes: petNotes,
-        hygiene_subtype: null,
-        hygiene_custom_label: null,
-      }).select("id").single();
-      if (error) failHere(error.message);
+      if (!reused) {
+        const { data, error } = await supabase.from("health_records").insert({
+          id: stableId,
+          household_id: household.id,
+          pet_id: pet.id,
+          type: healthType,
+          title,
+          occurred_at: occurredAt,
+          clinic_or_vet: clinicOrVet,
+          notes: petNotes,
+          hygiene_subtype: null,
+          hygiene_custom_label: null,
+        }).select("id").single();
+        if (error) {
+          const { data: again } = await supabase
+            .from("health_records")
+            .select("id, household_id, pet_id")
+            .eq("id", stableId)
+            .maybeSingle();
+          const retry = resolveHealthRecordCreateOwnership(stableId, household.id, pet.id, again);
+          if (retry.ok && retry.status === "reuse") {
+            reused = true;
+            recordId = stableId;
+          } else {
+            failHere(error.message);
+          }
+        } else {
+          recordId = data.id;
+        }
+      }
+
       created += 1;
 
-      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel && data) {
+      if (type === "vaccine" && isProtocolVaccineKey(vaccineKey) && doseLabel) {
         try {
-          await insertVaccineDose(supabase, {
-            householdId: household.id,
-            petId: pet.id,
-            healthRecordId: data.id,
-            vaccineKey,
-            doseLabel,
-            administeredAt: occurredAt as string,
-            clinicOrVet,
-            notes: petNotes,
-          });
+          const linked = await findVaccineDoseByHealthRecordId(supabase, recordId, household.id);
+          if (!linked) {
+            const existingDose = await findExistingVaccineDose(supabase, pet.id, vaccineKey, doseLabel);
+            if (existingDose && existingDose.health_record_id !== recordId) {
+              if (!reused) {
+                await supabase.from("health_records").delete().eq("id", recordId).eq("household_id", household.id);
+              }
+              failHere("Esta dose já está registrada como aplicada.");
+            }
+            if (!existingDose) {
+              await insertVaccineDose(supabase, {
+                householdId: household.id,
+                petId: pet.id,
+                healthRecordId: recordId,
+                vaccineKey,
+                doseLabel,
+                administeredAt: occurredAt as string,
+                clinicOrVet,
+                notes: petNotes,
+              });
+            }
+          }
         } catch (cause) {
-          await supabase.from("health_records").delete().eq("id", data.id).eq("household_id", household.id);
+          if (!reused) {
+            await supabase.from("health_records").delete().eq("id", recordId).eq("household_id", household.id);
+          }
           const message = cause instanceof Error ? cause.message : "Não foi possível atualizar a prevenção.";
           failHere(message);
         }
       }
 
-      if (reminderAt && data && !multi) {
-        const prefix = reminderTitles[type] ?? "Cuidado de";
-        await supabase.from("reminders").insert({
-          household_id: household.id,
-          pet_id: pet.id,
-          health_record_id: data.id,
-          title: `${prefix} ${pet.name}`,
-          category: type,
-          due_at: reminderAt,
-        });
+      if (reminderAt && !multi) {
+        const { data: existingReminder } = await supabase
+          .from("reminders")
+          .select("id")
+          .eq("health_record_id", recordId)
+          .eq("household_id", household.id)
+          .maybeSingle();
+        if (!existingReminder) {
+          const prefix = reminderTitles[type] ?? "Cuidado de";
+          await supabase.from("reminders").insert({
+            household_id: household.id,
+            pet_id: pet.id,
+            health_record_id: recordId,
+            title: `${prefix} ${pet.name}`,
+            category: type,
+            due_at: reminderAt,
+          });
+        }
+      }
+
+      if (wantsAttachments && isAttachableQuickRecordType(type)) {
+        await ensureHealthRecordAttachments(
+          supabase,
+          household.id,
+          recordId,
+          formData,
+          failHere,
+          type,
+          pet.id,
+        );
       }
     }
   }

@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Bath, ClipboardPlus, Droplets, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { Bug, Bath, ClipboardPlus, Droplets, FlaskConical, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { FactualDateTimeInput } from "@/components/factual-datetime-input";
+import { HealthRecordAttachmentsFields } from "@/components/health-record-attachments-fields";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { SubmitButton } from "@/components/submit-button";
+import {
+  attachmentHeadingForCareType,
+  attachmentHeadingForPetCareType,
+} from "@/lib/health-record-attachment-form";
+import { isAttachableQuickRecordType } from "@/lib/health-record-type";
+import type { AttachmentWithUrl } from "@/types/database";
 import { gramsToKgInput } from "@/lib/format";
 import { HYGIENE_PRESETS, type HygieneSubtypeKey } from "@/lib/hygiene-care";
 import {
@@ -67,6 +74,7 @@ const options: RecordOption[] = [
   { value: "deworming", label: "Vermífugo", shortLabel: "Vermíf.", icon: Bug },
   { value: "medication", label: "Medicamento", shortLabel: "Remédio", icon: Pill },
   { value: "consultation", label: "Consulta", shortLabel: "Consulta", icon: Stethoscope },
+  { value: "exam", label: "Exame", shortLabel: "Exame", icon: FlaskConical },
   { value: "hygiene", label: "Cuidados de higiene", shortLabel: "Higiene", icon: Bath },
   { value: "observation", label: "Observação", shortLabel: "Nota", icon: ClipboardPlus },
 ];
@@ -194,6 +202,7 @@ export function RecordFields({
   allowTypeChange = false,
   defaultValues,
   submitLabel = "Salvar registro",
+  existingAttachments = [],
 }: {
   pets: PetOption[];
   initialPetId?: string;
@@ -211,6 +220,7 @@ export function RecordFields({
   allowTypeChange?: boolean;
   defaultValues?: RecordFieldDefaults;
   submitLabel?: string;
+  existingAttachments?: AttachmentWithUrl[];
 }) {
   const neonatalPets = useMemo(() => neonatalPetPool(pets), [pets]);
   const petNames = useMemo(() => new Map(pets.map((pet) => [pet.id, pet.name])), [pets]);
@@ -278,6 +288,8 @@ export function RecordFields({
   const [feedingOverrideAmounts, setFeedingOverrideAmounts] = useState<
     Record<string, Record<string, { value: string; unitPreset: FeedingUnitPreset; unitOther: string }>>
   >({});
+  /** Stable health_record ids: petId → careType → uuid (create idempotency). */
+  const [recordIdsByPetType, setRecordIdsByPetType] = useState<Record<string, Record<string, string>>>({});
   type EditFeedingRow = {
     key: string;
     subtype: FeedingCareSubtypeKey | "";
@@ -371,13 +383,22 @@ export function RecordFields({
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
   const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
   const hasHealthType = activeTypes.some((type) =>
-    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation" || type === "hygiene",
+    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation" || type === "hygiene",
   );
   const hasReminderType = !multiType && activeTypes.some((type) =>
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
   const hygieneOnly = activeTypes.length === 1 && activeTypes[0] === "hygiene";
   const recordCount = countFeedingAwareCreateRecords(activeTypes, visibleSelectedIds.length, hygieneSubtypes.length);
+  const createAttachmentsAllowed =
+    mode === "create"
+    && visibleSelectedIds.length >= 1
+    && activeTypes.some((type) => isAttachableQuickRecordType(type));
+  const multiPetAttachments = mode === "create" && visibleSelectedIds.length > 1;
+  const editAttachmentsAllowed =
+    mode === "edit"
+    && activeTypes.length === 1
+    && isAttachableQuickRecordType(activeTypes[0] ?? "");
   const resolvedSubmitLabel = mode === "edit"
     ? submitLabel
     : recordCount > 1
@@ -471,6 +492,22 @@ export function RecordFields({
       return next;
     });
   }, [visibleSelectedIds]);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    setRecordIdsByPetType((prev) => {
+      const next: Record<string, Record<string, string>> = {};
+      for (const petId of visibleSelectedIds) {
+        const prevPet = prev[petId] ?? {};
+        const nextPet: Record<string, string> = {};
+        for (const type of activeTypes) {
+          nextPet[type] = prevPet[type] ?? crypto.randomUUID();
+        }
+        next[petId] = nextPet;
+      }
+      return next;
+    });
+  }, [mode, visibleSelectedIds, activeTypes]);
 
   useEffect(() => {
     if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
@@ -570,6 +607,9 @@ export function RecordFields({
   return (
     <>
       {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
+      {mode === "create" && Object.keys(recordIdsByPetType).length > 0 ? (
+        <input type="hidden" name="record_ids_json" value={JSON.stringify(recordIdsByPetType)} />
+      ) : null}
       {neonatalContext ? <input type="hidden" name="context" value="neonatal" /> : null}
       <input type="hidden" name="record_types" value={activeTypes.join(",")} />
       {activeTypes.map((type) => (
@@ -692,7 +732,7 @@ export function RecordFields({
             const showCard = multiType;
             const qualityName = multiType ? `quality_${type}` : "quality";
             const titleName = multiType ? `title_${type}` : "title";
-            const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "observation";
+            const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation";
 
             const fields = (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1350,6 +1390,7 @@ export function RecordFields({
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
                                 : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                  : type === "exam" ? "Ex.: Hemograma"
                                   : "O que você percebeu?"
                           }
                         />
@@ -1364,6 +1405,7 @@ export function RecordFields({
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
                                 : type === "consultation" ? "Ex.: Retorno com a Dra. Ana"
+                                  : type === "exam" ? "Ex.: Hemograma"
                                   : "O que você percebeu?"
                           }
                         />
@@ -1371,29 +1413,89 @@ export function RecordFields({
                     </label>
                   )
                 )}
-                {(type === "vaccine" || type === "deworming" || type === "consultation") && !multiType && (
+                {(type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && !multiType && (
                   <label className="block text-sm font-bold sm:col-span-2">
                     Clínica ou veterinário
-                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional" />
+                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder={type === "exam" ? "Opcional — clínica, lab ou veterinário" : "Opcional"} />
                   </label>
                 )}
               </div>
             );
 
+            const showCreateAttachmentsForType =
+              createAttachmentsAllowed
+              && isAttachableQuickRecordType(type)
+              && !(type === "hygiene" && hygieneSubtypes.length > 1);
+
+            const attachmentsBlock = showCreateAttachmentsForType ? (
+              multiPetAttachments ? (
+                <section className="mt-5 space-y-3" aria-label={`Arquivos por pet — ${meta?.label ?? type}`}>
+                  <p className="text-sm font-bold">Arquivos por pet</p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Cada arquivo fica só no registro deste pet e deste tipo.
+                  </p>
+                  <div className="space-y-2">
+                    {visibleSelectedIds.map((petId) => {
+                      const petName = petNames.get(petId) ?? "Pet";
+                      return (
+                        <details
+                          key={`${petId}:${type}`}
+                          className="rounded-[16px] border border-[var(--border)] bg-white/70 px-3 py-2 open:pb-3"
+                        >
+                          <summary className="focus-ring cursor-pointer list-none rounded-xl py-1.5 text-sm font-bold text-[var(--graphite)]">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--lavender-strong)]">
+                                {petName}
+                              </span>
+                              <span className="text-xs font-semibold text-[var(--muted)]">Arquivos · toque para abrir</span>
+                            </span>
+                          </summary>
+                          <div className="mt-2">
+                            <HealthRecordAttachmentsFields
+                              disabled={disabled}
+                              careType={type}
+                              petId={petId}
+                              compact
+                              heading={attachmentHeadingForPetCareType(petName, type, meta?.label)}
+                              pickerId={`health-record-create-attachments-${petId}-${type}`}
+                            />
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : (
+                <HealthRecordAttachmentsFields
+                  disabled={disabled}
+                  careType={type}
+                  petId={visibleSelectedIds[0]}
+                  heading={attachmentHeadingForCareType(type, meta?.label)}
+                  pickerId={`health-record-create-attachments-${type}`}
+                />
+              )
+            ) : null;
+
             if (!showCard) {
-              return <div key={type}>{fields}</div>;
+              return (
+                <div key={type}>
+                  {fields}
+                  {attachmentsBlock}
+                </div>
+              );
             }
 
             return (
               <div key={type} className="rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">{meta?.label ?? type}</p>
                 <div className="mt-3">{fields}</div>
+                {attachmentsBlock}
               </div>
             );
           })
         )}
 
-        {hasHealthType && multiType && activeTypes.some((type) => type === "vaccine" || type === "deworming" || type === "consultation") && (
+        {hasHealthType && multiType && activeTypes.some((type) => type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && (
           <label className="block text-sm font-bold">
             Clínica ou veterinário
             <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional — vale para os tipos de saúde" />
@@ -1534,6 +1636,18 @@ export function RecordFields({
         </div>
       )}
 
+      {editAttachmentsAllowed && (
+        <HealthRecordAttachmentsFields
+          disabled={disabled}
+          existingAttachments={existingAttachments}
+          showExisting
+          editableExistingNames
+          pickerId="health-record-edit-attachments"
+          heading={attachmentHeadingForCareType(activeTypes[0] ?? "other", optionByType[activeTypes[0] as QuickRecordType]?.label)}
+          careType={activeTypes[0]}
+        />
+      )}
+
       {validationMessage && (
         <p className="mt-5 text-sm font-semibold text-[var(--danger)]" role="alert">
           {validationMessage}
@@ -1542,6 +1656,7 @@ export function RecordFields({
 
       <SubmitButton
         disabled={submitBlocked}
+        pendingLabel="Salvando..."
         className="focus-ring mt-3 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 disabled:cursor-not-allowed disabled:opacity-55"
       >
         {resolvedSubmitLabel}

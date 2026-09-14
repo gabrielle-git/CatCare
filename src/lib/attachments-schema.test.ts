@@ -51,9 +51,43 @@ describe("0034 attachment display_name", () => {
     assert.doesNotMatch(migration0034, /storage\.objects/);
   });
 
-  it("does not create a 0035 migration", () => {
+  it("does not create a misplaced 0035_attachment_display_name migration", () => {
     assert.equal(existsSync(path.join(process.cwd(), "supabase/migrations/0035_attachment_display_name.sql")), false);
-    const extras = readdirSync(path.join(process.cwd(), "supabase/migrations")).filter((name) => /^0035/.test(name));
+  });
+});
+
+const migration0035 = readFileSync(
+  path.join(process.cwd(), "supabase/migrations/0035_health_record_attachments.sql"),
+  "utf8",
+);
+
+describe("0035 health_record_attachments", () => {
+  it("enforces same-household composite FKs", () => {
+    assert.match(migration0035, /health_records_id_household_key/);
+    assert.match(migration0035, /health_record_attachments_health_record_household_fkey/);
+    assert.match(migration0035, /health_record_attachments_attachment_household_fkey/);
+    assert.match(migration0035, /references public\.health_records \(id, household_id\)/);
+    assert.match(migration0035, /references public\.attachments \(id, household_id\)/);
+  });
+
+  it("keeps attachment unique to one health_record and unique positions", () => {
+    assert.match(migration0035, /health_record_attachments_attachment_unique unique \(attachment_id\)/);
+    assert.match(migration0035, /health_record_attachments_position_unique unique \(health_record_id, position\)/);
+  });
+
+  it("allows removing the last clinical attachment", () => {
+    assert.match(migration0035, /create or replace function public\.delete_health_record_attachment/);
+    assert.doesNotMatch(migration0035, /at least one attachment/);
+    assert.match(migration0035, /Last attachment may be removed/);
+  });
+
+  it("uses editorial can_edit_household for mutations", () => {
+    assert.match(migration0035, /can_edit_household\(household_id\)/);
+    assert.match(migration0035, /is_household_member\(household_id\)/);
+  });
+
+  it("does not create 0036", () => {
+    const extras = readdirSync(path.join(process.cwd(), "supabase/migrations")).filter((name) => /^0036/.test(name));
     assert.deepEqual(extras, []);
   });
 });

@@ -46,7 +46,7 @@ async function loadHistory() {
 export default async function FamilyHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; from?: string; to?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; from?: string; to?: string; type?: string; saved?: string }>;
 }) {
   const [{ pets, items, editable }, flags] = await Promise.all([loadHistory(), searchParams]);
 
@@ -61,6 +61,12 @@ export default async function FamilyHistoryPage({
           Cuidados de todos os pets. Busque por texto ou refine por período e tipo.
         </p>
       </header>
+
+      {flags.saved ? (
+        <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">
+          {Number(flags.saved) > 1 ? `${flags.saved} registros salvos.` : "Tudo salvo direitinho."}
+        </div>
+      ) : null}
 
       <section className="mt-8">
         <FamilyHistoryPanel

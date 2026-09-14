@@ -34,6 +34,7 @@ const adultFilters = [
   { value: "deworming", label: "Vermífugo" },
   { value: "medication", label: "Remédio" },
   { value: "consultation", label: "Consulta" },
+  { value: "exam", label: "Exame" },
   { value: "hygiene", label: "Higiene" },
   { value: "observation", label: "Nota" },
 ] as const;
@@ -44,6 +45,7 @@ const fullFilters = [
   { value: "deworming", label: "Vermífugo" },
   { value: "medication", label: "Remédio" },
   { value: "consultation", label: "Consulta" },
+  { value: "exam", label: "Exame" },
   { value: "hygiene", label: "Higiene" },
   { value: "observation", label: "Nota" },
 ] as const;

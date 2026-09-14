@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FilePlus2 } from "lucide-react";
 import { DocumentFields } from "@/components/document-fields";
+import { DirectUploadForm } from "@/components/direct-upload-form";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPet } from "@/lib/pets";
@@ -45,9 +46,9 @@ export default async function NewPetDocumentPage({
       <p className="mt-3 text-sm text-[var(--muted)]">Um documento lógico pode ter várias páginas ou arquivos (frente, verso, PDF extra).</p>
       {configured && !editable && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm"><Link href="/login" className="font-bold underline">Entre na conta</Link> para cadastrar documentos.</div>}
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
-      <form action={action} className="cat-card mt-6 p-5 md:p-7">
+      <DirectUploadForm action={action} mode="documents" className="cat-card mt-6 p-5 md:p-7">
         <DocumentFields disabled={!editable} requireFiles documentId={documentId} submitLabel="Salvar documento" existingStoredCount={0} />
-      </form>
+      </DirectUploadForm>
     </div>
   );
 }
