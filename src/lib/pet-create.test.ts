@@ -24,6 +24,37 @@ describe("pet create idempotency helpers", () => {
     assert.equal(normalizePetNameForComparison("Bebê  1"), "bebe 1");
   });
 
+  it("explicit case/accent/trim/collapse pairs match (create+edit shared helper)", () => {
+    const eq = (a: string, b: string) =>
+      assert.equal(normalizePetNameForComparison(a), normalizePetNameForComparison(b), `${a} ↔ ${b}`);
+    eq("Dobby", "DOBBY");
+    eq("Dobby", "dobby");
+    eq("Ágata", "agata");
+    eq("ÁGATA", "ágata");
+    eq("  Dobby  ", "dobby");
+    eq("Dobby   Junior", "dobby junior");
+  });
+
+  it("create+edit homonym detection uses the same normalize pairs", () => {
+    const pets = [
+      { id: PET_A, name: "Dobby", archived_at: null },
+      { id: PET_B, name: "Ágata", archived_at: null },
+      { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Dobby", archived_at: "2026-01-01T00:00:00Z" },
+    ];
+    // create intent
+    assert.equal(findActiveHomonymPets(pets, "DOBBY", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee").length, 1);
+    assert.equal(findActiveHomonymPets(pets, "  dobby  ", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")[0]?.id, PET_A);
+    assert.equal(findActiveHomonymPets(pets, "agata", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")[0]?.id, PET_B);
+    assert.equal(findActiveHomonymPets(pets, "ÁGATA", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee").length, 1);
+    // edit: self excluded
+    assert.equal(findActiveHomonymPets(pets, "Dobby", PET_A).length, 0);
+    assert.equal(findActiveHomonymPets(pets, "DOBBY", PET_A).length, 0);
+    assert.equal(findActiveHomonymPets(pets, "Ágata", PET_B).length, 0);
+    // archived ignored even with matching normalize
+    assert.equal(findActiveHomonymPets(pets, "Dobby", PET_B).length, 1);
+    assert.equal(findActiveHomonymPets(pets, "Dobby", PET_B)[0]?.id, PET_A);
+  });
+
   it("ownership: create when absent, reuse same household, reject foreign", () => {
     assert.deepEqual(resolvePetCreateOwnership(PET_A, HOUSEHOLD_A, null), { ok: true, status: "create" });
     assert.deepEqual(
@@ -262,6 +293,35 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(fields, /name="birth_date_estimated"/);
     assert.match(fields, /Nascimento[\s\S]*birth_date[\s\S]*birth_date_estimated[\s\S]*Data estimada/);
     assert.doesNotMatch(fields, /birth_date_estimated[\s\S]{0,200}bg-\[var\(--cream\)\]/);
+  });
+
+  it("pet photo picker: empty / selected / replace / remove without submitting form", () => {
+    assert.match(fields, /Escolher imagem/);
+    assert.match(fields, /Trocar imagem/);
+    assert.match(fields, /Remover imagem/);
+    assert.match(fields, /JPG, PNG ou WebP, até 5 MB/);
+    assert.match(fields, /type="file"/);
+    assert.match(fields, /className="sr-only"/);
+    assert.match(fields, /name="photo"/);
+    assert.match(fields, /clearLocalSelection/);
+    assert.match(fields, /inputRef\.current\.value = ""/);
+    assert.match(fields, /onPhotoFileChange/);
+    assert.match(fields, /onClick=\{openPicker\}/);
+    assert.match(fields, /onClick=\{clearLocalSelection\}/);
+    // Three type=button controls (choose / replace / remove) — never submit.
+    assert.equal((fields.match(/type="button"/g) ?? []).length, 3);
+    assert.doesNotMatch(fields, /createSignedUploadUrl|uploadToSignedUrl|base64/);
+    // Local selection only — no persisted-photo delete control in this polish.
+    assert.doesNotMatch(fields, /remove_photo|Remover foto atual/);
+  });
+
+  it("homonym warning + photo preservation wiring stays on create/edit forms", () => {
+    assert.match(createForm, /photoFileRef/);
+    assert.match(createForm, /closeDuplicateClearName/);
+    assert.match(createForm, /nameInputRef\.current\.value = ""/);
+    assert.match(editForm, /photoFileRef/);
+    assert.match(createForm, /attachPreservedPhoto|formData\.set\("photo"/);
+    assert.match(editForm, /attachPreservedPhoto|formData\.set\("photo"/);
   });
 
   it("does not introduce migration 0036 or delete Zabuza", () => {
