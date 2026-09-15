@@ -127,23 +127,72 @@ export function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function localFileSelectionKey(file: { name: string; size: number; lastModified: number }): string {
-  return `${file.name}::${file.size}::${file.lastModified}`;
+export function localFileSelectionKey(file: { name: string; size: number; lastModified: number; type?: string }): string {
+  const mime = (file.type ?? "").trim().toLowerCase();
+  return `${normalizeFilenameForComparison(file.name)}::${file.size}::${file.lastModified}::${mime}`;
 }
 
-export type LocalSelectedFile<T extends { name: string; size: number; lastModified: number } = File> = {
+/** Persisted attachments lack lastModified — compare only when name+size+mime are known. */
+export function storedAttachmentSelectionKey(attachment: {
+  original_filename: string;
+  byte_size: number;
+  mime_type: string;
+}): string {
+  const mime = (attachment.mime_type ?? "").trim().toLowerCase();
+  return `${normalizeFilenameForComparison(attachment.original_filename)}::${attachment.byte_size}::${mime}`;
+}
+
+export function localFileStoredComparableKey(file: { name: string; size: number; type?: string }): string {
+  const mime = (file.type ?? "").trim().toLowerCase();
+  return `${normalizeFilenameForComparison(file.name)}::${file.size}::${mime}`;
+}
+
+function normalizeFilenameForComparison(name: string): string {
+  return name.trim().toLocaleLowerCase("pt-BR");
+}
+
+/** Trim + collapse whitespace + casefold for local display_name uniqueness. */
+export function normalizeDisplayNameForComparison(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
+export function formatTimelineAttachmentCount(count: number): string | null {
+  if (!count || count < 1) return null;
+  return count === 1 ? "📎 1 arquivo" : `📎 ${count} arquivos`;
+}
+
+/**
+ * True when candidate collides with another name in the same record/scope.
+ * `excludeKey` lets an attachment keep its own current name on rename.
+ */
+export function isDuplicateDisplayNameInScope(
+  candidate: string,
+  others: Array<{ key: string; name: string }>,
+  excludeKey?: string | null,
+): boolean {
+  const needle = normalizeDisplayNameForComparison(candidate);
+  if (!needle) return false;
+  return others.some((entry) => {
+    if (excludeKey != null && entry.key === excludeKey) return false;
+    return normalizeDisplayNameForComparison(entry.name) === needle;
+  });
+}
+
+export type LocalSelectedFile<T extends { name: string; size: number; lastModified: number; type?: string } = File> = {
   id: string;
   key: string;
   file: T;
   displayName: string;
 };
 
-export function mergeLocalFileSelections<T extends { name: string; size: number; lastModified: number }>(
+export function mergeLocalFileSelections<T extends { name: string; size: number; lastModified: number; type?: string }>(
   existing: LocalSelectedFile<T>[],
   incoming: T[],
   options?: {
     maxTotal?: number;
     existingStoredCount?: number;
+    /** Stored attachments in THIS record/scope (edit); compared without lastModified. */
+    existingStoredKeys?: Iterable<string>;
     createId?: () => string;
   },
 ): { items: LocalSelectedFile<T>[]; truncated: boolean; skippedDuplicates: number } {
@@ -152,12 +201,14 @@ export function mergeLocalFileSelections<T extends { name: string; size: number;
   const createId = options?.createId ?? (() => crypto.randomUUID());
   const items = [...existing];
   const keys = new Set(existing.map((item) => item.key));
+  const storedKeys = new Set(options?.existingStoredKeys ?? []);
   let skippedDuplicates = 0;
   let truncated = false;
 
   for (const file of incoming) {
     const key = localFileSelectionKey(file);
-    if (keys.has(key)) {
+    const storedComparable = localFileStoredComparableKey(file);
+    if (keys.has(key) || storedKeys.has(storedComparable)) {
       skippedDuplicates += 1;
       continue;
     }
@@ -166,12 +217,11 @@ export function mergeLocalFileSelections<T extends { name: string; size: number;
       break;
     }
     keys.add(key);
-    const original = "name" in file ? String((file as { name: string }).name) : "arquivo";
     items.push({
       id: createId(),
       key,
       file,
-      displayName: basenameWithoutExtension(original),
+      displayName: basenameWithoutExtension("name" in file ? String((file as { name: string }).name) : "arquivo"),
     });
   }
 

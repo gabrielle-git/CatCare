@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FilePlus2, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
@@ -9,8 +9,10 @@ import {
   attachmentSlotsSummary,
   canRemoveHealthRecordAttachment,
   formatAttachmentBytes,
+  isDuplicateDisplayNameInScope,
   mergeLocalFileSelections,
   resolveAttachmentDisplayName,
+  storedAttachmentSelectionKey,
   type LocalSelectedFile,
 } from "@/lib/attachments";
 import { healthAttachmentFieldNames } from "@/lib/health-record-attachment-form";
@@ -22,10 +24,13 @@ import {
 import type { AttachmentWithUrl } from "@/types/database";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const DUPLICATE_FILE_MESSAGE = "Este arquivo já foi selecionado. Selecione outro.";
+const DUPLICATE_NAME_MESSAGE = "Já existe um arquivo com esse nome neste registro.";
 
 function AccumulatingHealthFilePicker({
   disabled,
   existingStoredCount,
+  existingAttachments,
   pickerId,
   heading,
   careType,
@@ -33,6 +38,7 @@ function AccumulatingHealthFilePicker({
 }: {
   disabled?: boolean;
   existingStoredCount: number;
+  existingAttachments: AttachmentWithUrl[];
   pickerId: string;
   heading: string;
   careType?: string | null;
@@ -40,7 +46,22 @@ function AccumulatingHealthFilePicker({
 }) {
   const [selected, setSelected] = useState<LocalSelectedFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const fieldNames = healthAttachmentFieldNames(careType, petId);
+
+  const storedKeys = useMemo(
+    () => existingAttachments.map((item) => storedAttachmentSelectionKey(item)),
+    [existingAttachments],
+  );
+
+  const persistedNameEntries = useMemo(
+    () =>
+      existingAttachments.map((item) => ({
+        key: item.id,
+        name: resolveAttachmentDisplayName(item.display_name, item.original_filename),
+      })),
+    [existingAttachments],
+  );
 
   useEffect(() => {
     for (const item of selected) {
@@ -56,9 +77,20 @@ function AccumulatingHealthFilePicker({
   const slots = attachmentSlotsSummary(existingStoredCount, selected.length);
   const remainingSlots = slots.remaining;
 
+  function updateDisplayName(itemId: string, next: string) {
+    const others = [
+      ...persistedNameEntries,
+      ...selected.map((entry) => ({ key: entry.id, name: entry.id === itemId ? next : entry.displayName })),
+    ];
+    setSelected((current) => current.map((entry) => (entry.id === itemId ? { ...entry, displayName: next } : entry)));
+    setNameError(isDuplicateDisplayNameInScope(next, others, itemId) ? DUPLICATE_NAME_MESSAGE : null);
+  }
+
   return (
     <div>
-      <p className="text-sm font-bold">{heading} — {slots.label}</p>
+      <p className="text-sm font-bold">
+        {heading} — {slots.label}
+      </p>
       <p className="mt-1 text-xs text-[var(--muted)]">
         Opcional · JPG, PNG, WebP ou PDF · máx. 5 MB cada.
         {remainingSlots === 0 ? " Limite atingido." : ` Você ainda pode adicionar ${remainingSlots}.`}
@@ -86,6 +118,7 @@ function AccumulatingHealthFilePicker({
                     onClick={() => {
                       unregisterPendingAttachmentFile(item.id);
                       setSelected((current) => current.filter((entry) => entry.id !== item.id));
+                      setNameError(null);
                     }}
                     className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
                   >
@@ -98,12 +131,7 @@ function AccumulatingHealthFilePicker({
                     disabled={disabled}
                     name={fieldNames.displayNames}
                     value={item.displayName}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setSelected((current) =>
-                        current.map((entry) => (entry.id === item.id ? { ...entry, displayName: next } : entry)),
-                      );
-                    }}
+                    onChange={(event) => updateDisplayName(item.id, event.target.value)}
                     maxLength={160}
                     className="field mt-1.5 text-sm font-semibold"
                     placeholder="Ex.: Resultado do hemograma"
@@ -134,16 +162,35 @@ function AccumulatingHealthFilePicker({
           const merged = mergeLocalFileSelections(selected, incoming, {
             maxTotal: ATTACHMENT_MAX_PER_DOCUMENT,
             existingStoredCount,
+            existingStoredKeys: storedKeys,
           });
           setSelected(merged.items);
           const parts: string[] = [];
-          if (merged.skippedDuplicates) parts.push(`${merged.skippedDuplicates} já estavam na lista`);
+          if (merged.skippedDuplicates) parts.push(DUPLICATE_FILE_MESSAGE);
           if (merged.truncated) parts.push(`limite de ${ATTACHMENT_MAX_PER_DOCUMENT} arquivos`);
           setNotice(parts.length ? parts.join(" · ") : null);
+
+          const nameScope = [
+            ...persistedNameEntries,
+            ...merged.items.map((entry) => ({ key: entry.id, name: entry.displayName })),
+          ];
+          const hasNameClash = merged.items.some((entry) =>
+            isDuplicateDisplayNameInScope(entry.displayName, nameScope, entry.id),
+          );
+          setNameError(hasNameClash ? DUPLICATE_NAME_MESSAGE : null);
           event.target.value = "";
         }}
       />
-      {notice && <p className="mt-2 text-xs text-[var(--muted)]">{notice}</p>}
+      {notice ? (
+        <p className="mt-2 text-xs font-semibold text-[var(--danger)]" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {nameError ? (
+        <p className="mt-2 text-xs font-semibold text-[var(--danger)]" role="alert">
+          {nameError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -152,14 +199,36 @@ export function HealthRecordExistingFilesPanel({
   attachments,
   disabled = false,
   editableNames = false,
+  pendingLocalNames = [],
 }: {
   attachments: AttachmentWithUrl[];
   disabled?: boolean;
   editableNames?: boolean;
+  /** New local selections in the same record (create/edit picker). */
+  pendingLocalNames?: Array<{ key: string; name: string }>;
 }) {
+  const [names, setNames] = useState(() =>
+    Object.fromEntries(
+      attachments.map((item) => [item.id, resolveAttachmentDisplayName(item.display_name, item.original_filename)]),
+    ),
+  );
+  const [nameError, setNameError] = useState<string | null>(null);
+
   if (attachments.length === 0) return null;
   const slots = attachmentSlotsSummary(attachments.length, 0);
   const canRemove = canRemoveHealthRecordAttachment(attachments.length);
+
+  function updateExistingName(attachmentId: string, next: string) {
+    const others = [
+      ...attachments.map((item) => ({
+        key: item.id,
+        name: item.id === attachmentId ? next : (names[item.id] ?? resolveAttachmentDisplayName(item.display_name, item.original_filename)),
+      })),
+      ...pendingLocalNames,
+    ];
+    setNames((current) => ({ ...current, [attachmentId]: next }));
+    setNameError(isDuplicateDisplayNameInScope(next, others, attachmentId) ? DUPLICATE_NAME_MESSAGE : null);
+  }
 
   return (
     <div>
@@ -168,7 +237,7 @@ export function HealthRecordExistingFilesPanel({
       <ul className="mt-3 space-y-3">
         {attachments.map((item) => {
           const isPdf = item.mime_type === "application/pdf";
-          const label = resolveAttachmentDisplayName(item.display_name, item.original_filename);
+          const label = names[item.id] ?? resolveAttachmentDisplayName(item.display_name, item.original_filename);
           const removeFormId = healthRecordAttachmentRemoveFormId(item.id);
           return (
             <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
@@ -180,7 +249,8 @@ export function HealthRecordExistingFilesPanel({
                     <input
                       disabled={disabled}
                       name="existing_display_names"
-                      defaultValue={label}
+                      value={label}
+                      onChange={(event) => updateExistingName(item.id, event.target.value)}
                       maxLength={160}
                       className="field mt-1.5 text-sm font-semibold"
                       placeholder="Ex.: Resultado do hemograma"
@@ -235,6 +305,11 @@ export function HealthRecordExistingFilesPanel({
           );
         })}
       </ul>
+      {nameError ? (
+        <p className="mt-2 text-xs font-semibold text-[var(--danger)]" role="alert">
+          {nameError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -276,6 +351,7 @@ export function HealthRecordAttachmentsFields({
       <AccumulatingHealthFilePicker
         disabled={disabled}
         existingStoredCount={existingAttachments.length}
+        existingAttachments={existingAttachments}
         pickerId={pickerId}
         heading={resolvedHeading}
         careType={careType}
