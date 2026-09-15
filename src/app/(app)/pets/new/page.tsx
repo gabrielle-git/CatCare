@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { PetFields } from "@/components/pet-fields";
+import { CreatePetForm } from "@/components/create-pet-form";
 import { isLiveData } from "@/lib/demo-mode";
 import { createPet } from "../actions";
 
@@ -18,10 +18,7 @@ export default async function NewPetPage({ searchParams }: { searchParams: Promi
 
       {error && <div role="alert" className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
 
-      <form action={createPet} className="cat-card mt-6 p-5 md:p-7">
-        <PetFields includeInitialWeight disabled={!configured} />
-        <button disabled={!configured} type="submit" className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">Salvar pet</button>
-      </form>
+      <CreatePetForm action={createPet} configured={configured} initialError={null} />
     </div>
   );
 }
