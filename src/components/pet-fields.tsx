@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Pet } from "@/types/database";
 import { FactualDateInput } from "@/components/factual-datetime-input";
 import { MicrochipFields } from "@/components/microchip-fields";
@@ -10,20 +10,34 @@ export function PetFields({
   includeInitialWeight = false,
   initialWeightKg = "",
   disabled = false,
+  nameInputRef,
+  onPhotoFileChange,
 }: {
   defaultValues?: Partial<Pet>;
   includeInitialWeight?: boolean;
-  /** Create-only: restore peso inicial after soft server responses. */
+  /** Create-only default for peso inicial. */
   initialWeightKg?: string;
   disabled?: boolean;
+  nameInputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Keep the selected File in parent state across soft server responses. */
+  onPhotoFileChange?: (file: File | null) => void;
 }) {
   const [isNeutered, setIsNeutered] = useState(defaultValues?.neutered ?? false);
+  const localPhotoRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="space-y-5">
       <label className="block text-sm font-bold">
         Nome do pet <span className="text-[var(--danger)]">*</span>
-        <input disabled={disabled} required name="name" defaultValue={defaultValues?.name ?? ""} className="field mt-2" placeholder="Ex.: Dobby" />
+        <input
+          ref={nameInputRef}
+          disabled={disabled}
+          required
+          name="name"
+          defaultValue={defaultValues?.name ?? ""}
+          className="field mt-2"
+          placeholder="Ex.: Dobby"
+        />
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -114,7 +128,18 @@ export function PetFields({
 
       <label className="block text-sm font-bold">
         Foto
-        <input disabled={disabled} type="file" name="photo" accept="image/jpeg,image/png,image/webp" className="field mt-2 text-sm" />
+        <input
+          ref={localPhotoRef}
+          disabled={disabled}
+          type="file"
+          name="photo"
+          accept="image/jpeg,image/png,image/webp"
+          className="field mt-2 text-sm"
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            onPhotoFileChange?.(file && file.size > 0 ? file : null);
+          }}
+        />
         <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">JPG, PNG ou WebP, até 5 MB.</span>
       </label>
     </div>

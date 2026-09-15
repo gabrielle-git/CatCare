@@ -37,6 +37,16 @@ export type CreatePetResult =
       petId: string;
     };
 
+export type UpdatePetResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string }
+  | {
+      ok: false;
+      duplicateName: true;
+      name: string;
+      existingLabel: string;
+    };
+
 function readFields(formData: FormData) {
   const sexValue = value(formData, "sex");
   const sex: PetSex = sexValue === "male" || sexValue === "female" ? sexValue : "unknown";
@@ -323,22 +333,28 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
   return finishCreate(petId);
 }
 
-export async function updatePet(petId: string, formData: FormData) {
-  let fields;
+/**
+ * Update pet with the same active-homonym gate as create (excludes current pet_id).
+ * Soft duplicate returns to the client; final save revalidates allow_duplicate_name (TOCTOU-safe).
+ */
+export async function updatePet(petId: string, formData: FormData): Promise<UpdatePetResult> {
+  if (!isUuid(petId)) return { ok: false, error: "Pet inválido." };
+
+  let fields: ReturnType<typeof readFields>;
   try {
     fields = readFields(formData);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Dados inválidos.";
-    redirect(`/pets/${petId}/edit?error=${encodeURIComponent(message)}`);
+    return { ok: false, error: error instanceof Error ? error.message : "Dados inválidos." };
   }
-  if (!fields.name) redirect(`/pets/${petId}/edit?error=Nome%20%C3%A9%20obrigat%C3%B3rio.`);
+  if (!fields.name) return { ok: false, error: "Nome é obrigatório." };
+
+  const allowDuplicateName = formData.get("allow_duplicate_name") === "true" || formData.get("allow_duplicate_name") === "1";
 
   let photo: ReturnType<typeof readPhoto>;
   try {
     photo = readPhoto(formData);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Foto inválida.";
-    redirect(`/pets/${petId}/edit?error=${encodeURIComponent(message)}`);
+    return { ok: false, error: error instanceof Error ? error.message : "Foto inválida." };
   }
 
   const { supabase, household } = await authContext();
@@ -348,15 +364,33 @@ export async function updatePet(petId: string, formData: FormData) {
     .eq("id", petId)
     .eq("household_id", household.id)
     .maybeSingle();
-  if (!existing) redirect("/pets");
+  if (!existing) return { ok: false, error: "Pet não encontrado nesta família." };
+
+  // Active homonym check — excludes this pet; archived pets ignored (shared helper).
+  if (!allowDuplicateName) {
+    const { data: activePets } = await supabase
+      .from("pets")
+      .select("id, name, archived_at")
+      .eq("household_id", household.id)
+      .is("archived_at", null);
+    const homonyms = findActiveHomonymPets(activePets ?? [], fields.name, petId);
+    if (homonyms.length > 0) {
+      const labels = [...new Set(homonyms.map((pet) => pet.name.trim()).filter(Boolean))];
+      return {
+        ok: false,
+        duplicateName: true,
+        name: fields.name,
+        existingLabel: labels.join(", "),
+      };
+    }
+  }
 
   let photoPath: string | null = null;
   if (photo) {
     try {
       photoPath = await uploadPhoto(supabase, household.id, petId, photo.photo, photo.extension);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível enviar a foto.";
-      redirect(`/pets/${petId}/edit?error=${encodeURIComponent(message)}`);
+      return { ok: false, error: error instanceof Error ? error.message : "Não foi possível enviar a foto." };
     }
   }
 
@@ -365,13 +399,13 @@ export async function updatePet(petId: string, formData: FormData) {
     .update(photoPath ? { ...fields, photo_path: photoPath } : fields)
     .eq("id", petId)
     .eq("household_id", household.id);
-  if (error) redirect(`/pets/${petId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (error) return { ok: false, error: error.message };
 
   if (photoPath && existing.photo_path) await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path]);
   revalidatePath("/");
   revalidatePath("/pets");
   revalidatePath(`/pets/${petId}`);
-  redirect(`/pets/${petId}?updated=1`);
+  return { ok: true, redirectTo: `/pets/${petId}?updated=1` };
 }
 
 export async function updatePetDescription(petId: string, formData: FormData) {

@@ -4,12 +4,9 @@ import { useCallback, useRef, useState, useTransition } from "react";
 import { HomonymNameDialog } from "@/components/homonym-name-dialog";
 import { PetFields } from "@/components/pet-fields";
 import { SubmitButton } from "@/components/submit-button";
-import type { CreatePetResult } from "@/app/(app)/pets/actions";
+import type { UpdatePetResult } from "@/app/(app)/pets/actions";
+import type { Pet } from "@/types/database";
 
-/**
- * Ensure photo File stays on FormData even if the native file input was cleared.
- * Holds a single File reference — no base64, no pre-upload.
- */
 function attachPreservedPhoto(formData: FormData, preserved: File | null) {
   const current = formData.get("photo");
   if (current instanceof File && current.size > 0) return;
@@ -17,46 +14,42 @@ function attachPreservedPhoto(formData: FormData, preserved: File | null) {
 }
 
 /**
- * New-pet form: stable pet_id + weight intent, pending UX, accessible homonym dialog.
- * Uses imperative Server Action (preventDefault) so React does not reset the form —
- * including the selected photo File — when a soft duplicate warning returns.
+ * Edit-pet form with server-authoritative active-homonym confirmation.
+ * Imperative Server Action avoids form/File reset on soft duplicate warnings.
  */
-export function CreatePetForm({
+export function EditPetForm({
+  pet,
   action,
-  configured,
   initialError,
 }: {
-  action: (formData: FormData) => Promise<CreatePetResult>;
-  configured: boolean;
+  pet: Pet;
+  action: (formData: FormData) => Promise<UpdatePetResult>;
   initialError?: string | null;
 }) {
-  const [petId] = useState(() => crypto.randomUUID());
-  const [weightRecordId] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
   const allowDuplicateRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const originalName = pet.name;
   const [pending, startTransition] = useTransition();
 
-  const closeDuplicateClearName = useCallback(() => {
+  const closeDuplicateRestoreName = useCallback(() => {
     allowDuplicateRef.current = false;
     setDuplicate(null);
-    // CREATE cancel: clear only Nome; keep same intent IDs and other fields/File.
+    // EDIT cancel: restore original name (not empty); keep other unsaved edits + File.
     if (nameInputRef.current) {
-      nameInputRef.current.value = "";
+      nameInputRef.current.value = originalName;
       nameInputRef.current.focus();
     }
-  }, []);
+  }, [originalName]);
 
-  function runCreate(form: HTMLFormElement, allowDuplicate: boolean) {
+  function runUpdate(form: HTMLFormElement, allowDuplicate: boolean) {
     startTransition(async () => {
       setError(null);
       if (!allowDuplicate) setDuplicate(null);
       const formData = new FormData(form);
-      formData.set("pet_id", petId);
-      formData.set("initial_weight_record_id", weightRecordId);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
       const selected = formData.get("photo");
@@ -93,12 +86,9 @@ export function CreatePetForm({
           const form = event.currentTarget;
           const allowDuplicate = allowDuplicateRef.current;
           allowDuplicateRef.current = false;
-          runCreate(form, allowDuplicate);
+          runUpdate(form, allowDuplicate);
         }}
       >
-        <input type="hidden" name="pet_id" value={petId} />
-        <input type="hidden" name="initial_weight_record_id" value={weightRecordId} />
-
         {error ? (
           <div className="mb-4 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
             {error}
@@ -112,19 +102,18 @@ export function CreatePetForm({
         ) : null}
 
         <PetFields
-          includeInitialWeight
-          disabled={!configured}
+          defaultValues={pet}
           nameInputRef={nameInputRef}
           onPhotoFileChange={(file) => {
             photoFileRef.current = file;
           }}
         />
         <SubmitButton
-          disabled={!configured || pending}
+          disabled={pending}
           pendingLabel="Salvando..."
-          className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="focus-ring mt-7 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Salvar pet
+          Salvar alterações
         </SubmitButton>
       </form>
 
@@ -133,16 +122,16 @@ export function CreatePetForm({
         pending={pending}
         description={
           duplicate
-            ? `Encontramos “${duplicate.existingLabel}” ativo nesta família. Deseja continuar mesmo assim e criar outro “${duplicate.name}”?`
+            ? `Encontramos “${duplicate.existingLabel}” ativo nesta família. Deseja continuar mesmo assim?`
             : ""
         }
-        confirmLabel="Criar mesmo assim"
-        onCancel={closeDuplicateClearName}
+        confirmLabel="Salvar mesmo assim"
+        onCancel={closeDuplicateRestoreName}
         onConfirm={() => {
           allowDuplicateRef.current = true;
           setDuplicate(null);
           const form = formRef.current;
-          if (form) runCreate(form, true);
+          if (form) runUpdate(form, true);
         }}
       />
     </>
