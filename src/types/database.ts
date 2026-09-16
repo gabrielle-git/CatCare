@@ -427,4 +427,6 @@ export type TimelineItem = {
   detail: string | null;
   occurred_at: string;
   tone: TimelineTone;
+  /** Health records only — compact count for timeline chips; omit/0 hides indicator. */
+  attachment_count?: number;
 };

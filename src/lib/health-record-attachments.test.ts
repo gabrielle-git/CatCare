@@ -404,3 +404,40 @@ describe("health_record attachments contracts", () => {
     assert.doesNotMatch(sql, /document_attachments/);
   });
 });
+
+describe("clinical attachment polish wiring", () => {
+  const root = process.cwd();
+  const picker = readFileSync(join(root, "src/components/health-record-attachments-fields.tsx"), "utf8");
+  const timeline = readFileSync(join(root, "src/components/timeline-list.tsx"), "utf8");
+  const records = readFileSync(join(root, "src/lib/records.ts"), "utf8");
+  const historico = readFileSync(join(root, "src/app/(app)/historico/page.tsx"), "utf8");
+  const petHistorico = readFileSync(join(root, "src/app/(app)/pets/[id]/historico/page.tsx"), "utf8");
+  const docs = readFileSync(join(root, "src/components/document-fields.tsx"), "utf8");
+
+  it("health picker shows hard duplicate-file and duplicate-name messages in local scope", () => {
+    assert.match(picker, /Este arquivo já foi selecionado\. Selecione outro\./);
+    assert.match(picker, /Já existe um arquivo com esse nome neste registro\./);
+    assert.match(picker, /existingStoredKeys|storedAttachmentSelectionKey/);
+    assert.match(picker, /isDuplicateDisplayNameInScope/);
+  });
+
+  it("timeline shows attachment count chip and batches counts without N\+1", () => {
+    assert.match(timeline, /formatTimelineAttachmentCount/);
+    assert.match(timeline, /attachment_count/);
+    assert.match(records, /loadHealthAttachmentCounts/);
+    assert.match(records, /\.in\("health_record_id"/);
+    assert.doesNotMatch(records, /countHealthRecordAttachments\(/);
+    assert.match(historico, /listHouseholdTimeline|FamilyHistoryPanel|TimelineList/);
+    assert.match(petHistorico, /listPetTimeline|TimelineList/);
+  });
+
+  it("Documents transport remains unaffected by clinical picker messages", () => {
+    assert.doesNotMatch(docs, /Este arquivo já foi selecionado\. Selecione outro\./);
+    assert.doesNotMatch(docs, /Já existe um arquivo com esse nome neste registro\./);
+  });
+
+  it("does not introduce migration 0036", () => {
+    assert.equal(existsSync(join(root, "supabase/migrations/0036_health_record_attachments.sql")), false);
+    assert.equal(existsSync(join(root, "supabase/migrations/0036.sql")), false);
+  });
+});

@@ -55,7 +55,7 @@ function mapWeight(row: WeightRecord): TimelineItem {
   return { id: row.id, pet_id: row.pet_id, source: "weight", kind: "weight", title: "Pesagem", detail: [formatWeight(row.weight_grams), row.notes].filter(Boolean).join(" • "), occurred_at: row.measured_at, tone: "lavender" };
 }
 
-function mapHealth(row: HealthRecord): TimelineItem {
+function mapHealth(row: HealthRecord, attachmentCount = 0): TimelineItem {
   if (row.type === "hygiene") {
     const title =
       hygieneDisplayLabel(row.hygiene_subtype, row.hygiene_custom_label) ||
@@ -70,6 +70,7 @@ function mapHealth(row: HealthRecord): TimelineItem {
       detail: row.notes || null,
       occurred_at: row.occurred_at,
       tone: toneForHealth("hygiene"),
+      attachment_count: attachmentCount,
     };
   }
   return {
@@ -81,7 +82,27 @@ function mapHealth(row: HealthRecord): TimelineItem {
     detail: [row.clinic_or_vet, row.notes].filter(Boolean).join(" • ") || null,
     occurred_at: row.occurred_at,
     tone: toneForHealth(row.type),
+    attachment_count: attachmentCount,
   };
+}
+
+/** One batched lookup — never call per timeline card. */
+async function loadHealthAttachmentCounts(
+  supabase: SupabaseClient,
+  healthRecordIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (healthRecordIds.length === 0) return counts;
+  const { data, error } = await supabase
+    .from("health_record_attachments")
+    .select("health_record_id")
+    .in("health_record_id", healthRecordIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const id = row.health_record_id as string;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function mapNeonatal(row: NeonatalRecord): TimelineItem {
@@ -187,9 +208,15 @@ async function loadTimeline(supabase: SupabaseClient, field: "pet_id" | "househo
   if (health.error) throw health.error;
   if (neonatal.error) throw neonatal.error;
 
+  const healthRows = (health.data ?? []) as HealthRecord[];
+  const attachmentCounts = await loadHealthAttachmentCounts(
+    supabase,
+    healthRows.map((row) => row.id),
+  );
+
   return [
     ...((weights.data ?? []) as WeightRecord[]).map(mapWeight),
-    ...((health.data ?? []) as HealthRecord[]).map(mapHealth),
+    ...healthRows.map((row) => mapHealth(row, attachmentCounts.get(row.id) ?? 0)),
     ...((neonatal.data ?? []) as NeonatalRecord[]).map(mapNeonatal),
     ...feedingSessions.map((session) => mapFeedingSession(session, session.feeding_items)),
   ].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()).slice(0, limit);

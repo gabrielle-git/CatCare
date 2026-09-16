@@ -18,13 +18,19 @@ import {
   extensionForMime,
   isAllowedAttachmentMime,
   isStorageObjectAlreadyExists,
+  isDuplicateDisplayNameInScope,
+  localFileSelectionKey,
+  localFileStoredComparableKey,
   mergeLocalFileSelections,
   mimeMatchesMagicBytes,
+  normalizeDisplayNameForComparison,
   normalizeDisplayNameInput,
   prepareAttachmentUploads,
   resolveAttachmentDisplayName,
   resolveDocumentCreateOwnership,
   sanitizeOriginalFilename,
+  storedAttachmentSelectionKey,
+  formatTimelineAttachmentCount,
   validateAttachmentFile,
   validateAttachmentFiles,
 } from "./attachments";
@@ -223,12 +229,44 @@ describe("create idempotency + multi-file selection", () => {
     assert.equal(second.items[1].file.name, "b.pdf");
   });
 
-  it("local duplicate selection (name+size+lastModified) does not duplicate item", () => {
+  it("local duplicate selection (name+size+lastModified+mime) does not duplicate item", () => {
     const a = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
     const again = fileFrom("a.jpg", "image/jpeg", jpegBytes(), undefined, 10);
     const merged = mergeLocalFileSelections([], [a, again], { createId: () => ATTACHMENT });
     assert.equal(merged.items.length, 1);
     assert.equal(merged.skippedDuplicates, 1);
+  });
+
+  it("same File against persisted attachment in SAME scope is skipped", () => {
+    const file = fileFrom("Laudo.PDF", "application/pdf", pdfBytes(), undefined, 42);
+    const storedKey = storedAttachmentSelectionKey({
+      original_filename: "laudo.pdf",
+      byte_size: file.size,
+      mime_type: "application/pdf",
+    });
+    assert.equal(localFileStoredComparableKey(file), storedKey);
+    const merged = mergeLocalFileSelections([], [file], {
+      existingStoredKeys: [storedKey],
+      createId: () => ATTACHMENT,
+    });
+    assert.equal(merged.items.length, 0);
+    assert.equal(merged.skippedDuplicates, 1);
+  });
+
+  it("same physical File is allowed in a different local selection list (other pet/type scope)", () => {
+    const file = fileFrom("shared.jpg", "image/jpeg", jpegBytes(), undefined, 7);
+    const scopeA = mergeLocalFileSelections([], [file], { createId: () => ATTACHMENT });
+    const scopeB = mergeLocalFileSelections([], [file], { createId: () => ATTACHMENT_B });
+    assert.equal(scopeA.items.length, 1);
+    assert.equal(scopeB.items.length, 1);
+    assert.equal(scopeA.skippedDuplicates, 0);
+    assert.equal(scopeB.skippedDuplicates, 0);
+  });
+
+  it("localFileSelectionKey includes mime so same name/size/mtime different type are distinct", () => {
+    const jpeg = { name: "x.bin", size: 10, lastModified: 1, type: "image/jpeg" };
+    const pdf = { name: "x.bin", size: 10, lastModified: 1, type: "application/pdf" };
+    assert.notEqual(localFileSelectionKey(jpeg), localFileSelectionKey(pdf));
   });
 
   it("enforces max 8 across stored + local selections", () => {
@@ -455,5 +493,33 @@ describe("pet profile documents discovery", () => {
   it("does not keep a second documents card in the aside", () => {
     assert.doesNotMatch(petPage, /Ver documentos/);
     assert.doesNotMatch(petPage, /Nenhum documento/);
+  });
+});
+
+describe("local display_name uniqueness + timeline attachment count", () => {
+  it("rejects same display_name in SAME scope (case/whitespace)", () => {
+    const others = [
+      { key: "a", name: "Resultado do exame" },
+      { key: "b", name: "Outro" },
+    ];
+    assert.equal(isDuplicateDisplayNameInScope("resultado do exame", others, "b"), true);
+    assert.equal(isDuplicateDisplayNameInScope("  Resultado   do exame  ", others, "b"), true);
+    assert.equal(normalizeDisplayNameForComparison("  Laudo  "), "laudo");
+  });
+
+  it("allows rename to own current name and same name in a different scope list", () => {
+    const scope = [
+      { key: "a", name: "Laudo" },
+      { key: "b", name: "Foto" },
+    ];
+    assert.equal(isDuplicateDisplayNameInScope("Laudo", scope, "a"), false);
+    const otherPetScope = [{ key: "z", name: "Nota" }];
+    assert.equal(isDuplicateDisplayNameInScope("Laudo", otherPetScope), false);
+  });
+
+  it("formatTimelineAttachmentCount hides zero and pluralizes", () => {
+    assert.equal(formatTimelineAttachmentCount(0), null);
+    assert.equal(formatTimelineAttachmentCount(1), "📎 1 arquivo");
+    assert.equal(formatTimelineAttachmentCount(2), "📎 2 arquivos");
   });
 });

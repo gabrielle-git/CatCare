@@ -6,6 +6,7 @@ import { Bath, ClipboardPlus, Droplets, Milk, Pill, Pencil, Plus, Scale, Stethos
 import { deleteRecord, deleteRecords } from "@/app/(app)/records/actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatDateTime } from "@/lib/format";
+import { formatTimelineAttachmentCount } from "@/lib/attachments";
 import { preselectRecordHref } from "@/lib/record-links";
 import type { TimelineItem } from "@/types/database";
 
@@ -256,6 +257,11 @@ export function TimelineList({
                     <p className="font-bold">{heading}</p>
                     <time className="shrink-0 text-[11px] text-[var(--muted)]" dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time>
                   </div>
+                  {item.source === "health" && formatTimelineAttachmentCount(item.attachment_count ?? 0) ? (
+                    <p className="mt-1 text-[11px] font-semibold text-[var(--muted)]">
+                      {formatTimelineAttachmentCount(item.attachment_count ?? 0)}
+                    </p>
+                  ) : null}
                   {item.detail && <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</p>}
                   {editable && (
                     <div className="mt-3 flex flex-wrap gap-2">
