@@ -56,6 +56,9 @@ import {
   mapFormTypeToHealthRecordType,
   resolveHealthRecordCreateOwnership,
 } from "@/lib/health-record-type";
+import { isUniqueViolation } from "@/lib/create-idempotency";
+import { resolveInitialWeightOwnership } from "@/lib/pet-create";
+import { resolveNeonatalRecordCreateOwnership } from "@/lib/neonatal-record-create";
 
 function fail(petIds: string[], type: string, message: string, returnTo?: string | null, neonatalContext?: boolean, extras?: { vaccineKey?: string; doseLabel?: string; title?: string; types?: string[] }): never {
   const params = new URLSearchParams();
@@ -97,6 +100,99 @@ function qualityForType(formData: FormData, type: string, multi: boolean) {
 function titleForType(formData: FormData, type: string, multi: boolean, fallback: string) {
   if (multi) return value(formData, `title_${type}`) || value(formData, "title") || fallback;
   return value(formData, "title") || fallback;
+}
+
+type CreateNeonatalInsertFields = {
+  temperature_c: number | null;
+  quality: string | null;
+  notes: string | null;
+};
+
+async function createNeonatalRecordIdempotent(options: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  householdId: string;
+  petId: string;
+  neonatalType: NeonatalRecordType;
+  formCareType: string;
+  formData: FormData;
+  petIds: string[];
+  occurredAt: string;
+  fields: CreateNeonatalInsertFields;
+  failHere: (message: string) => never;
+}): Promise<"created" | "reused"> {
+  const {
+    supabase,
+    householdId,
+    petId,
+    neonatalType,
+    formCareType,
+    formData,
+    petIds,
+    occurredAt,
+    fields,
+    failHere,
+  } = options;
+
+  const stableIdRaw = readStableRecordIdForPetType(formData, petId, formCareType, petIds);
+  if (!stableIdRaw) failHere("Intenção de criação inválida. Recarregue a página.");
+  const stableId = stableIdRaw as string;
+
+  const { data: existingNeonatal } = await supabase
+    .from("neonatal_records")
+    .select("id, household_id, pet_id, type")
+    .eq("id", stableId)
+    .maybeSingle();
+  const ownership = resolveNeonatalRecordCreateOwnership(
+    stableId,
+    householdId,
+    petId,
+    neonatalType,
+    existingNeonatal,
+  );
+  if (!ownership.ok) {
+    failHere(
+      ownership.reason === "foreign_household"
+        || ownership.reason === "pet_mismatch"
+        || ownership.reason === "type_mismatch"
+        ? "Não foi possível reutilizar esta intenção de criação."
+        : "Intenção de criação inválida. Recarregue a página.",
+    );
+  }
+  if (ownership.ok && ownership.status === "reuse") return "reused";
+
+  const { error } = await supabase.from("neonatal_records").insert({
+    id: stableId,
+    household_id: householdId,
+    pet_id: petId,
+    type: neonatalType,
+    occurred_at: occurredAt,
+    amount_ml: null,
+    feeding_subtype: null,
+    feeding_amount_value: null,
+    feeding_amount_unit: null,
+    temperature_c: fields.temperature_c,
+    quality: fields.quality,
+    notes: fields.notes,
+  });
+  if (error) {
+    if (isUniqueViolation(error)) {
+      const { data: again } = await supabase
+        .from("neonatal_records")
+        .select("id, household_id, pet_id, type")
+        .eq("id", stableId)
+        .maybeSingle();
+      const retry = resolveNeonatalRecordCreateOwnership(
+        stableId,
+        householdId,
+        petId,
+        neonatalType,
+        again,
+      );
+      if (retry.ok && retry.status === "reuse") return "reused";
+    }
+    failHere(error.message);
+  }
+  return "created";
 }
 
 async function ensureHealthRecordAttachments(
@@ -200,6 +296,7 @@ export async function createRecord(formData: FormData) {
   if (!occurredAt) failHere("Informe uma data e hora válidas.");
   const occurredCheck = validateFactualInstant(occurredAt);
   if (!occurredCheck.ok) failHere(occurredCheck.message);
+  const occurredAtIso = occurredAt as string;
 
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
@@ -257,6 +354,7 @@ export async function createRecord(formData: FormData) {
   for (const type of types) {
     if (type === "weight") {
       const useLegacyField = pets.length === 1;
+      const petIdList = pets.map((row) => row.id);
       for (const pet of pets) {
         const grams = parseWeightGramsForPet(formData, pet.id, useLegacyField);
         if (grams == null) {
@@ -264,10 +362,53 @@ export async function createRecord(formData: FormData) {
             ? "Informe um peso válido em kg (ex.: 4,2)."
             : `Informe um peso válido para ${pet.name}.`);
         }
+        const stableIdRaw = readStableRecordIdForPetType(formData, pet.id, "weight", petIdList);
+        if (!stableIdRaw) failHere("Intenção de criação inválida. Recarregue a página.");
+        const stableId = stableIdRaw as string;
+
+        const { data: existingWeight } = await supabase
+          .from("weight_records")
+          .select("id, household_id, pet_id")
+          .eq("id", stableId)
+          .maybeSingle();
+        const ownership = resolveInitialWeightOwnership(stableId, household.id, pet.id, existingWeight);
+        if (!ownership.ok) {
+          failHere(
+            ownership.reason === "foreign_household" || ownership.reason === "pet_mismatch"
+              ? "Não foi possível reutilizar esta intenção de criação."
+              : "Intenção de criação inválida. Recarregue a página.",
+          );
+        }
+        if (ownership.ok && ownership.status === "reuse") {
+          created += 1;
+          continue;
+        }
+
         const petNotes = notesForPet(pet.id);
-        const { error } = await supabase.from("weight_records").insert({ household_id: household.id, pet_id: pet.id, weight_grams: grams, measured_at: occurredAt, notes: petNotes });
-        if (error) failHere(error.message);
-        await supabase.from("pets").update({ current_weight_grams: grams, updated_at: new Date().toISOString() }).eq("id", pet.id).eq("household_id", household.id);
+        const { error } = await supabase.from("weight_records").insert({
+          id: stableId,
+          household_id: household.id,
+          pet_id: pet.id,
+          weight_grams: grams as number,
+          measured_at: occurredAtIso,
+          notes: petNotes,
+        });
+        if (error) {
+          if (isUniqueViolation(error)) {
+            const { data: again } = await supabase
+              .from("weight_records")
+              .select("id, household_id, pet_id")
+              .eq("id", stableId)
+              .maybeSingle();
+            const retry = resolveInitialWeightOwnership(stableId, household.id, pet.id, again);
+            if (retry.ok && retry.status === "reuse") {
+              created += 1;
+              continue;
+            }
+          }
+          failHere(error.message);
+        }
+        await supabase.from("pets").update({ current_weight_grams: grams as number, updated_at: new Date().toISOString() }).eq("id", pet.id).eq("household_id", household.id);
         created += 1;
       }
       continue;
@@ -314,48 +455,50 @@ export async function createRecord(formData: FormData) {
       if (type === "temperature" && (temperature == null || temperature < 30 || temperature > 45)) failHere("Informe uma temperatura válida.");
 
       const quality = qualityForType(formData, type, multi);
-      const results = await Promise.all(pets.map((pet) => {
-        const petNotes = notesForPet(pet.id);
-        return supabase.from("neonatal_records").insert({
-          household_id: household.id,
-          pet_id: pet.id,
-          type: neonatalType,
-          occurred_at: occurredAt,
-          amount_ml: null,
-          feeding_subtype: null,
-          feeding_amount_value: null,
-          feeding_amount_unit: null,
-          temperature_c: type === "temperature" ? temperature : null,
-          quality: type === "urine" || type === "stool" ? quality : null,
-          notes: petNotes,
+      const petIdList = pets.map((row) => row.id);
+      for (const pet of pets) {
+        await createNeonatalRecordIdempotent({
+          supabase,
+          householdId: household.id,
+          petId: pet.id,
+          neonatalType,
+          formCareType: type,
+          formData,
+          petIds: petIdList,
+          occurredAt: occurredAtIso,
+          fields: {
+            temperature_c: type === "temperature" ? temperature : null,
+            quality: type === "urine" || type === "stool" ? quality : null,
+            notes: notesForPet(pet.id),
+          },
+          failHere,
         });
-      }));
-      const failed = results.find((result) => result.error);
-      if (failed?.error) failHere(failed.error.message);
-      created += pets.length;
+        created += 1;
+      }
       continue;
     }
 
     if (shouldSaveObservationAsNeonatal(type, pets, neonatalContext, isNeonatalPet)) {
-      const results = await Promise.all(pets.map((pet) => {
-        const petNotes = notesForPet(pet.id);
-        return supabase.from("neonatal_records").insert({
-          household_id: household.id,
-          pet_id: pet.id,
-          type: "observation",
-          occurred_at: occurredAt,
-          amount_ml: null,
-          feeding_subtype: null,
-          feeding_amount_value: null,
-          feeding_amount_unit: null,
-          temperature_c: null,
-          quality: null,
-          notes: petNotes,
+      const petIdList = pets.map((row) => row.id);
+      for (const pet of pets) {
+        await createNeonatalRecordIdempotent({
+          supabase,
+          householdId: household.id,
+          petId: pet.id,
+          neonatalType: "observation",
+          formCareType: "observation",
+          formData,
+          petIds: petIdList,
+          occurredAt: occurredAtIso,
+          fields: {
+            temperature_c: null,
+            quality: null,
+            notes: notesForPet(pet.id),
+          },
+          failHere,
         });
-      }));
-      const failed = results.find((result) => result.error);
-      if (failed?.error) failHere(failed.error.message);
-      created += pets.length;
+        created += 1;
+      }
       continue;
     }
 
