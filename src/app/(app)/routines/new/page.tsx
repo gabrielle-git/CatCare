@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Repeat2 } from "lucide-react";
-import { RoutineFormFields } from "@/components/routine-form-fields";
+import { CreateRoutineForm } from "@/components/create-routine-form";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -36,21 +36,17 @@ export default async function NewRoutinePage({ searchParams }: { searchParams: P
           <h1 className="text-3xl font-bold tracking-[-0.04em]">Nova rotina</h1>
         </div>
       </div>
-      {flags.error && (
-        <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>
-      )}
       {!configured && (
         <div className="mt-6 rounded-[20px] border border-dashed border-[var(--border)] bg-[var(--cream)] px-4 py-3 text-sm text-[var(--muted)]">
           Modo demonstração — criação disponível somente com conta real.
         </div>
       )}
-      <form action={createRoutine} className="cat-card mt-6 space-y-1 p-5 md:p-7">
-        <RoutineFormFields
-          pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))}
-          disabled={!configured}
-          submitLabel="Salvar rotina"
-        />
-      </form>
+      <CreateRoutineForm
+        action={createRoutine}
+        pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))}
+        configured={configured}
+        initialError={flags.error}
+      />
     </div>
   );
 }
