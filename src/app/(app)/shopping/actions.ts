@@ -12,6 +12,10 @@ import {
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
 import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
+import {
+  planCompoundPurchaseCreate,
+  shouldCompensateDeleteExpense,
+} from "@/lib/purchase-create-idempotency";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
@@ -77,9 +81,57 @@ function finishPurchase(redirectTo: string): CreatePurchaseResult {
   return { ok: true, redirectTo };
 }
 
+type PurchaseAuth = Awaited<ReturnType<typeof authContext>>;
+
+async function ensurePurchaseReview(args: {
+  supabase: PurchaseAuth["supabase"];
+  householdId: string;
+  reviewId: string;
+  productId: string;
+  petId: string | null;
+  petIds: string[];
+  scores: number[];
+  wouldBuyAgain: boolean;
+  notes: string | null;
+  reviewedAt: string;
+}): Promise<CreatePurchaseResult | null> {
+  const { data: existingReview } = await args.supabase
+    .from("product_reviews")
+    .select("id, household_id")
+    .eq("id", args.reviewId)
+    .maybeSingle();
+  const reviewOwnership = resolveHouseholdCreateOwnership(args.reviewId, args.householdId, existingReview);
+  if (!reviewOwnership.ok) {
+    return {
+      ok: false,
+      error: reviewOwnership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
+    };
+  }
+  if (reviewOwnership.status === "create") {
+    const { error: reviewError } = await args.supabase.from("product_reviews").insert({
+      id: args.reviewId,
+      household_id: args.householdId,
+      product_id: args.productId,
+      pet_id: args.petId,
+      quality_score: args.scores[0],
+      acceptance_score: args.scores[1],
+      cost_benefit_score: args.scores[2],
+      would_buy_again: args.wouldBuyAgain,
+      notes: args.notes,
+      reviewed_at: args.reviewedAt,
+    });
+    if (reviewError && !isUniqueViolation(reviewError)) {
+      return { ok: false, error: reviewError.message };
+    }
+  }
+  await syncEntityPets(args.supabase, "review_pets", args.householdId, args.reviewId, args.petIds);
+  return null;
+}
+
 /**
  * Idempotent purchase create: one intent → stable purchase_id + expense_id
  * (+ product_id when creating a new product, review_id when scoring).
+ * Order: auth → purchase ownership → product → expense create/reuse → purchase → optional review.
  * Retry must never create N expenses for the same purchase intent.
  */
 export async function createPurchase(formData: FormData): Promise<CreatePurchaseResult> {
@@ -104,40 +156,53 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
   const extras = purchaseExtras(formData);
   const { supabase, household } = await authContext();
 
-  const { data: existingPurchase } = await supabase
-    .from("purchases")
-    .select("id, household_id, expense_id")
-    .eq("id", purchaseId)
-    .maybeSingle();
+  const [{ data: existingPurchase }, { data: existingExpense }] = await Promise.all([
+    supabase.from("purchases").select("id, household_id, expense_id").eq("id", purchaseId).maybeSingle(),
+    supabase.from("expenses").select("id, household_id").eq("id", expenseId).maybeSingle(),
+  ]);
 
-  const purchaseOwnership = resolveHouseholdCreateOwnership(purchaseId, household.id, existingPurchase);
-  if (!purchaseOwnership.ok) {
+  const purchasePlan = planCompoundPurchaseCreate(
+    purchaseId,
+    expenseId,
+    household.id,
+    existingPurchase,
+    existingExpense,
+  );
+  if (!purchasePlan.ok) {
     return {
       ok: false,
-      error: purchaseOwnership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
+      error: purchasePlan.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
     };
   }
 
   const scores = ["quality_score", "acceptance_score", "cost_benefit_score"].map((name) => Number(value(formData, name)));
   const hasAnyScore = scores.some((score) => Number.isFinite(score) && score > 0);
   const hasAllScores = scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 5);
-
-  if (purchaseOwnership.status === "reuse") {
-    if (hasAnyScore && !hasAllScores) {
-      return finishPurchase(`/shopping?saved=1&review=partial&purchase=${purchaseId}`);
-    }
-    return finishPurchase(hasAllScores ? "/shopping?saved=1" : `/shopping?saved=1&review=pending&purchase=${purchaseId}`);
-  }
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
+  const reviewId = value(formData, "review_id");
 
   const selectedProductId = value(formData, "product_id");
   let product: Product | null = null;
 
-  if (selectedProductId) {
-    if (!isUuid(selectedProductId)) return { ok: false, error: "Produto inválido." };
-    const result = await supabase.from("products").select("*").eq("id", selectedProductId).eq("household_id", household.id).maybeSingle();
-    if (result.error) return { ok: false, error: result.error.message };
-    product = result.data as Product | null;
-  } else {
+  async function loadProductLinkedToPurchase(): Promise<Product | null> {
+    const linked = await supabase
+      .from("purchases")
+      .select("product_id")
+      .eq("id", purchaseId)
+      .eq("household_id", household.id)
+      .maybeSingle();
+    if (!linked.data?.product_id) return null;
+    const result = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", linked.data.product_id)
+      .eq("household_id", household.id)
+      .maybeSingle();
+    return (result.data as Product | null) ?? null;
+  }
+
+  async function resolveOrCreateNewProduct(): Promise<CreatePurchaseResult | null> {
     const newProductId = value(formData, "new_product_id");
     if (!isUuid(newProductId)) return { ok: false, error: invalidIntentErrorMessage() };
     const name = value(formData, "product_name");
@@ -146,11 +211,7 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
       return { ok: false, error: "Dê um nome e uma categoria ao novo produto." };
     }
 
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", newProductId)
-      .maybeSingle();
+    const { data: existingProduct } = await supabase.from("products").select("*").eq("id", newProductId).maybeSingle();
     const productOwnership = resolveHouseholdCreateOwnership(newProductId, household.id, existingProduct);
     if (!productOwnership.ok) {
       return {
@@ -160,55 +221,82 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
     }
     if (productOwnership.status === "reuse") {
       product = existingProduct as Product;
-    } else {
-      const result = await supabase
-        .from("products")
-        .insert({
-          id: newProductId,
-          household_id: household.id,
-          name,
-          brand: value(formData, "brand") || null,
-          category,
-          package_size: value(formData, "package_size") || null,
-          notes: value(formData, "product_notes") || null,
-        })
-        .select("*")
-        .single();
-      if (result.error) {
-        if (isUniqueViolation(result.error)) {
-          const { data: again } = await supabase.from("products").select("*").eq("id", newProductId).maybeSingle();
-          const retry = resolveHouseholdCreateOwnership(newProductId, household.id, again);
-          if (retry.ok && retry.status === "reuse") product = again as Product;
-          else return { ok: false, error: foreignIntentErrorMessage() };
-        } else {
-          return { ok: false, error: result.error.message };
-        }
-      } else {
-        product = result.data as Product;
-      }
+      return null;
     }
+
+    const result = await supabase
+      .from("products")
+      .insert({
+        id: newProductId,
+        household_id: household.id,
+        name,
+        brand: value(formData, "brand") || null,
+        category,
+        package_size: value(formData, "package_size") || null,
+        notes: value(formData, "product_notes") || null,
+      })
+      .select("*")
+      .single();
+    if (result.error) {
+      if (isUniqueViolation(result.error)) {
+        const { data: again } = await supabase.from("products").select("*").eq("id", newProductId).maybeSingle();
+        const retry = resolveHouseholdCreateOwnership(newProductId, household.id, again);
+        if (retry.ok && retry.status === "reuse") {
+          product = again as Product;
+          return null;
+        }
+        return { ok: false, error: foreignIntentErrorMessage() };
+      }
+      return { ok: false, error: result.error.message };
+    }
+    product = result.data as Product;
+    return null;
   }
+
+  // Purchase already complete: still close optional review gap from a prior partial.
+  if (purchasePlan.purchase === "reuse") {
+    if (hasAnyScore && !hasAllScores) {
+      return finishPurchase(`/shopping?saved=1&review=partial&purchase=${purchaseId}`);
+    }
+    if (hasAllScores && purchasePlan.ensureReviewIfScored) {
+      if (!isUuid(reviewId)) return { ok: false, error: invalidIntentErrorMessage() };
+      product = await loadProductLinkedToPurchase();
+      if (!product) return { ok: false, error: "Produto não encontrado." };
+      const reviewError = await ensurePurchaseReview({
+        supabase,
+        householdId: household.id,
+        reviewId,
+        productId: product.id,
+        petId,
+        petIds,
+        scores,
+        wouldBuyAgain: formData.get("would_buy_again") === "on",
+        notes: value(formData, "review_notes") || null,
+        reviewedAt: `${purchasedOn}T12:00:00-03:00`,
+      });
+      if (reviewError) return reviewError;
+      return finishPurchase("/shopping?saved=1");
+    }
+    return finishPurchase(`/shopping?saved=1&review=pending&purchase=${purchaseId}`);
+  }
+
+  if (selectedProductId) {
+    if (!isUuid(selectedProductId)) return { ok: false, error: "Produto inválido." };
+    const result = await supabase.from("products").select("*").eq("id", selectedProductId).eq("household_id", household.id).maybeSingle();
+    if (result.error) return { ok: false, error: result.error.message };
+    product = result.data as Product | null;
+  } else {
+    const created = await resolveOrCreateNewProduct();
+    if (created) return created;
+  }
+
   if (!product) return { ok: false, error: "Produto não encontrado." };
 
-  const petIds = parsePetIds(formData);
-  const petId = resolveOptionalPetId(petIds);
   const description = [product.brand, product.name].filter(Boolean).join(" • ");
   const expenseNotes = `Compra em ${storeName}`;
+  let expenseInsertedThisAttempt = false;
 
-  const { data: existingExpense } = await supabase
-    .from("expenses")
-    .select("id, household_id")
-    .eq("id", expenseId)
-    .maybeSingle();
-  const expenseOwnership = resolveHouseholdCreateOwnership(expenseId, household.id, existingExpense);
-  if (!expenseOwnership.ok) {
-    return {
-      ok: false,
-      error: expenseOwnership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
-    };
-  }
-
-  if (expenseOwnership.status === "create") {
+  if (purchasePlan.expense === "create") {
     const { error: expenseError } = await supabase.from("expenses").insert({
       id: expenseId,
       household_id: household.id,
@@ -225,9 +313,12 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
         const { data: again } = await supabase.from("expenses").select("id, household_id").eq("id", expenseId).maybeSingle();
         const retry = resolveHouseholdCreateOwnership(expenseId, household.id, again);
         if (!retry.ok || retry.status !== "reuse") return { ok: false, error: foreignIntentErrorMessage() };
+        // 23505 reuse — do NOT mark as inserted this attempt (must not compensate-delete).
       } else {
         return { ok: false, error: expenseError.message };
       }
+    } else {
+      expenseInsertedThisAttempt = true;
     }
   }
 
@@ -235,7 +326,7 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
     await validateEntityPets(supabase, household.id, petIds);
     await syncEntityPets(supabase, "expense_pets", household.id, expenseId, petIds);
   } catch (petError) {
-    if (expenseOwnership.status === "create") {
+    if (shouldCompensateDeleteExpense(expenseInsertedThisAttempt)) {
       await supabase.from("expenses").delete().eq("id", expenseId).eq("household_id", household.id);
     }
     return { ok: false, error: petError instanceof Error ? petError.message : "Não foi possível vincular os pets." };
@@ -267,11 +358,28 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
       const retry = resolveHouseholdCreateOwnership(purchaseId, household.id, again);
       if (retry.ok && retry.status === "reuse") {
         if (hasAnyScore && !hasAllScores) return finishPurchase(`/shopping?saved=1&review=partial&purchase=${purchaseId}`);
-        return finishPurchase(hasAllScores ? "/shopping?saved=1" : `/shopping?saved=1&review=pending&purchase=${purchaseId}`);
+        if (hasAllScores) {
+          if (!isUuid(reviewId)) return { ok: false, error: invalidIntentErrorMessage() };
+          const reviewError = await ensurePurchaseReview({
+            supabase,
+            householdId: household.id,
+            reviewId,
+            productId: product.id,
+            petId,
+            petIds,
+            scores,
+            wouldBuyAgain: formData.get("would_buy_again") === "on",
+            notes: value(formData, "review_notes") || null,
+            reviewedAt: `${purchasedOn}T12:00:00-03:00`,
+          });
+          if (reviewError) return reviewError;
+          return finishPurchase("/shopping?saved=1");
+        }
+        return finishPurchase(`/shopping?saved=1&review=pending&purchase=${purchaseId}`);
       }
       return { ok: false, error: foreignIntentErrorMessage() };
     }
-    if (expenseOwnership.status === "create") {
+    if (shouldCompensateDeleteExpense(expenseInsertedThisAttempt)) {
       await supabase.from("expenses").delete().eq("id", expenseId).eq("household_id", household.id);
     }
     return { ok: false, error: purchaseError.message };
@@ -284,39 +392,20 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
   }
 
   if (hasAllScores) {
-    const reviewId = value(formData, "review_id");
     if (!isUuid(reviewId)) return { ok: false, error: invalidIntentErrorMessage() };
-
-    const { data: existingReview } = await supabase
-      .from("product_reviews")
-      .select("id, household_id")
-      .eq("id", reviewId)
-      .maybeSingle();
-    const reviewOwnership = resolveHouseholdCreateOwnership(reviewId, household.id, existingReview);
-    if (!reviewOwnership.ok) {
-      return {
-        ok: false,
-        error: reviewOwnership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
-      };
-    }
-    if (reviewOwnership.status === "create") {
-      const { error: reviewError } = await supabase.from("product_reviews").insert({
-        id: reviewId,
-        household_id: household.id,
-        product_id: product.id,
-        pet_id: petId,
-        quality_score: scores[0],
-        acceptance_score: scores[1],
-        cost_benefit_score: scores[2],
-        would_buy_again: formData.get("would_buy_again") === "on",
-        notes: value(formData, "review_notes") || null,
-        reviewed_at: `${purchasedOn}T12:00:00-03:00`,
-      });
-      if (reviewError && !isUniqueViolation(reviewError)) {
-        return { ok: false, error: reviewError.message };
-      }
-    }
-    await syncEntityPets(supabase, "review_pets", household.id, reviewId, petIds);
+    const reviewError = await ensurePurchaseReview({
+      supabase,
+      householdId: household.id,
+      reviewId,
+      productId: product.id,
+      petId,
+      petIds,
+      scores,
+      wouldBuyAgain: formData.get("would_buy_again") === "on",
+      notes: value(formData, "review_notes") || null,
+      reviewedAt: `${purchasedOn}T12:00:00-03:00`,
+    });
+    if (reviewError) return reviewError;
     return finishPurchase("/shopping?saved=1");
   }
 
