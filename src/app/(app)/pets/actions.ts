@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isUuid } from "@/lib/attachments";
+import { compensateNewStoragePaths } from "@/lib/attachment-direct-upload";
 import { parseWeightKg } from "@/lib/format";
 import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
@@ -12,17 +13,15 @@ import {
   resolveInitialWeightOwnership,
   resolvePetCreateOwnership,
 } from "@/lib/pet-create";
+import {
+  parsePetPhotoPayload,
+  petPhotoPayloadFieldName,
+  validateStoredPetPhotoObject,
+} from "@/lib/pet-photo-upload";
 import { assertCanEdit } from "@/lib/roles";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 import { createClient } from "@/lib/supabase/server";
 import type { PetSex } from "@/types/database";
-
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-const photoExtensions = new Map([
-  ["image/jpeg", "jpg"],
-  ["image/png", "png"],
-  ["image/webp", "webp"],
-]);
 
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
@@ -89,13 +88,15 @@ function readFields(formData: FormData) {
   };
 }
 
-function readPhoto(formData: FormData) {
+function rejectBinaryPhoto(formData: FormData) {
   const photo = formData.get("photo");
-  if (!(photo instanceof File) || photo.size === 0) return null;
-  if (photo.size > MAX_PHOTO_BYTES) throw new Error("A foto deve ter no máximo 5 MB.");
-  const extension = photoExtensions.get(photo.type);
-  if (!extension) throw new Error("Use uma foto JPG, PNG ou WebP.");
-  return { photo, extension };
+  if (typeof File !== "undefined" && photo instanceof File && photo.size > 0) {
+    throw new Error("Envie a foto pelo fluxo de upload direto. Recarregue a página e tente de novo.");
+  }
+}
+
+function readPhotoPayload(formData: FormData) {
+  return parsePetPhotoPayload(String(formData.get(petPhotoPayloadFieldName()) ?? ""));
 }
 
 async function authContext() {
@@ -107,20 +108,29 @@ async function authContext() {
   return { supabase, household };
 }
 
-async function uploadPhoto(
+async function finalizePetPhotoPath(
   supabase: Awaited<ReturnType<typeof createClient>>,
   householdId: string,
   petId: string,
-  photo: File,
-  extension: string,
-) {
-  const path = `${householdId}/${petId}/profile-${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from(PET_MEDIA_BUCKET).upload(path, photo, {
-    contentType: photo.type,
-    cacheControl: "3600",
-  });
-  if (error) throw error;
-  return path;
+  formData: FormData,
+): Promise<{ ok: true; path: string | null } | { ok: false; error: string; orphanPath?: string }> {
+  try {
+    rejectBinaryPhoto(formData);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Foto inválida." };
+  }
+  let intent;
+  try {
+    intent = readPhotoPayload(formData);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Foto inválida." };
+  }
+  if (!intent) return { ok: true, path: null };
+  const validated = await validateStoredPetPhotoObject(supabase, householdId, petId, intent);
+  if (!validated.ok) {
+    return { ok: false, error: validated.message, orphanPath: validated.storage_path };
+  }
+  return { ok: true, path: validated.storage_path };
 }
 
 async function ensureInitialWeight(options: {
@@ -188,7 +198,7 @@ function finishCreate(petId: string): CreatePetResult {
 
 /**
  * Idempotent pet create: stable client pet_id, optional stable weight id,
- * active-homonym warning (server-authoritative), photo still via Server Action.
+ * active-homonym warning (server-authoritative), photo via direct upload payload.
  */
 export async function createPet(formData: FormData): Promise<CreatePetResult> {
   let fields: ReturnType<typeof readFields>;
@@ -215,14 +225,15 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
 
   const allowDuplicateName = formData.get("allow_duplicate_name") === "true" || formData.get("allow_duplicate_name") === "1";
 
-  let photo: ReturnType<typeof readPhoto>;
-  try {
-    photo = readPhoto(formData);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Foto inválida." };
-  }
-
   const { supabase, household } = await authContext();
+  const photoResult = await finalizePetPhotoPath(supabase, household.id, petId, formData);
+  if (!photoResult.ok) {
+    if (photoResult.orphanPath) {
+      await compensateNewStoragePaths(supabase, [photoResult.orphanPath]).catch(() => undefined);
+    }
+    return { ok: false, error: photoResult.error };
+  }
+  const photoPath = photoResult.path;
 
   const { data: existing } = await supabase
     .from("pets")
@@ -251,13 +262,8 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
     });
     if (!weightResult.ok) return { ok: false, error: weightResult.error };
 
-    if (photo && !existing?.photo_path) {
-      try {
-        const photoPath = await uploadPhoto(supabase, household.id, petId, photo.photo, photo.extension);
-        await supabase.from("pets").update({ photo_path: photoPath }).eq("id", petId).eq("household_id", household.id);
-      } catch {
-        // Perfil já existe; foto pode ser adicionada na edição.
-      }
+    if (photoPath && !existing?.photo_path) {
+      await supabase.from("pets").update({ photo_path: photoPath }).eq("id", petId).eq("household_id", household.id);
     }
     return finishCreate(petId);
   }
@@ -271,6 +277,9 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
       .is("archived_at", null);
     const homonyms = findActiveHomonymPets(activePets ?? [], fields.name, petId);
     if (homonyms.length > 0) {
+      if (photoPath) {
+        await compensateNewStoragePaths(supabase, [photoPath]).catch(() => undefined);
+      }
       const labels = [...new Set(homonyms.map((pet) => pet.name.trim()).filter(Boolean))];
       return {
         ok: false,
@@ -305,9 +314,18 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
           initialWeightKg,
         });
         if (!weightResult.ok) return { ok: false, error: weightResult.error };
+        if (photoPath && !again?.photo_path) {
+          await supabase.from("pets").update({ photo_path: photoPath }).eq("id", petId).eq("household_id", household.id);
+        }
         return finishCreate(petId);
       }
+      if (photoPath) {
+        await compensateNewStoragePaths(supabase, [photoPath]).catch(() => undefined);
+      }
       return { ok: false, error: "Não foi possível reutilizar esta intenção de criação." };
+    }
+    if (photoPath) {
+      await compensateNewStoragePaths(supabase, [photoPath]).catch(() => undefined);
     }
     return { ok: false, error: error.message };
   }
@@ -321,13 +339,8 @@ export async function createPet(formData: FormData): Promise<CreatePetResult> {
   });
   if (!weightResult.ok) return { ok: false, error: weightResult.error };
 
-  if (photo) {
-    try {
-      const photoPath = await uploadPhoto(supabase, household.id, petId, photo.photo, photo.extension);
-      await supabase.from("pets").update({ photo_path: photoPath }).eq("id", petId).eq("household_id", household.id);
-    } catch {
-      // O perfil continua válido mesmo se o upload falhar; a foto pode ser adicionada na edição.
-    }
+  if (photoPath) {
+    await supabase.from("pets").update({ photo_path: photoPath }).eq("id", petId).eq("household_id", household.id);
   }
 
   return finishCreate(petId);
@@ -350,13 +363,6 @@ export async function updatePet(petId: string, formData: FormData): Promise<Upda
 
   const allowDuplicateName = formData.get("allow_duplicate_name") === "true" || formData.get("allow_duplicate_name") === "1";
 
-  let photo: ReturnType<typeof readPhoto>;
-  try {
-    photo = readPhoto(formData);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Foto inválida." };
-  }
-
   const { supabase, household } = await authContext();
   const { data: existing } = await supabase
     .from("pets")
@@ -365,6 +371,15 @@ export async function updatePet(petId: string, formData: FormData): Promise<Upda
     .eq("household_id", household.id)
     .maybeSingle();
   if (!existing) return { ok: false, error: "Pet não encontrado nesta família." };
+
+  const photoResult = await finalizePetPhotoPath(supabase, household.id, petId, formData);
+  if (!photoResult.ok) {
+    if (photoResult.orphanPath) {
+      await compensateNewStoragePaths(supabase, [photoResult.orphanPath]).catch(() => undefined);
+    }
+    return { ok: false, error: photoResult.error };
+  }
+  const photoPath = photoResult.path;
 
   // Active homonym check — excludes this pet; archived pets ignored (shared helper).
   if (!allowDuplicateName) {
@@ -376,6 +391,10 @@ export async function updatePet(petId: string, formData: FormData): Promise<Upda
     const homonyms = findActiveHomonymPets(activePets ?? [], fields.name, petId);
     if (homonyms.length > 0) {
       const labels = [...new Set(homonyms.map((pet) => pet.name.trim()).filter(Boolean))];
+      // New photo uploaded but we soft-fail for homonym — keep old path; compensate new object.
+      if (photoPath) {
+        await compensateNewStoragePaths(supabase, [photoPath]).catch(() => undefined);
+      }
       return {
         ok: false,
         duplicateName: true,
@@ -385,23 +404,22 @@ export async function updatePet(petId: string, formData: FormData): Promise<Upda
     }
   }
 
-  let photoPath: string | null = null;
-  if (photo) {
-    try {
-      photoPath = await uploadPhoto(supabase, household.id, petId, photo.photo, photo.extension);
-    } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : "Não foi possível enviar a foto." };
-    }
-  }
-
   const { error } = await supabase
     .from("pets")
     .update(photoPath ? { ...fields, photo_path: photoPath } : fields)
     .eq("id", petId)
     .eq("household_id", household.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (photoPath) {
+      await compensateNewStoragePaths(supabase, [photoPath]).catch(() => undefined);
+    }
+    return { ok: false, error: error.message };
+  }
 
-  if (photoPath && existing.photo_path) await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path]);
+  // Only after DB success: best-effort remove previous photo (never before).
+  if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
+    await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path]).catch(() => undefined);
+  }
   revalidatePath("/");
   revalidatePath("/pets");
   revalidatePath(`/pets/${petId}`);

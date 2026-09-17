@@ -6,16 +6,13 @@ import { PetFields } from "@/components/pet-fields";
 import { SubmitButton } from "@/components/submit-button";
 import type { UpdatePetResult } from "@/app/(app)/pets/actions";
 import type { Pet } from "@/types/database";
-
-function attachPreservedPhoto(formData: FormData, preserved: File | null) {
-  const current = formData.get("photo");
-  if (current instanceof File && current.size > 0) return;
-  if (preserved && preserved.size > 0) formData.set("photo", preserved);
-}
+import {
+  compensatePetPhotoIfNeeded,
+  runDirectPetPhotoUpload,
+} from "@/lib/pet-photo-direct-upload-client";
 
 /**
- * Edit-pet form with server-authoritative active-homonym confirmation.
- * Imperative Server Action avoids form/File reset on soft duplicate warnings.
+ * Edit-pet form with direct photo upload and safe replace (DB before old cleanup).
  */
 export function EditPetForm({
   pet,
@@ -27,7 +24,9 @@ export function EditPetForm({
   initialError?: string | null;
 }) {
   const [error, setError] = useState<string | null>(initialError ?? null);
+  const [status, setStatus] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
+  const [photoIntentId, setPhotoIntentId] = useState(() => crypto.randomUUID());
   const allowDuplicateRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +37,6 @@ export function EditPetForm({
   const closeDuplicateRestoreName = useCallback(() => {
     allowDuplicateRef.current = false;
     setDuplicate(null);
-    // EDIT cancel: restore original name (not empty); keep other unsaved edits + File.
     if (nameInputRef.current) {
       nameInputRef.current.value = originalName;
       nameInputRef.current.focus();
@@ -48,30 +46,43 @@ export function EditPetForm({
   function runUpdate(form: HTMLFormElement, allowDuplicate: boolean) {
     startTransition(async () => {
       setError(null);
+      setStatus(null);
       if (!allowDuplicate) setDuplicate(null);
       const formData = new FormData(form);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
+
       const selected = formData.get("photo");
       if (selected instanceof File && selected.size > 0) photoFileRef.current = selected;
-      attachPreservedPhoto(formData, photoFileRef.current);
 
+      let newlyCreatedPaths: string[] = [];
       try {
+        newlyCreatedPaths = (
+          await runDirectPetPhotoUpload(formData, pet.id, photoIntentId, photoFileRef.current, (progress) => {
+            setStatus(progress.message);
+          })
+        ).newlyCreatedPaths;
+        setStatus("Salvando...");
         const result = await action(formData);
         if (result.ok) {
           window.location.replace(result.redirectTo);
           return;
         }
+        if (newlyCreatedPaths.length) await compensatePetPhotoIfNeeded(newlyCreatedPaths);
         if ("duplicateName" in result && result.duplicateName) {
           allowDuplicateRef.current = false;
           setDuplicate({ name: result.name, existingLabel: result.existingLabel });
+          setStatus(null);
           return;
         }
         allowDuplicateRef.current = false;
         setError("error" in result ? result.error : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       } catch (cause) {
+        if (newlyCreatedPaths.length) await compensatePetPhotoIfNeeded(newlyCreatedPaths);
         allowDuplicateRef.current = false;
         setError(cause instanceof Error ? cause.message : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       }
     });
   }
@@ -95,17 +106,19 @@ export function EditPetForm({
           </div>
         ) : null}
 
-        {pending ? (
+        {status || pending ? (
           <p className="mb-4 text-sm font-semibold text-[var(--lavender-strong)]" aria-live="polite">
-            Salvando...
+            {status ?? "Salvando..."}
           </p>
         ) : null}
 
         <PetFields
           defaultValues={pet}
+          disabled={pending}
           nameInputRef={nameInputRef}
           onPhotoFileChange={(file) => {
             photoFileRef.current = file;
+            setPhotoIntentId(crypto.randomUUID());
           }}
         />
         <SubmitButton

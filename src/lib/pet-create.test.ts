@@ -215,11 +215,11 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(actions, /isUniqueViolation/);
   });
 
-  it("create form uses imperative Server Action (preventDefault) so File is not reset", () => {
+  it("create form uses imperative Server Action (preventDefault) so selection is not reset", () => {
     assert.match(createForm, /event\.preventDefault\(\)/);
     assert.match(createForm, /new FormData\(form\)/);
     assert.match(createForm, /photoFileRef/);
-    assert.match(createForm, /attachPreservedPhoto|formData\.set\("photo"/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
     assert.doesNotMatch(createForm, /key=\{fieldsKey\}|restoreDraft/);
     assert.match(createForm, /onSubmit=/);
   });
@@ -240,7 +240,7 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(createForm, /nameInputRef\.current\.focus\(\)/);
     assert.match(createForm, /const \[petId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
     assert.match(createForm, /const \[weightRecordId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
-    assert.equal((createForm.match(/crypto\.randomUUID\(\)/g) ?? []).length, 2);
+    assert.match(createForm, /photoIntentId/);
     assert.doesNotMatch(createForm, /setPetId|setWeightRecordId/);
   });
 
@@ -320,8 +320,8 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(createForm, /closeDuplicateClearName/);
     assert.match(createForm, /nameInputRef\.current\.value = ""/);
     assert.match(editForm, /photoFileRef/);
-    assert.match(createForm, /attachPreservedPhoto|formData\.set\("photo"/);
-    assert.match(editForm, /attachPreservedPhoto|formData\.set\("photo"/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
+    assert.match(editForm, /runDirectPetPhotoUpload/);
   });
 
   it("does not introduce migration 0036 or delete Zabuza", () => {
@@ -329,12 +329,14 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(dialog, /Já existe um pet com esse nome/);
   });
 
-  it("photo remains Server Action File transport (not direct upload in this PR)", () => {
-    assert.match(actions, /instanceof File/);
-    assert.match(actions, /uploadPhoto/);
-    assert.doesNotMatch(actions, /createSignedUploadUrl|uploadToSignedUrl/);
-    assert.doesNotMatch(createForm, /createSignedUploadUrl|uploadToSignedUrl/);
-    assert.doesNotMatch(editForm, /createSignedUploadUrl|uploadToSignedUrl/);
+  it("photo uses direct upload transport with server-side validation (not File in Server Action)", () => {
+    assert.match(actions, /validateStoredPetPhotoObject|finalizePetPhotoPath|pet_photo_payload/);
+    assert.match(actions, /rejectBinaryPhoto|instanceof File/);
+    assert.doesNotMatch(actions, /async function uploadPhoto/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
+    assert.match(editForm, /runDirectPetPhotoUpload/);
+    const photoClient = readFileSync(join(root, "src/lib/pet-photo-direct-upload-client.ts"), "utf8");
+    assert.match(photoClient, /Enviando foto\.\.\./);
   });
 
   it("expected errors stay as structured results (no RSC crash redirect-only path on update)", () => {

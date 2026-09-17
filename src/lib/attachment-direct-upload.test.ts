@@ -251,16 +251,16 @@ describe("direct-upload wiring (source contracts)", () => {
   });
 });
 
-describe("audit report — pet photo + memory_media (report-only)", () => {
-  it("documents that both still send File through Server Actions", () => {
+describe("audit report — pet photo + memory_media (direct upload)", () => {
+  it("documents that both use metadata payloads (no File through Server Actions)", () => {
     const pets = readFileSync(join(process.cwd(), "src/app/(app)/pets/actions.ts"), "utf8");
     const memories = readFileSync(join(process.cwd(), "src/app/(app)/memories/actions.ts"), "utf8");
     assert.match(pets, /instanceof File/);
-    assert.match(pets, /upload\(path, photo/);
+    assert.match(pets, /validateStoredPetPhotoObject|pet_photo_payload/);
+    assert.doesNotMatch(pets, /upload\(path, photo/);
     assert.match(memories, /instanceof File/);
-    assert.match(memories, /formData\.getAll\("photos"\)/);
-    assert.match(pets, /5 MB/);
-    assert.match(memories, /5 MB/);
-    assert.match(memories, /MAX_PHOTOS = 8/);
+    assert.match(memories, /parseMemoryMediaPayload|memory_media_payload/);
+    assert.doesNotMatch(memories, /formData\.getAll\("photos"\)/);
+    assert.match(memories, /MEMORY_MEDIA_MAX_PHOTOS/);
   });
 });
