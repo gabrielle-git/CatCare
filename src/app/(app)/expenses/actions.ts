@@ -2,6 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isUuid } from "@/lib/attachments";
+import {
+  foreignIntentErrorMessage,
+  invalidIntentErrorMessage,
+  isUniqueViolation,
+  resolveHouseholdCreateOwnership,
+} from "@/lib/create-idempotency";
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
 import { validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
@@ -12,6 +19,10 @@ import type { ExpenseCategory } from "@/types/database";
 
 const categories = new Set<ExpenseCategory>(["veterinary", "food", "medication", "hygiene", "accessory", "transport", "other"]);
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
+
+export type CreateExpenseResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string };
 
 function moneyToCents(raw: string) {
   const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
@@ -33,20 +44,60 @@ async function saveExpensePets(supabase: Awaited<ReturnType<typeof createClient>
   await syncEntityPets(supabase, "expense_pets", householdId, expenseId, petIds);
 }
 
-export async function createExpense(formData: FormData) {
+function finishCreate(): CreateExpenseResult {
+  revalidatePath("/expenses");
+  revalidatePath("/");
+  return { ok: true, redirectTo: "/expenses?saved=1" };
+}
+
+/**
+ * Idempotent expense create: stable client expense_id + household ownership reuse.
+ * Button disable is UX only — server reuse is the real safety net.
+ */
+export async function createExpense(formData: FormData): Promise<CreateExpenseResult> {
   const description = value(formData, "description");
   const categoryValue = value(formData, "category") as ExpenseCategory;
   const amountCents = moneyToCents(value(formData, "amount"));
   const date = value(formData, "occurred_on");
-  if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) redirect("/expenses/new?error=Confira%20os%20campos%20obrigat%C3%B3rios.");
+  if (!description || !categories.has(categoryValue) || !Number.isFinite(amountCents) || amountCents < 0 || !date) {
+    return { ok: false, error: "Confira os campos obrigatórios." };
+  }
   const dateCheck = validateFactualCivilDate(date);
-  if (!dateCheck.ok) redirect(`/expenses/new?error=${encodeURIComponent(dateCheck.message)}`);
+  if (!dateCheck.ok) return { ok: false, error: dateCheck.message };
+
+  const expenseId = value(formData, "expense_id");
+  if (!isUuid(expenseId)) return { ok: false, error: invalidIntentErrorMessage() };
 
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
   const shared = sharedFromPetIds(petIds);
-  const { data: created, error } = await supabase.from("expenses").insert({
+
+  const { data: existing } = await supabase
+    .from("expenses")
+    .select("id, household_id")
+    .eq("id", expenseId)
+    .maybeSingle();
+
+  const ownership = resolveHouseholdCreateOwnership(expenseId, household.id, existing);
+  if (!ownership.ok) {
+    return {
+      ok: false,
+      error: ownership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
+    };
+  }
+
+  if (ownership.status === "reuse") {
+    try {
+      await saveExpensePets(supabase, household.id, expenseId, petIds);
+    } catch {
+      // Pets may already be linked; reuse still succeeds.
+    }
+    return finishCreate();
+  }
+
+  const { error } = await supabase.from("expenses").insert({
+    id: expenseId,
     household_id: household.id,
     pet_id: petId,
     category: categoryValue,
@@ -55,17 +106,30 @@ export async function createExpense(formData: FormData) {
     occurred_at: `${date}T12:00:00-03:00`,
     shared,
     notes: value(formData, "notes") || null,
-  }).select("id").single();
-  if (error) redirect(`/expenses/new?error=${encodeURIComponent(error.message)}`);
-  try {
-    await saveExpensePets(supabase, household.id, created.id, petIds);
-  } catch (petError) {
-    await supabase.from("expenses").delete().eq("id", created.id).eq("household_id", household.id);
-    redirect(`/expenses/new?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
+  });
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      const { data: again } = await supabase
+        .from("expenses")
+        .select("id, household_id")
+        .eq("id", expenseId)
+        .maybeSingle();
+      const retry = resolveHouseholdCreateOwnership(expenseId, household.id, again);
+      if (retry.ok && retry.status === "reuse") return finishCreate();
+      return { ok: false, error: foreignIntentErrorMessage() };
+    }
+    return { ok: false, error: error.message };
   }
-  revalidatePath("/expenses");
-  revalidatePath("/");
-  redirect("/expenses?saved=1");
+
+  try {
+    await saveExpensePets(supabase, household.id, expenseId, petIds);
+  } catch (petError) {
+    await supabase.from("expenses").delete().eq("id", expenseId).eq("household_id", household.id);
+    return { ok: false, error: petError instanceof Error ? petError.message : "Não foi possível vincular os pets." };
+  }
+
+  return finishCreate();
 }
 
 export async function updateExpense(expenseId: string, formData: FormData) {

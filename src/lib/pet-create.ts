@@ -1,4 +1,11 @@
 import { isUuid } from "@/lib/attachments";
+import {
+  isUniqueViolation,
+  resolveHouseholdCreateOwnership,
+  type HouseholdCreateOwnershipResult,
+} from "@/lib/create-idempotency";
+
+export { isUniqueViolation };
 
 /** Normalize pet name for active-homonym comparison (not uniqueness). */
 export function normalizePetNameForComparison(raw: string): string {
@@ -10,9 +17,7 @@ export function normalizePetNameForComparison(raw: string): string {
     .replace(/\s+/g, " ");
 }
 
-export type PetCreateOwnershipResult =
-  | { ok: true; status: "create" | "reuse" }
-  | { ok: false; reason: "invalid_id" | "foreign_household" };
+export type PetCreateOwnershipResult = HouseholdCreateOwnershipResult;
 
 /**
  * Pure ownership/idempotency decision for create retries with a stable pet_id.
@@ -23,10 +28,7 @@ export function resolvePetCreateOwnership(
   expectedHouseholdId: string,
   existing: { id: string; household_id: string } | null,
 ): PetCreateOwnershipResult {
-  if (!isUuid(petId)) return { ok: false, reason: "invalid_id" };
-  if (!existing) return { ok: true, status: "create" };
-  if (existing.household_id !== expectedHouseholdId) return { ok: false, reason: "foreign_household" };
-  return { ok: true, status: "reuse" };
+  return resolveHouseholdCreateOwnership(petId, expectedHouseholdId, existing);
 }
 
 export type WeightCreateOwnershipResult =
@@ -45,13 +47,6 @@ export function resolveInitialWeightOwnership(
   if (existing.household_id !== expectedHouseholdId) return { ok: false, reason: "foreign_household" };
   if (existing.pet_id !== expectedPetId) return { ok: false, reason: "pet_mismatch" };
   return { ok: true, status: "reuse" };
-}
-
-export function isUniqueViolation(error: { code?: string; message?: string } | null | undefined): boolean {
-  if (!error) return false;
-  if (error.code === "23505") return true;
-  const message = (error.message ?? "").toLowerCase();
-  return message.includes("duplicate key") || message.includes("unique constraint");
 }
 
 /** Find active pets whose normalized name matches (excluding the intent pet_id). */

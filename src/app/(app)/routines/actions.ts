@@ -2,11 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isUuid } from "@/lib/attachments";
+import {
+  foreignIntentErrorMessage,
+  invalidIntentErrorMessage,
+  isUniqueViolation,
+  resolveHouseholdCreateOwnership,
+} from "@/lib/create-idempotency";
 import { ensureHousehold } from "@/lib/households";
 import { parsePetIds } from "@/lib/pet-form";
 import { parseRoutineForm } from "@/lib/routine-form";
 import { assertCanEdit } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
+
+export type CreateRoutineResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string };
 
 async function authContext() {
   const supabase = await createClient();
@@ -53,12 +64,15 @@ async function syncRoutinePets(
   }
 }
 
-export async function createRoutine(formData: FormData) {
+export async function createRoutine(formData: FormData): Promise<CreateRoutineResult> {
   const parsed = parseRoutineForm(formData);
-  if ("error" in parsed) redirect(`/routines/new?error=${encodeURIComponent(parsed.error ?? "Dados inválidos.")}`);
+  if ("error" in parsed) return { ok: false, error: parsed.error ?? "Dados inválidos." };
 
   const petIds = parsePetIds(formData);
-  if (petIds.length === 0) redirect(`/routines/new?error=${encodeURIComponent("Selecione ao menos um pet.")}`);
+  if (petIds.length === 0) return { ok: false, error: "Selecione ao menos um pet." };
+
+  const routineId = String(formData.get("routine_id") ?? "").trim();
+  if (!isUuid(routineId)) return { ok: false, error: invalidIntentErrorMessage() };
 
   const { supabase, household, userId } = await authContext();
   const { data: pets } = await supabase
@@ -68,32 +82,60 @@ export async function createRoutine(formData: FormData) {
     .in("id", petIds)
     .is("archived_at", null);
   if (!pets || pets.length !== petIds.length) {
-    redirect(`/routines/new?error=${encodeURIComponent("Pet não encontrado.")}`);
+    return { ok: false, error: "Pet não encontrado." };
   }
 
-  const { data: routine, error } = await supabase
+  const { data: existing } = await supabase
     .from("care_routines")
-    .insert({
-      household_id: household.id,
-      title: parsed.title,
-      icon_key: parsed.icon_key,
-      instructions: parsed.instructions,
-      recurrence_days: parsed.recurrence_days,
-      preferred_time: parsed.preferred_time,
-      starts_on: parsed.starts_on,
-      active: parsed.active,
-      created_by: userId,
-    })
-    .select("id")
-    .single();
-  if (error || !routine) redirect(`/routines/new?error=${encodeURIComponent(error?.message ?? "Erro ao salvar.")}`);
+    .select("id, household_id")
+    .eq("id", routineId)
+    .maybeSingle();
+  const ownership = resolveHouseholdCreateOwnership(routineId, household.id, existing);
+  if (!ownership.ok) {
+    return {
+      ok: false,
+      error: ownership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
+    };
+  }
+
+  if (ownership.status === "reuse") {
+    await syncRoutinePets(supabase, household.id, routineId, petIds);
+    revalidateRoutinePaths();
+    return { ok: true, redirectTo: "/routines?saved=1" };
+  }
+
+  const { error } = await supabase.from("care_routines").insert({
+    id: routineId,
+    household_id: household.id,
+    title: parsed.title,
+    icon_key: parsed.icon_key,
+    instructions: parsed.instructions,
+    recurrence_days: parsed.recurrence_days,
+    preferred_time: parsed.preferred_time,
+    starts_on: parsed.starts_on,
+    active: parsed.active,
+    created_by: userId,
+  });
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      const { data: again } = await supabase.from("care_routines").select("id, household_id").eq("id", routineId).maybeSingle();
+      const retry = resolveHouseholdCreateOwnership(routineId, household.id, again);
+      if (retry.ok && retry.status === "reuse") {
+        revalidateRoutinePaths();
+        return { ok: true, redirectTo: "/routines?saved=1" };
+      }
+      return { ok: false, error: foreignIntentErrorMessage() };
+    }
+    return { ok: false, error: error.message };
+  }
 
   await supabase.from("care_routine_pets").insert(
-    petIds.map((pet_id) => ({ household_id: household.id, routine_id: routine.id, pet_id })),
+    petIds.map((pet_id) => ({ household_id: household.id, routine_id: routineId, pet_id })),
   );
 
   revalidateRoutinePaths();
-  redirect("/routines?saved=1");
+  return { ok: true, redirectTo: "/routines?saved=1" };
 }
 
 export async function updateRoutine(routineId: string, formData: FormData) {
