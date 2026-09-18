@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog brown">
-  <circle cx="64" cy="64" r="64" fill="#F0E0D0"/>
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
   <ellipse cx="64" cy="78" rx="30" ry="28" fill="#8B5E3C"/>
   <ellipse cx="38" cy="62" rx="11" ry="20" fill="#6E452A"/>
   <ellipse cx="90" cy="62" rx="11" ry="20" fill="#6E452A"/>
@@ -8,4 +8,5 @@
   <ellipse cx="64" cy="88" rx="7" ry="5" fill="#E89A8A"/>
   <path d="M64 90 Q54 100 48 96" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
   <path d="M64 90 Q74 100 80 96" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
+
 </svg>

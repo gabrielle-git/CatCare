@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog Poodle">
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
+  <circle cx="40" cy="48" r="14" fill="#F7F4FB"/>
+  <circle cx="88" cy="48" r="14" fill="#F7F4FB"/>
+  <circle cx="64" cy="42" r="16" fill="#F7F4FB"/>
+  <ellipse cx="64" cy="78" rx="28" ry="26" fill="#F7F4FB"/>
+  <ellipse cx="36" cy="70" rx="10" ry="16" fill="#E8D2B5"/>
+  <ellipse cx="92" cy="70" rx="10" ry="16" fill="#E8D2B5"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="7" ry="5" fill="#E89A8A"/>
+  <path d="M64 90 Q54 100 48 96" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 90 Q74 100 80 96" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+</svg>

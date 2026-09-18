@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Gato cinza">
-  <circle cx="64" cy="64" r="64" fill="#E8E4EE"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cat gray">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="#9A93A6"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="#9A93A6"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="#9A93A6"/>
@@ -10,4 +10,5 @@
   <ellipse cx="64" cy="86" rx="5" ry="3.5" fill="#E89A8A"/>
   <path d="M64 86 Q52 94 46 90" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
   <path d="M64 86 Q76 94 82 90" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+
 </svg>

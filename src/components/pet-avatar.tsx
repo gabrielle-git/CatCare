@@ -10,8 +10,10 @@ import {
 } from "@/app/(app)/pets/actions";
 import { ProfilePhotoCropDialog } from "@/components/profile-photo-crop-dialog";
 import {
-  BUILTIN_PET_AVATARS,
+  BUILTIN_AVATAR_FILTERS,
+  filterBuiltinPetAvatars,
   builtinPetAvatarPublicUrl,
+  type BuiltinAvatarFilter,
   type BuiltinPetAvatarId,
 } from "@/lib/pet-avatars";
 import {
@@ -104,6 +106,7 @@ export function PetProfilePhotoControl({
   const [mode, setMode] = useState<MenuMode>("closed");
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [pickedAvatar, setPickedAvatar] = useState<BuiltinPetAvatarId | null>(null);
+  const [avatarFilter, setAvatarFilter] = useState<BuiltinAvatarFilter>("all");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -112,6 +115,7 @@ export function PetProfilePhotoControl({
     setMode("closed");
     setCropFile(null);
     setPickedAvatar(null);
+    setAvatarFilter("all");
     setError(null);
     setStatus(null);
   }
@@ -285,40 +289,61 @@ export function PetProfilePhotoControl({
             role="dialog"
             aria-modal="true"
             aria-labelledby="pet-avatar-picker-title"
-            className="w-full max-w-md rounded-[24px] bg-white p-5 shadow-xl"
+            className="flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col rounded-[24px] bg-white p-5 shadow-xl"
           >
             <h2 id="pet-avatar-picker-title" className="text-lg font-bold">
               Selecionar avatar
             </h2>
             <p className="mt-1 text-sm text-[var(--muted)]">Ilustrações originais CatCare.</p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {BUILTIN_PET_AVATARS.map((avatar) => {
-                const selected = pickedAvatar === avatar.id;
+            <div className="mt-3 flex flex-wrap gap-2">
+              {BUILTIN_AVATAR_FILTERS.map((filter) => {
+                const active = avatarFilter === filter.id;
                 return (
                   <button
-                    key={avatar.id}
+                    key={filter.id}
                     type="button"
                     disabled={pending}
-                    onClick={() => setPickedAvatar(avatar.id)}
-                    aria-pressed={selected}
-                    aria-label={avatar.label}
-                    className={`focus-ring rounded-2xl border p-2 ${
-                      selected ? "border-[var(--lavender)] bg-[var(--lavender-soft)]" : "border-[var(--border)] bg-white"
+                    onClick={() => setAvatarFilter(filter.id)}
+                    aria-pressed={active}
+                    className={`focus-ring rounded-full px-3 py-1.5 text-xs font-bold ${
+                      active ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={builtinPetAvatarPublicUrl(avatar.id)}
-                      alt=""
-                      className="mx-auto size-16 rounded-full object-cover object-center"
-                      onError={(event) => {
-                        event.currentTarget.style.visibility = "hidden";
-                      }}
-                    />
-                    <span className="mt-1 block text-center text-[10px] font-bold">{avatar.label}</span>
+                    {filter.label}
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {filterBuiltinPetAvatars(avatarFilter).map((avatar) => {
+                  const selected = pickedAvatar === avatar.id;
+                  return (
+                    <button
+                      key={avatar.id}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => setPickedAvatar(avatar.id)}
+                      aria-pressed={selected}
+                      aria-label={avatar.label}
+                      className={`focus-ring rounded-2xl border p-2 ${
+                        selected ? "border-[var(--lavender)] bg-[var(--lavender-soft)]" : "border-[var(--border)] bg-white"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={builtinPetAvatarPublicUrl(avatar.id)}
+                        alt=""
+                        className="mx-auto size-16 rounded-full object-cover object-center"
+                        onError={(event) => {
+                          event.currentTarget.style.visibility = "hidden";
+                        }}
+                      />
+                      <span className="mt-1 block text-center text-[10px] font-bold leading-tight">{avatar.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button

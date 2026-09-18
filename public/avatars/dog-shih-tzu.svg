@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog Shih-tzu">
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
+  <ellipse cx="64" cy="80" rx="36" ry="32" fill="#F7F4FB"/>
+  <ellipse cx="30" cy="78" rx="14" ry="26" fill="#E8D2B5"/>
+  <ellipse cx="98" cy="78" rx="14" ry="26" fill="#E8D2B5"/>
+  <ellipse cx="64" cy="70" rx="20" ry="16" fill="#F7F4FB"/>
+  <circle cx="50" cy="72" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="72" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="86" rx="8" ry="6" fill="#E89A8A"/>
+  <path d="M64 88 Q54 98 48 94" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 88 Q74 98 80 94" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+</svg>

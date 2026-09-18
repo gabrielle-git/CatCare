@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Parakeet">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
+  <ellipse cx="64" cy="78" rx="24" ry="28" fill="#7BC47F"/>
+  <circle cx="64" cy="66" r="16" fill="#9ED6A1"/>
+  <ellipse cx="54" cy="64" rx="4" ry="5" fill="#3D3344"/>
+  <ellipse cx="74" cy="64" rx="4" ry="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="74" rx="4" ry="3" fill="#E89A4A"/>
+  <path d="M42 82 Q64 104 86 82" fill="#5AA85E"/>
+</svg>

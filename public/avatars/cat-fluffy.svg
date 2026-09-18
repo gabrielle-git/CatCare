@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cat fluffy">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
+  <ellipse cx="64" cy="80" rx="40" ry="34" fill="#D9C4E8"/>
+  <path d="M24 56 L38 20 L56 56 Z" fill="#D9C4E8"/>
+  <path d="M72 56 L90 20 L104 56 Z" fill="#D9C4E8"/>
+  <path d="M30 52 L38 30 L48 52 Z" fill="#F6C1B0"/>
+  <path d="M80 52 L90 30 L98 52 Z" fill="#F6C1B0"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="5" ry="3.5" fill="#E89A8A"/>
+  <path d="M64 88 Q52 96 46 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 88 Q76 96 82 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+</svg>
