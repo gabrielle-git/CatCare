@@ -189,9 +189,8 @@ describe("wave-2b wiring (source contracts)", () => {
   it("pet photo: prepare + validate + DB before old cleanup", () => {
     assert.match(petPhotoUpload, /preparePetPhotoUploadAction/);
     assert.match(petActions, /validateStoredPetPhotoObject/);
-    assert.match(petActions, /Only after DB success|existing\.photo_path/);
+    assert.match(petActions, /Only after DB success|existing\.photo_path|isStoragePetPhotoPath/);
     assert.match(createPetForm, /runDirectPetPhotoUpload/);
-    assert.match(editPetForm, /runDirectPetPhotoUpload/);
     const photoClient = readFileSync(join(root, "src/lib/pet-photo-direct-upload-client.ts"), "utf8");
     assert.match(photoClient, /Enviando foto/);
   });

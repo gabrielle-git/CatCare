@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   blobToCroppedFile,
+  centeredCropOffset,
   clampCropOffset,
-  minCoverZoom,
+  containZoom,
+  coverZoom,
   renderSquareCropToBlob,
 } from "@/lib/profile-photo-crop";
 
 const VIEWPORT = 280;
 
 /**
- * Fixed 1:1 crop dialog for pet profile photos.
- * No external crop library — pan + zoom over a square viewport.
+ * Fixed 1:1 crop dialog — circular mask preview, pan + zoom (contain ↔ tight cover).
  */
 export function ProfilePhotoCropDialog({
   open,
@@ -36,9 +37,14 @@ export function ProfilePhotoCropDialog({
   const [error, setError] = useState<string | null>(null);
 
   const minZoom = useMemo(
-    () => (natural.width ? minCoverZoom(natural.width, natural.height, VIEWPORT) : 1),
+    () => (natural.width ? containZoom(natural.width, natural.height, VIEWPORT) : 1),
     [natural],
   );
+  const cover = useMemo(
+    () => (natural.width ? coverZoom(natural.width, natural.height, VIEWPORT) : 1),
+    [natural],
+  );
+  const maxZoom = cover * 3;
 
   useEffect(() => {
     if (!open || !file) {
@@ -68,19 +74,21 @@ export function ProfilePhotoCropDialog({
     const width = img.naturalWidth;
     const height = img.naturalHeight;
     setNatural({ width, height });
-    const cover = minCoverZoom(width, height, VIEWPORT);
-    setZoom(cover);
-    const displayedW = width * cover;
-    const displayedH = height * cover;
-    setOffset({
-      x: (VIEWPORT - displayedW) / 2,
-      y: (VIEWPORT - displayedH) / 2,
-    });
+    const initial = coverZoom(width, height, VIEWPORT);
+    setZoom(initial);
+    const centered = centeredCropOffset(width, height, initial, VIEWPORT);
+    setOffset({ x: centered.offsetX, y: centered.offsetY });
   }
 
   function applyPan(nextX: number, nextY: number, nextZoom = zoom) {
     const clamped = clampCropOffset(natural.width, natural.height, nextZoom, VIEWPORT, nextX, nextY);
     setOffset({ x: clamped.offsetX, y: clamped.offsetY });
+  }
+
+  function applyZoom(nextZoom: number) {
+    const clampedZoom = Math.min(maxZoom, Math.max(minZoom, nextZoom));
+    setZoom(clampedZoom);
+    applyPan(offset.x, offset.y, clampedZoom);
   }
 
   async function confirm() {
@@ -99,6 +107,10 @@ export function ProfilePhotoCropDialog({
         offsetY: offset.y,
         viewportSize: VIEWPORT,
       });
+      if (blob.size > 5 * 1024 * 1024) {
+        setError("A foto recortada ficou acima de 5 MB. Aproxime um pouco menos o zoom.");
+        return;
+      }
       onConfirm(blobToCroppedFile(blob, "perfil"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível recortar a foto.");
@@ -116,7 +128,9 @@ export function ProfilePhotoCropDialog({
         <h2 id="profile-crop-title" className="text-lg font-bold tracking-[-0.03em]">
           Escolha como a foto ficará no perfil
         </h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">Recorte quadrado (1:1) para o avatar circular.</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Arraste para enquadrar. Use o zoom para aproximar o rosto ou mostrar mais do pet.
+        </p>
 
         <div
           className="relative mx-auto mt-4 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--cream)]"
@@ -135,6 +149,11 @@ export function ProfilePhotoCropDialog({
           }}
           onPointerCancel={() => {
             dragRef.current = null;
+          }}
+          onWheel={(event) => {
+            event.preventDefault();
+            const factor = event.deltaY > 0 ? 0.95 : 1.05;
+            applyZoom(zoom * factor);
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -158,17 +177,17 @@ export function ProfilePhotoCropDialog({
           <input
             type="range"
             min={minZoom}
-            max={minZoom * 3}
+            max={maxZoom}
             step={0.01}
             value={zoom}
             disabled={pending || !natural.width}
-            onChange={(event) => {
-              const nextZoom = Number(event.target.value);
-              setZoom(nextZoom);
-              applyPan(offset.x, offset.y, nextZoom);
-            }}
+            onChange={(event) => applyZoom(Number(event.target.value))}
             className="mt-2 w-full accent-[var(--lavender)]"
           />
+          <span className="mt-1 flex justify-between font-normal">
+            <span>Mais do pet</span>
+            <span>Mais perto</span>
+          </span>
         </label>
 
         {error ? (

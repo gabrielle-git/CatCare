@@ -19,6 +19,7 @@ import {
   validateStoredPetPhotoObject,
 } from "@/lib/pet-photo-upload";
 import { assertCanEdit } from "@/lib/roles";
+import { isStoragePetPhotoPath, builtinPetAvatarPath, resolveBuiltinPetAvatarId } from "@/lib/pet-avatars";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 import { createClient } from "@/lib/supabase/server";
 import type { PetSex } from "@/types/database";
@@ -416,14 +417,126 @@ export async function updatePet(petId: string, formData: FormData): Promise<Upda
     return { ok: false, error: error.message };
   }
 
-  // Only after DB success: best-effort remove previous photo (never before).
-  if (photoPath && existing.photo_path && existing.photo_path !== photoPath) {
+  // Only after DB success: best-effort remove previous Storage photo (never builtins, never before DB).
+  if (photoPath && existing.photo_path && existing.photo_path !== photoPath && isStoragePetPhotoPath(existing.photo_path)) {
     await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path]).catch(() => undefined);
   }
   revalidatePath("/");
   revalidatePath("/pets");
   revalidatePath(`/pets/${petId}`);
   return { ok: true, redirectTo: `/pets/${petId}?updated=1` };
+}
+
+export type PetPhotoManageResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Replace profile photo from the avatar camera flow (upload already in Storage via direct upload).
+ * DB first, then best-effort Storage cleanup of prior Storage object only.
+ */
+export async function replacePetProfilePhoto(petId: string, formData: FormData): Promise<PetPhotoManageResult> {
+  if (!isUuid(petId)) return { ok: false, error: "Pet inválido." };
+  const { supabase, household } = await authContext();
+  const { data: existing } = await supabase
+    .from("pets")
+    .select("photo_path")
+    .eq("id", petId)
+    .eq("household_id", household.id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: "Pet não encontrado nesta família." };
+
+  const photoResult = await finalizePetPhotoPath(supabase, household.id, petId, formData);
+  if (!photoResult.ok) {
+    if (photoResult.orphanPath) {
+      await compensateNewStoragePaths(supabase, [photoResult.orphanPath]).catch(() => undefined);
+    }
+    return { ok: false, error: photoResult.error };
+  }
+  if (!photoResult.path) return { ok: false, error: "Envie uma foto para substituir." };
+
+  const { error } = await supabase
+    .from("pets")
+    .update({ photo_path: photoResult.path, updated_at: new Date().toISOString() })
+    .eq("id", petId)
+    .eq("household_id", household.id);
+  if (error) {
+    await compensateNewStoragePaths(supabase, [photoResult.path]).catch(() => undefined);
+    return { ok: false, error: error.message };
+  }
+
+  if (existing.photo_path && existing.photo_path !== photoResult.path && isStoragePetPhotoPath(existing.photo_path)) {
+    await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path]).catch(() => undefined);
+  }
+  revalidatePath("/");
+  revalidatePath("/pets");
+  revalidatePath(`/pets/${petId}`);
+  return { ok: true };
+}
+
+/** Clear profile photo/avatar. Storage cleanup only after DB success and only for Storage objects. */
+export async function removePetPhoto(petId: string): Promise<PetPhotoManageResult> {
+  if (!isUuid(petId)) return { ok: false, error: "Pet inválido." };
+  const { supabase, household } = await authContext();
+  const { data: existing } = await supabase
+    .from("pets")
+    .select("photo_path")
+    .eq("id", petId)
+    .eq("household_id", household.id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: "Pet não encontrado nesta família." };
+  if (!existing.photo_path) return { ok: true };
+
+  const previousPath = existing.photo_path;
+  const { error } = await supabase
+    .from("pets")
+    .update({ photo_path: null, updated_at: new Date().toISOString() })
+    .eq("id", petId)
+    .eq("household_id", household.id);
+  if (error) return { ok: false, error: error.message };
+
+  if (isStoragePetPhotoPath(previousPath)) {
+    await supabase.storage.from(PET_MEDIA_BUCKET).remove([previousPath]).catch(() => undefined);
+  }
+  revalidatePath("/");
+  revalidatePath("/pets");
+  revalidatePath(`/pets/${petId}`);
+  return { ok: true };
+}
+
+/** Set a whitelisted built-in avatar. Never Storage-deletes builtin assets. */
+export async function setPetBuiltinAvatar(petId: string, avatarId: string): Promise<PetPhotoManageResult> {
+  if (!isUuid(petId)) return { ok: false, error: "Pet inválido." };
+  const resolved = resolveBuiltinPetAvatarId(avatarId);
+  if (!resolved) return { ok: false, error: "Avatar inválido." };
+
+  const { supabase, household } = await authContext();
+  const { data: existing } = await supabase
+    .from("pets")
+    .select("photo_path")
+    .eq("id", petId)
+    .eq("household_id", household.id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: "Pet não encontrado nesta família." };
+
+  const nextPath = builtinPetAvatarPath(resolved);
+  if (existing.photo_path === nextPath) return { ok: true };
+
+  const { error } = await supabase
+    .from("pets")
+    .update({ photo_path: nextPath, updated_at: new Date().toISOString() })
+    .eq("id", petId)
+    .eq("household_id", household.id);
+  if (error) return { ok: false, error: error.message };
+
+  if (isStoragePetPhotoPath(existing.photo_path)) {
+    await supabase.storage.from(PET_MEDIA_BUCKET).remove([existing.photo_path!]).catch(() => undefined);
+  }
+  revalidatePath("/");
+  revalidatePath("/pets");
+  revalidatePath(`/pets/${petId}`);
+  return { ok: true };
 }
 
 export async function updatePetDescription(petId: string, formData: FormData) {

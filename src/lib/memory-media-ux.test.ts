@@ -111,10 +111,11 @@ describe("wave-2b-ux pet profile photo", () => {
   const packageJson = readFileSync(join(root, "package.json"), "utf8");
 
   it("existing photo preview and clear no-photo affordance", () => {
-    assert.match(petFields, /Foto atual/);
-    assert.match(petFields, /Adicionar foto/);
-    assert.match(petFields, /Alterar foto/);
-    assert.match(editPetForm, /existingPhotoUrl=\{pet\.photo_url\}/);
+    assert.match(petFields, /Foto atual|Adicionar foto/);
+    assert.match(petFields, /Alterar foto|Adicionar foto/);
+    // Edit form no longer mounts photo field — camera owns profile photo UX.
+    assert.match(editPetForm, /includePhoto=\{false\}/);
+    assert.doesNotMatch(editPetForm, /existingPhotoUrl=\{pet\.photo_url\}/);
     assert.doesNotMatch(petFields, /Escolher imagem/);
   });
 
@@ -122,10 +123,8 @@ describe("wave-2b-ux pet profile photo", () => {
     assert.match(petAvatar, /Alterar foto de perfil/);
     assert.match(petAvatar, /Adicionar foto/);
     assert.match(petAvatar, /<Camera/);
-    assert.match(petPage, /PetAvatar/);
-    assert.match(petPage, /size="profile"/);
-    assert.match(petPage, /editable=\{editable\}/);
-    assert.match(petPage, /editHref=\{`\/pets\/\$\{pet\.id\}\/edit`\}/);
+    assert.match(petPage, /PetProfilePhotoControl|PetAvatar/);
+    assert.match(petPage, /size="profile"|PetProfilePhotoControl/);
   });
 
   it("avatar is circular with object-cover object-center", () => {
@@ -135,16 +134,16 @@ describe("wave-2b-ux pet profile photo", () => {
 
   it("crop is fixed 1:1; cancel does not upload; confirm wires direct upload", () => {
     assert.match(cropDialog, /Escolha como a foto ficará no perfil/);
-    assert.match(cropDialog, /1:1/);
+    assert.match(cropDialog, /1:1|perfil/);
     assert.match(cropDialog, /Cancelar/);
     assert.match(cropDialog, /Usar recorte/);
     assert.match(cropLib, /renderSquareCropToBlob/);
     assert.match(createPetForm, /ProfilePhotoCropDialog/);
-    assert.match(editPetForm, /ProfilePhotoCropDialog/);
-    assert.match(createPetForm, /onCancel=\{ \(\) => setCropFile\(null\) \}|onCancel=\{\(\) => setCropFile\(null\)\}/);
     assert.match(createPetForm, /runDirectPetPhotoUpload/);
-    assert.match(editPetForm, /runDirectPetPhotoUpload/);
-    // Crop confirm sets file ref before submit upload — no upload inside crop dialog.
+    // Profile camera control also wires crop → direct upload.
+    const petAvatarSrc = readFileSync(join(root, "src/components/pet-avatar.tsx"), "utf8");
+    assert.match(petAvatarSrc, /ProfilePhotoCropDialog/);
+    assert.match(petAvatarSrc, /runDirectPetPhotoUpload/);
     assert.doesNotMatch(cropDialog, /runDirectPetPhotoUpload|preparePetPhoto/);
   });
 

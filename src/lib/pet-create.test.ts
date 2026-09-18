@@ -276,7 +276,7 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(editForm, /nameInputRef\.current\.value = originalName/);
     assert.match(editForm, /Salvar mesmo assim/);
     assert.match(editForm, /runUpdate\(form, true\)/);
-    assert.match(editForm, /photoFileRef/);
+    assert.match(editForm, /includePhoto=\{false\}/);
     assert.match(editPage, /EditPetForm/);
     assert.match(editPage, /updatePet\.bind/);
   });
@@ -321,9 +321,9 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(createForm, /photoFileRef/);
     assert.match(createForm, /closeDuplicateClearName/);
     assert.match(createForm, /nameInputRef\.current\.value = ""/);
-    assert.match(editForm, /photoFileRef/);
     assert.match(createForm, /runDirectPetPhotoUpload/);
-    assert.match(editForm, /runDirectPetPhotoUpload/);
+    // Edit form no longer uploads photo — camera control owns that path.
+    assert.doesNotMatch(editForm, /runDirectPetPhotoUpload|photoFileRef/);
   });
 
   it("does not introduce migration 0036 or delete Zabuza", () => {
@@ -336,7 +336,7 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(actions, /rejectBinaryPhoto|instanceof File/);
     assert.doesNotMatch(actions, /async function uploadPhoto/);
     assert.match(createForm, /runDirectPetPhotoUpload/);
-    assert.match(editForm, /runDirectPetPhotoUpload/);
+    assert.match(actions, /replacePetProfilePhoto|removePetPhoto/);
     const photoClient = readFileSync(join(root, "src/lib/pet-photo-direct-upload-client.ts"), "utf8");
     assert.match(photoClient, /Enviando foto\.\.\./);
   });

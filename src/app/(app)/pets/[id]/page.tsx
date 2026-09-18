@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, BadgeCheck, Bug, Cpu, FileStack, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
 import { PetMicrochipSummary } from "@/components/pet-microchip-summary";
 import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
-import { PetAvatar } from "@/components/pet-avatar";
+import { PetProfilePhotoControl, PetAvatar } from "@/components/pet-avatar";
 import { TimelineList } from "@/components/timeline-list";
 import { WeightChart } from "@/components/weight-chart";
 import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
@@ -84,13 +84,17 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
       <section className="cat-card mt-5 overflow-hidden">
         <div className="bg-[linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))] p-5 md:p-7">
           <div className="flex items-start gap-4">
-            <PetAvatar
-              name={pet.name}
-              photoUrl={pet.photo_url}
-              size="profile"
-              editable={editable}
-              editHref={`/pets/${pet.id}/edit`}
-            />
+            {editable ? (
+              <PetProfilePhotoControl
+                petId={pet.id}
+                name={pet.name}
+                photoUrl={pet.photo_url}
+                hasPhoto={Boolean(pet.photo_path)}
+                editable={editable}
+              />
+            ) : (
+              <PetAvatar name={pet.name} photoUrl={pet.photo_url} size="profile" />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
                 <div>

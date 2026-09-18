@@ -136,6 +136,7 @@ export function PetFields({
   existingPhotoUrl = null,
   croppedFile = null,
   includeInitialWeight = false,
+  includePhoto = true,
   initialWeightKg = "",
   disabled = false,
   nameInputRef,
@@ -146,6 +147,8 @@ export function PetFields({
   existingPhotoUrl?: string | null;
   croppedFile?: File | null;
   includeInitialWeight?: boolean;
+  /** When false (Edit Profile), photo management is only via profile camera. */
+  includePhoto?: boolean;
   initialWeightKg?: string;
   disabled?: boolean;
   nameInputRef?: React.RefObject<HTMLInputElement | null>;
@@ -255,13 +258,15 @@ export function PetFields({
         <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">Este texto aparece no cartão “Sobre” do perfil.</span>
       </label>
 
-      <PetPhotoField
-        disabled={disabled}
-        existingPhotoUrl={existingPhotoUrl}
-        croppedFile={croppedFile}
-        onRequestCrop={onRequestCrop}
-        onClearCropped={onClearCropped}
-      />
+      {includePhoto ? (
+        <PetPhotoField
+          disabled={disabled}
+          existingPhotoUrl={existingPhotoUrl}
+          croppedFile={croppedFile}
+          onRequestCrop={onRequestCrop}
+          onClearCropped={onClearCropped}
+        />
+      ) : null}
     </div>
   );
 }
