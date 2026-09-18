@@ -199,7 +199,8 @@ describe("wave-2b wiring (source contracts)", () => {
   it("abandonment limitation documented; no 0036; feeding untouched", () => {
     const mediaLib = readFileSync(join(root, "src/lib/memory-media-upload.ts"), "utf8");
     assert.match(mediaLib + memoryActions, /memories\/\{memory_id\}|\/memories\//);
-    assert.doesNotMatch(memoryActions + petActions + mediaLib, /0036/);
+    // Decision may be documented as "no 0036"; code must not introduce a migration file.
+    assert.doesNotMatch(memoryActions + petActions, /migrations\/0036|0036_/);
     let has0036 = false;
     try {
       readFileSync(join(root, "supabase/migrations/0036_anything.sql"));

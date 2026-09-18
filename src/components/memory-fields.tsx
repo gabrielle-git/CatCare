@@ -81,7 +81,12 @@ export function MemoryFields({
         legend="Quem aparece nessa memória?"
         hint="Pode escolher mais de um pet."
       />
-      <MemoryPhotoInput currentMedia={defaultValues?.media} disabled={disabled} onIntentsChange={onIntentsChange} />
+      <MemoryPhotoInput
+        currentMedia={defaultValues?.media}
+        disabled={disabled}
+        memoryId={defaultValues?.id}
+        onIntentsChange={onIntentsChange}
+      />
     </div>
   );
 }

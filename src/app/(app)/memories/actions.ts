@@ -336,7 +336,11 @@ export async function updateMemory(memoryId: string, formData: FormData) {
     .order("position", { ascending: true });
   const remainingIds = new Set(remaining.map((item) => item.id));
   const kept = (mediaAfter ?? []).filter((item) => remainingIds.has(item.id) || normalizedIntents.some((intent) => intent.media_id === item.id));
-  const coverPath = kept[0]?.storage_path ?? remaining[0]?.storage_path ?? null;
+  const coverMediaId = value(formData, "cover_media_id");
+  const preferredCover = coverMediaId
+    ? kept.find((item) => item.id === coverMediaId)
+    : null;
+  const coverPath = preferredCover?.storage_path ?? kept[0]?.storage_path ?? remaining[0]?.storage_path ?? null;
 
   const { error } = await supabase
     .from("memories")
@@ -390,6 +394,232 @@ export async function updateMemory(memoryId: string, formData: FormData) {
 
   revalidatePath("/memories");
   redirect("/memories?updated=1");
+}
+
+export type MemoryMediaManageResult = { ok: true } | { ok: false; error: string };
+
+/** Set cover by media id — updates media_path and moves chosen photo to position 0. */
+export async function setMemoryCover(memoryId: string, mediaId: string): Promise<MemoryMediaManageResult> {
+  if (!isUuid(memoryId) || !isUuid(mediaId)) return { ok: false, error: "Foto inválida." };
+  const { supabase, household } = await authContext();
+  const { data: memory } = await supabase
+    .from("memories")
+    .select("id, archived_at")
+    .eq("id", memoryId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (!memory || memory.archived_at) return { ok: false, error: "Memória não encontrada." };
+
+  const { data: rows } = await supabase
+    .from("memory_media")
+    .select("id, storage_path, position")
+    .eq("memory_id", memoryId)
+    .eq("household_id", household.id)
+    .order("position", { ascending: true });
+  const media = rows ?? [];
+  const chosen = media.find((row) => row.id === mediaId);
+  if (!chosen) return { ok: false, error: "Foto não encontrada nesta memória." };
+
+  if (chosen.position !== 0) {
+    const currentZero = media.find((row) => row.position === 0);
+    // Swap via temporary high position to satisfy unique (memory_id, position).
+    const tempPosition = media.reduce((max, row) => Math.max(max, row.position), 0) + 10;
+    const { error: tempError } = await supabase
+      .from("memory_media")
+      .update({ position: tempPosition })
+      .eq("id", chosen.id)
+      .eq("household_id", household.id);
+    if (tempError) return { ok: false, error: tempError.message };
+    if (currentZero) {
+      const { error: zeroError } = await supabase
+        .from("memory_media")
+        .update({ position: chosen.position })
+        .eq("id", currentZero.id)
+        .eq("household_id", household.id);
+      if (zeroError) return { ok: false, error: zeroError.message };
+    }
+    const { error: coverPosError } = await supabase
+      .from("memory_media")
+      .update({ position: 0 })
+      .eq("id", chosen.id)
+      .eq("household_id", household.id);
+    if (coverPosError) return { ok: false, error: coverPosError.message };
+  }
+
+  const { error } = await supabase
+    .from("memories")
+    .update({ media_path: chosen.storage_path, updated_at: new Date().toISOString() })
+    .eq("id", memoryId)
+    .eq("household_id", household.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/memories");
+  revalidatePath(`/memories/${memoryId}/edit`);
+  return { ok: true };
+}
+
+/** Bulk delete selected memory photos after client confirmation. */
+export async function deleteMemoryMediaBulk(
+  memoryId: string,
+  mediaIds: string[],
+): Promise<MemoryMediaManageResult> {
+  if (!isUuid(memoryId)) return { ok: false, error: "Memória inválida." };
+  const ids = [...new Set(mediaIds.filter((id) => isUuid(id)))];
+  if (ids.length === 0) return { ok: false, error: "Selecione ao menos uma foto." };
+
+  const { supabase, household } = await authContext();
+  const [{ data: memory }, { data: rows }] = await Promise.all([
+    supabase.from("memories").select("id, archived_at, media_path").eq("id", memoryId).eq("household_id", household.id).maybeSingle(),
+    supabase.from("memory_media").select("id, storage_path, position").eq("memory_id", memoryId).eq("household_id", household.id).order("position", { ascending: true }),
+  ]);
+  if (!memory || memory.archived_at) return { ok: false, error: "Memória não encontrada." };
+  const media = rows ?? [];
+  const removing = media.filter((row) => ids.includes(row.id));
+  if (removing.length === 0) return { ok: false, error: "Nenhuma foto válida selecionada." };
+  if (media.length - removing.length < 1) {
+    return { ok: false, error: "A memória precisa continuar com ao menos uma foto." };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("memory_media")
+    .delete()
+    .eq("memory_id", memoryId)
+    .eq("household_id", household.id)
+    .in("id", removing.map((row) => row.id));
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  const remaining = media.filter((row) => !ids.includes(row.id));
+  const coverPath = remaining[0]?.storage_path ?? null;
+  await supabase
+    .from("memories")
+    .update({ media_path: coverPath, updated_at: new Date().toISOString() })
+    .eq("id", memoryId)
+    .eq("household_id", household.id);
+
+  await supabase.storage.from(PET_MEDIA_BUCKET).remove(removing.map((row) => row.storage_path)).catch(() => undefined);
+  revalidatePath("/memories");
+  revalidatePath(`/memories/${memoryId}/edit`);
+  return { ok: true };
+}
+
+/**
+ * Replace one persisted photo: new media_id upload must already be in Storage.
+ * Never deletes the old object before the new row is persisted.
+ */
+export async function replaceMemoryMedia(
+  memoryId: string,
+  oldMediaId: string,
+  formData: FormData,
+): Promise<MemoryMediaManageResult> {
+  if (!isUuid(memoryId) || !isUuid(oldMediaId)) return { ok: false, error: "Foto inválida." };
+  try {
+    rejectBinaryFiles(formData);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Envie a foto pelo upload direto." };
+  }
+
+  let intents: MemoryMediaUploadIntent[];
+  try {
+    intents = parseMemoryMediaPayload(String(formData.get(memoryMediaPayloadFieldName()) ?? ""));
+    assertUniqueMediaIds(intents);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Metadados de foto inválidos." };
+  }
+  if (intents.length !== 1) return { ok: false, error: "Envie exatamente uma foto para substituir." };
+  const intent = intents[0];
+
+  const { supabase, household } = await authContext();
+  const [{ data: memory }, { data: oldRow }] = await Promise.all([
+    supabase.from("memories").select("id, archived_at, media_path").eq("id", memoryId).eq("household_id", household.id).maybeSingle(),
+    supabase.from("memory_media").select("id, storage_path, position").eq("id", oldMediaId).eq("memory_id", memoryId).eq("household_id", household.id).maybeSingle(),
+  ]);
+  if (!memory || memory.archived_at) return { ok: false, error: "Memória não encontrada." };
+  if (!oldRow) return { ok: false, error: "Foto original não encontrada." };
+
+  const { data: existingNew } = await supabase
+    .from("memory_media")
+    .select("id, storage_path, household_id, memory_id, position")
+    .eq("id", intent.media_id)
+    .maybeSingle();
+  if (existingNew) {
+    if (existingNew.household_id !== household.id || existingNew.memory_id !== memoryId) {
+      return { ok: false, error: foreignIntentErrorMessage() };
+    }
+    // Retry: new media already linked — ensure cover/path and cleanup old if still present.
+    if (oldMediaId !== intent.media_id) {
+      await supabase.from("memory_media").delete().eq("id", oldMediaId).eq("household_id", household.id);
+      if (memory.media_path === oldRow.storage_path || existingNew.position === 0) {
+        await supabase
+          .from("memories")
+          .update({ media_path: existingNew.storage_path, updated_at: new Date().toISOString() })
+          .eq("id", memoryId)
+          .eq("household_id", household.id);
+      }
+      await supabase.storage.from(PET_MEDIA_BUCKET).remove([oldRow.storage_path]).catch(() => undefined);
+    }
+    revalidatePath("/memories");
+    revalidatePath(`/memories/${memoryId}/edit`);
+    return { ok: true };
+  }
+
+  const validated = await validateStoredMemoryMediaObject(supabase, household.id, memoryId, intent);
+  if (!validated.ok) {
+    await compensateNewStoragePaths(supabase, [validated.storage_path]).catch(() => undefined);
+    return { ok: false, error: validated.message };
+  }
+
+  const { data: allMedia } = await supabase
+    .from("memory_media")
+    .select("position")
+    .eq("memory_id", memoryId)
+    .eq("household_id", household.id);
+  const tempPosition = (allMedia ?? []).reduce((max, row) => Math.max(max, row.position), 0) + 10;
+
+  const { error: insertError } = await supabase.from("memory_media").insert({
+    id: intent.media_id,
+    household_id: household.id,
+    memory_id: memoryId,
+    storage_path: validated.storage_path,
+    position: tempPosition,
+  });
+  if (insertError) {
+    if (isUniqueViolation(insertError)) {
+      // Race — treat as retry path above on next call.
+      return { ok: false, error: "Não foi possível concluir a substituição. Tente de novo." };
+    }
+    await compensateNewStoragePaths(supabase, [validated.storage_path]).catch(() => undefined);
+    return { ok: false, error: insertError.message };
+  }
+
+  const wasCover = memory.media_path === oldRow.storage_path || oldRow.position === 0;
+  const { error: deleteOldError } = await supabase
+    .from("memory_media")
+    .delete()
+    .eq("id", oldMediaId)
+    .eq("household_id", household.id);
+  if (deleteOldError) {
+    // Keep both temporarily rather than lose the new photo; caller can retry.
+    return { ok: false, error: deleteOldError.message };
+  }
+
+  const { error: posError } = await supabase
+    .from("memory_media")
+    .update({ position: oldRow.position })
+    .eq("id", intent.media_id)
+    .eq("household_id", household.id);
+  if (posError) return { ok: false, error: posError.message };
+
+  if (wasCover) {
+    await supabase
+      .from("memories")
+      .update({ media_path: validated.storage_path, updated_at: new Date().toISOString() })
+      .eq("id", memoryId)
+      .eq("household_id", household.id);
+  }
+
+  await supabase.storage.from(PET_MEDIA_BUCKET).remove([oldRow.storage_path]).catch(() => undefined);
+  revalidatePath("/memories");
+  revalidatePath(`/memories/${memoryId}/edit`);
+  return { ok: true };
 }
 
 export async function archiveMemory(memoryId: string) {

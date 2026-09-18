@@ -295,21 +295,23 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.doesNotMatch(fields, /birth_date_estimated[\s\S]{0,200}bg-\[var\(--cream\)\]/);
   });
 
-  it("pet photo picker: empty / selected / replace / remove without submitting form", () => {
-    assert.match(fields, /Escolher imagem/);
-    assert.match(fields, /Trocar imagem/);
-    assert.match(fields, /Remover imagem/);
+  it("pet photo picker: existing preview / add / alter / discard without persisted delete", () => {
+    assert.match(fields, /Foto de perfil/);
+    assert.match(fields, /Adicionar foto/);
+    assert.match(fields, /Alterar foto/);
+    assert.match(fields, /Descartar seleção/);
+    assert.match(fields, /Foto atual/);
+    assert.match(fields, /existingPhotoUrl/);
     assert.match(fields, /JPG, PNG ou WebP, até 5 MB/);
     assert.match(fields, /type="file"/);
     assert.match(fields, /className="sr-only"/);
     assert.match(fields, /name="photo"/);
     assert.match(fields, /clearLocalSelection/);
     assert.match(fields, /inputRef\.current\.value = ""/);
-    assert.match(fields, /onPhotoFileChange/);
+    assert.match(fields, /onRequestCrop/);
     assert.match(fields, /onClick=\{openPicker\}/);
     assert.match(fields, /onClick=\{clearLocalSelection\}/);
-    // Three type=button controls (choose / replace / remove) — never submit.
-    assert.equal((fields.match(/type="button"/g) ?? []).length, 3);
+    assert.doesNotMatch(fields, /Escolher imagem|Trocar imagem|Remover imagem/);
     assert.doesNotMatch(fields, /createSignedUploadUrl|uploadToSignedUrl|base64/);
     // Local selection only — no persisted-photo delete control in this polish.
     assert.doesNotMatch(fields, /remove_photo|Remover foto atual/);

@@ -3,23 +3,24 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { HomonymNameDialog } from "@/components/homonym-name-dialog";
 import { PetFields } from "@/components/pet-fields";
+import { ProfilePhotoCropDialog } from "@/components/profile-photo-crop-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import type { UpdatePetResult } from "@/app/(app)/pets/actions";
-import type { Pet } from "@/types/database";
+import type { PetWithPhotoUrl } from "@/types/database";
 import {
   compensatePetPhotoIfNeeded,
   runDirectPetPhotoUpload,
 } from "@/lib/pet-photo-direct-upload-client";
 
 /**
- * Edit-pet form with direct photo upload and safe replace (DB before old cleanup).
+ * Edit-pet form with existing photo preview, 1:1 crop, and safe replace order.
  */
 export function EditPetForm({
   pet,
   action,
   initialError,
 }: {
-  pet: Pet;
+  pet: PetWithPhotoUrl;
   action: (formData: FormData) => Promise<UpdatePetResult>;
   initialError?: string | null;
 }) {
@@ -27,6 +28,8 @@ export function EditPetForm({
   const [status, setStatus] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
   const [photoIntentId, setPhotoIntentId] = useState(() => crypto.randomUUID());
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const allowDuplicateRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -51,9 +54,6 @@ export function EditPetForm({
       const formData = new FormData(form);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
-
-      const selected = formData.get("photo");
-      if (selected instanceof File && selected.size > 0) photoFileRef.current = selected;
 
       let newlyCreatedPaths: string[] = [];
       try {
@@ -114,11 +114,14 @@ export function EditPetForm({
 
         <PetFields
           defaultValues={pet}
+          existingPhotoUrl={pet.photo_url}
+          croppedFile={croppedFile}
           disabled={pending}
           nameInputRef={nameInputRef}
-          onPhotoFileChange={(file) => {
-            photoFileRef.current = file;
-            setPhotoIntentId(crypto.randomUUID());
+          onRequestCrop={(file) => setCropFile(file)}
+          onClearCropped={() => {
+            photoFileRef.current = null;
+            setCroppedFile(null);
           }}
         />
         <SubmitButton
@@ -129,6 +132,19 @@ export function EditPetForm({
           Salvar alterações
         </SubmitButton>
       </form>
+
+      <ProfilePhotoCropDialog
+        open={Boolean(cropFile)}
+        file={cropFile}
+        pending={pending}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(cropped) => {
+          photoFileRef.current = cropped;
+          setCroppedFile(cropped);
+          setPhotoIntentId(crypto.randomUUID());
+          setCropFile(null);
+        }}
+      />
 
       <HomonymNameDialog
         open={Boolean(duplicate)}

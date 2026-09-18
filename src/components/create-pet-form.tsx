@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { HomonymNameDialog } from "@/components/homonym-name-dialog";
 import { PetFields } from "@/components/pet-fields";
+import { ProfilePhotoCropDialog } from "@/components/profile-photo-crop-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import type { CreatePetResult } from "@/app/(app)/pets/actions";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/lib/pet-photo-direct-upload-client";
 
 /**
- * New-pet form: stable pet_id + weight intent, pending UX, direct photo upload.
+ * New-pet form: stable pet_id + weight intent, pending UX, 1:1 crop, direct photo upload.
  */
 export function CreatePetForm({
   action,
@@ -28,6 +29,8 @@ export function CreatePetForm({
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [status, setStatus] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const allowDuplicateRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -53,9 +56,6 @@ export function CreatePetForm({
       formData.set("initial_weight_record_id", weightRecordId);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
-
-      const selected = formData.get("photo");
-      if (selected instanceof File && selected.size > 0) photoFileRef.current = selected;
 
       let newlyCreatedPaths: string[] = [];
       try {
@@ -121,9 +121,11 @@ export function CreatePetForm({
           includeInitialWeight
           disabled={!configured || pending}
           nameInputRef={nameInputRef}
-          onPhotoFileChange={(file) => {
-            photoFileRef.current = file;
-            setPhotoIntentId(crypto.randomUUID());
+          croppedFile={croppedFile}
+          onRequestCrop={(file) => setCropFile(file)}
+          onClearCropped={() => {
+            photoFileRef.current = null;
+            setCroppedFile(null);
           }}
         />
         <SubmitButton
@@ -134,6 +136,19 @@ export function CreatePetForm({
           Salvar pet
         </SubmitButton>
       </form>
+
+      <ProfilePhotoCropDialog
+        open={Boolean(cropFile)}
+        file={cropFile}
+        pending={pending}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(cropped) => {
+          photoFileRef.current = cropped;
+          setCroppedFile(cropped);
+          setPhotoIntentId(crypto.randomUUID());
+          setCropFile(null);
+        }}
+      />
 
       <HomonymNameDialog
         open={Boolean(duplicate)}
