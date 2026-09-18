@@ -228,11 +228,9 @@ export function MemoryPhotoInput({
     <div>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="text-sm font-bold">
-            Fotos da memória {(!hasCurrentPhoto && pending.length === 0) ? <span className="text-[var(--danger)]">*</span> : null}
-          </p>
+          <p className="text-sm font-bold">Fotos da memória</p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Até {MEMORY_MEDIA_MAX_PHOTOS} fotos. A capa aparece no álbum.
+            Adicione até {MEMORY_MEDIA_MAX_PHOTOS} fotos (opcional). A capa aparece no álbum.
           </p>
         </div>
         {memoryId && hasCurrentPhoto && !disabled ? (
@@ -280,6 +278,12 @@ export function MemoryPhotoInput({
         tabIndex={-1}
         onChange={(event) => onReplaceFile(event.target.files)}
       />
+
+      {!hasCurrentPhoto && pending.length === 0 ? (
+        <p className="mt-3 rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--cream)] px-4 py-6 text-center text-sm font-semibold text-[var(--muted)]">
+          Nenhuma foto nesta memória.
+        </p>
+      ) : null}
 
       {currentMedia.length > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -369,7 +373,6 @@ export function MemoryPhotoInput({
         <ImagePlus size={17} /> {hasCurrentPhoto || pending.length ? "Adicionar mais fotos" : "Adicionar fotos"}
         <input
           disabled={disabled || remainingSlots <= 0 || selecting}
-          required={!hasCurrentPhoto && pending.length === 0}
           multiple
           type="file"
           accept="image/jpeg,image/png,image/webp"

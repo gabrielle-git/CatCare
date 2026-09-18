@@ -164,7 +164,6 @@ export async function createMemory(formData: FormData) {
     if (!isUuid(memoryId)) throw new Error(invalidIntentErrorMessage());
     intents = parseMemoryMediaPayload(String(formData.get(memoryMediaPayloadFieldName()) ?? ""));
     assertUniqueMediaIds(intents);
-    if (intents.length === 0) throw new Error("Escolha ao menos uma foto para guardar esta memória.");
     if (intents.length > MEMORY_MEDIA_MAX_PHOTOS) {
       throw new Error(`Escolha no máximo ${MEMORY_MEDIA_MAX_PHOTOS} fotos por memória.`);
     }
@@ -246,21 +245,26 @@ export async function createMemory(formData: FormData) {
     redirect(`/memories/new?error=${encodeURIComponent(error instanceof Error ? error.message : "Não foi possível salvar as fotos.")}`);
   }
 
-  if (coverPath) {
-    await supabase
-      .from("memories")
-      .update({
-        pet_id: fields.petIds[0],
-        type: fields.type,
-        title: fields.title,
-        body: fields.body,
-        occurred_at: fields.occurred_at,
-        media_path: coverPath,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", memoryId)
-      .eq("household_id", household.id);
-  }
+  // Always persist factual fields; set cover only when this attempt produced media.
+  const updatePayload: {
+    pet_id: string;
+    type: typeof fields.type;
+    title: string;
+    body: string | null;
+    occurred_at: string;
+    updated_at: string;
+    media_path?: string | null;
+  } = {
+    pet_id: fields.petIds[0],
+    type: fields.type,
+    title: fields.title,
+    body: fields.body,
+    occurred_at: fields.occurred_at,
+    updated_at: new Date().toISOString(),
+  };
+  if (coverPath) updatePayload.media_path = coverPath;
+
+  await supabase.from("memories").update(updatePayload).eq("id", memoryId).eq("household_id", household.id);
 
   void memoryReused;
   revalidatePath("/memories");
@@ -302,9 +306,6 @@ export async function updateMemory(memoryId: string, formData: FormData) {
   const removed = currentMedia.filter((item) => requestedRemoval.has(item.id));
   const remaining = currentMedia.filter((item) => !requestedRemoval.has(item.id));
   const totalAfterUpdate = remaining.length + intents.length;
-  if (totalAfterUpdate === 0) {
-    redirect(`/memories/${memoryId}/edit?error=${encodeURIComponent("A memória precisa continuar com ao menos uma foto.")}`);
-  }
   if (totalAfterUpdate > MEMORY_MEDIA_MAX_PHOTOS) {
     redirect(`/memories/${memoryId}/edit?error=${encodeURIComponent(`Uma memória pode ter no máximo ${MEMORY_MEDIA_MAX_PHOTOS} fotos.`)}`);
   }
@@ -475,9 +476,6 @@ export async function deleteMemoryMediaBulk(
   const media = rows ?? [];
   const removing = media.filter((row) => ids.includes(row.id));
   if (removing.length === 0) return { ok: false, error: "Nenhuma foto válida selecionada." };
-  if (media.length - removing.length < 1) {
-    return { ok: false, error: "A memória precisa continuar com ao menos uma foto." };
-  }
 
   const { error: deleteError } = await supabase
     .from("memory_media")
@@ -488,7 +486,8 @@ export async function deleteMemoryMediaBulk(
   if (deleteError) return { ok: false, error: deleteError.message };
 
   const remaining = media.filter((row) => !ids.includes(row.id));
-  const coverPath = remaining[0]?.storage_path ?? null;
+  const preservedCover = remaining.find((row) => row.storage_path === memory.media_path);
+  const coverPath = remaining.length === 0 ? null : (preservedCover?.storage_path ?? remaining[0]?.storage_path ?? null);
   await supabase
     .from("memories")
     .update({ media_path: coverPath, updated_at: new Date().toISOString() })

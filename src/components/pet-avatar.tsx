@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Camera, Cat } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -36,13 +36,22 @@ function AvatarFace({
   size: keyof typeof sizeClasses;
 }) {
   const sizeClass = sizeClasses[size];
-  if (photoUrl) {
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [photoUrl]);
+
+  const showImage = Boolean(photoUrl) && !broken;
+
+  if (showImage) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={photoUrl}
+        src={photoUrl!}
         alt={name}
         className={`${sizeClass} shrink-0 rounded-full object-cover object-center`}
+        onError={() => setBroken(true)}
       />
     );
   }
@@ -302,6 +311,9 @@ export function PetProfilePhotoControl({
                       src={builtinPetAvatarPublicUrl(avatar.id)}
                       alt=""
                       className="mx-auto size-16 rounded-full object-cover object-center"
+                      onError={(event) => {
+                        event.currentTarget.style.visibility = "hidden";
+                      }}
                     />
                     <span className="mt-1 block text-center text-[10px] font-bold">{avatar.label}</span>
                   </button>

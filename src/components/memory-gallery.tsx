@@ -19,6 +19,6 @@ export function MemoryGallery({ title, media }: { title: string; media: MemoryMe
         <button type="button" onClick={() => setActive((active + 1) % photos.length)} aria-label="Próxima foto" className="focus-ring absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow-sm"><ChevronRight size={17} /></button>
         <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5">{photos.map((photo, index) => <button key={photo.id} type="button" aria-label={`Ver foto ${index + 1}`} onClick={() => setActive(index)} className={`size-2 rounded-full shadow-sm ${index === active ? "bg-white" : "bg-white/55"}`} />)}</div>
       </>}
-    </> : <div className="grid h-full place-items-center"><ImageIcon size={28} className="text-[var(--muted)]" /></div>}
+    </> : <div className="grid h-full place-items-center gap-2 px-4 text-center"><ImageIcon size={28} className="text-[var(--muted)]" /><p className="text-sm font-semibold text-[var(--muted)]">Nenhuma foto nesta memória.</p></div>}
   </div>;
 }

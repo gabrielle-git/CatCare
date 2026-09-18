@@ -1,6 +1,10 @@
 /**
  * Built-in CatCare avatar references stored in pets.photo_path.
  * Format: `builtin:{id}` — never a Storage object; never signed; never Storage-deleted.
+ *
+ * STARTER PACK (not a permanent product limit): add original CatCare SVG assets under
+ * /public/avatars/{id}.svg and append to BUILTIN_PET_AVATARS — no schema migration.
+ * Do not add copyrighted third-party characters.
  */
 
 export const BUILTIN_AVATAR_PREFIX = "builtin:";

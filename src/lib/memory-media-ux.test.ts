@@ -45,9 +45,10 @@ describe("wave-2b-ux memory photo management", () => {
     assert.match(memoryPhotoInput, /deleteMemoryMediaBulk/);
   });
 
-  it("server bulk delete only removes chosen ids and keeps at least one photo", () => {
+  it("server bulk delete only removes chosen ids; zero photos allowed", () => {
     assert.match(memoryActions, /export async function deleteMemoryMediaBulk/);
-    assert.match(memoryActions, /A memória precisa continuar com ao menos uma foto/);
+    assert.doesNotMatch(memoryActions, /A memória precisa continuar com ao menos uma foto/);
+    assert.match(memoryActions, /preservedCover|remaining\.length === 0/);
     assert.match(memoryActions, /\.in\("id", removing\.map/);
     // Storage remove only after DB delete.
     const bulkFn = memoryActions.slice(memoryActions.indexOf("deleteMemoryMediaBulk"));
@@ -84,10 +85,10 @@ describe("wave-2b-ux memory photo management", () => {
     assert.match(memoryActions, /Retry: new media already linked/);
   });
 
-  it("labels say photos; max 8; local duplicate guard; photos-only MIME", () => {
+  it("labels say photos; max 8 optional; local duplicate guard; photos-only MIME", () => {
     assert.match(memoryPhotoInput, /Adicionar fotos/);
     assert.match(memoryPhotoInput, /Adicionar mais fotos/);
-    assert.match(memoryPhotoInput, /Até \{MEMORY_MEDIA_MAX_PHOTOS\} fotos/);
+    assert.match(memoryPhotoInput, /Adicione até \{MEMORY_MEDIA_MAX_PHOTOS\} fotos \(opcional\)/);
     assert.equal(MEMORY_MEDIA_MAX_PHOTOS, 8);
     assert.match(memoryPhotoInput, /localFileSelectionKey/);
     assert.match(memoryPhotoInput, /Esta foto já foi selecionada nesta memória/);

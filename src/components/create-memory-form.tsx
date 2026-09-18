@@ -48,9 +48,6 @@ export function CreateMemoryForm({
           setStatus(null);
           let newlyCreatedPaths: string[] = [];
           try {
-            if (intents.length === 0) {
-              throw new Error("Escolha ao menos uma foto para guardar esta memória.");
-            }
             const formData = new FormData(form);
             formData.set("memory_id", memoryId);
             newlyCreatedPaths = (
