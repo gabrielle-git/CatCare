@@ -17,6 +17,7 @@ import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPerfTraceId, timed } from "@/lib/perf";
+import { resolveProfileHeroBackground } from "@/lib/pet-avatars";
 import { updatePetDescription } from "../actions";
 
 async function loadPetPage(id: string) {
@@ -64,6 +65,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
     neonatal ? "Como ainda é filhote, sua rotina neonatal merece acompanhamento bem de perto." : null,
   ].filter(Boolean).join(" ");
   const saveDescription = updatePetDescription.bind(null, pet.id);
+  const heroBackground = resolveProfileHeroBackground(pet.photo_path);
 
   const petReturnTo = `/pets/${pet.id}`;
 
@@ -82,7 +84,7 @@ export default async function PetDetailPage({ params, searchParams }: { params: 
       {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}</div>}
 
       <section className="cat-card mt-5 overflow-hidden">
-        <div className="bg-[linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))] p-5 md:p-7">
+        <div className="p-5 md:p-7" style={{ backgroundImage: heroBackground }}>
           <div className="flex items-start gap-4">
             {editable ? (
               <PetProfilePhotoControl
