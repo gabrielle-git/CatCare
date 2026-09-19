@@ -2,89 +2,95 @@
  * Built-in CatCare avatar references stored in pets.photo_path.
  * Format: `builtin:{id}` — never a Storage object; never signed; never Storage-deleted.
  *
- * Expanded starter library — add original CatCare SVG under /public/avatars/{id}.svg
- * and append metadata here. No schema migration. No copyrighted characters.
+ * Surface colors come from src/lib/pet-avatar-surfaces.json (shared with the SVG generator).
+ * Hero tint softens that exact artwork fill — never fur-color guessing, never photo sampling.
  */
+
+import surfaceData from "@/lib/pet-avatar-surfaces.json";
 
 export const BUILTIN_AVATAR_PREFIX = "builtin:";
 
 export const BUILTIN_AVATAR_CATEGORIES = ["cat", "dog", "other"] as const;
 export type BuiltinPetAvatarCategory = (typeof BUILTIN_AVATAR_CATEGORIES)[number];
 
-/** Controlled soft accent families for profile hero tint (builtin avatars only). */
-export const BUILTIN_AVATAR_ACCENTS = [
-  "cream",
-  "peach",
-  "lavender",
-  "rose",
-  "sage",
-  "sky",
-  "warm-neutral",
-] as const;
-export type BuiltinPetAvatarAccent = (typeof BUILTIN_AVATAR_ACCENTS)[number];
+/** Actual outer-circle fills used by CatCare builtin SVGs (generator source of truth). */
+export const BUILTIN_AVATAR_SURFACE_TOKENS = ["lavender", "cream"] as const;
+export type BuiltinPetAvatarSurface = (typeof BUILTIN_AVATAR_SURFACE_TOKENS)[number];
 
-/** Soft hero gradients — light enough for dark text; standard CatCare lavender is the default. */
-export const PROFILE_HERO_ACCENT_BACKGROUNDS: Record<BuiltinPetAvatarAccent, string> = {
-  cream: "linear-gradient(135deg,#F7F0E6,#EFE0D0)",
-  peach: "linear-gradient(135deg,#FBEAD9,#F3CDB8)",
-  lavender: "linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))",
-  rose: "linear-gradient(135deg,#F8E4EC,#EEC8D6)",
-  sage: "linear-gradient(135deg,var(--mint-soft),#D5E8DC)",
-  sky: "linear-gradient(135deg,#E6EEF8,#D2E0F0)",
-  "warm-neutral": "linear-gradient(135deg,#F1EBE4,#E2D6C8)",
+type SurfacePaletteEntry = { hex: string; heroSoft: string };
+
+const SURFACE_PALETTE = surfaceData.palette as Record<BuiltinPetAvatarSurface, SurfacePaletteEntry>;
+const SURFACE_BY_ID = surfaceData.byId as Record<string, BuiltinPetAvatarSurface>;
+
+export const BUILTIN_AVATAR_SURFACE_PALETTE = SURFACE_PALETTE;
+
+/** Soft hero gradients derived from the real SVG surface hex (same hue, lightened). */
+export const PROFILE_HERO_SURFACE_BACKGROUNDS: Record<BuiltinPetAvatarSurface, string> = {
+  lavender: `linear-gradient(135deg,${SURFACE_PALETTE.lavender.hex},${SURFACE_PALETTE.lavender.heroSoft})`,
+  cream: `linear-gradient(135deg,${SURFACE_PALETTE.cream.hex},${SURFACE_PALETTE.cream.heroSoft})`,
 };
 
-export const DEFAULT_PROFILE_HERO_BACKGROUND = PROFILE_HERO_ACCENT_BACKGROUNDS.lavender;
+/** Standard CatCare profile hero for uploaded photos / empty / invalid. */
+export const DEFAULT_PROFILE_HERO_BACKGROUND =
+  "linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))";
 
 export type BuiltinPetAvatarMeta = {
   id: string;
   label: string;
   category: BuiltinPetAvatarCategory;
   tags: readonly string[];
-  accent: BuiltinPetAvatarAccent;
+  surface: BuiltinPetAvatarSurface;
 };
+
+function surfaceFor(id: string): BuiltinPetAvatarSurface {
+  const token = SURFACE_BY_ID[id];
+  if (!token || !(token in SURFACE_PALETTE)) {
+    throw new Error(`Missing avatar surface metadata for ${id}`);
+  }
+  return token;
+}
 
 /** Expanded starter library (not a permanent product limit). */
 export const BUILTIN_PET_AVATARS = [
-  // Cats
-  { id: "cat-cream", label: "Gato creme", category: "cat", tags: ["cream", "shorthair"], accent: "cream" },
-  { id: "cat-orange", label: "Gato laranja", category: "cat", tags: ["orange"], accent: "peach" },
-  { id: "cat-black", label: "Gato preto", category: "cat", tags: ["black"], accent: "warm-neutral" },
-  { id: "cat-gray", label: "Gato cinza", category: "cat", tags: ["gray"], accent: "lavender" },
-  { id: "cat-white", label: "Gato branco", category: "cat", tags: ["white"], accent: "cream" },
-  { id: "cat-tabby", label: "Gato tigrado", category: "cat", tags: ["tabby"], accent: "warm-neutral" },
-  { id: "cat-calico", label: "Gato tricolor", category: "cat", tags: ["calico"], accent: "rose" },
-  { id: "cat-tuxedo", label: "Gato frajola", category: "cat", tags: ["tuxedo", "black", "white"], accent: "warm-neutral" },
-  { id: "cat-siamese", label: "Siamês", category: "cat", tags: ["siamese"], accent: "sky" },
-  { id: "cat-persian", label: "Persa", category: "cat", tags: ["persian", "longhair"], accent: "cream" },
-  { id: "cat-maine-coon", label: "Maine Coon", category: "cat", tags: ["maine-coon", "longhair"], accent: "warm-neutral" },
-  { id: "cat-sphynx", label: "Sphynx", category: "cat", tags: ["sphynx"], accent: "peach" },
-  { id: "cat-tortie", label: "Escaminha", category: "cat", tags: ["tortie"], accent: "rose" },
-  { id: "cat-blue", label: "Gato azul", category: "cat", tags: ["blue", "gray"], accent: "sky" },
-  { id: "cat-fluffy", label: "Gato peludo", category: "cat", tags: ["longhair", "fluffy"], accent: "lavender" },
-  { id: "cat-srd", label: "Gato SRD", category: "cat", tags: ["srd"], accent: "sage" },
-  // Dogs
-  { id: "dog-cream", label: "Cão creme", category: "dog", tags: ["cream"], accent: "cream" },
-  { id: "dog-brown", label: "Cão marrom", category: "dog", tags: ["brown"], accent: "warm-neutral" },
-  { id: "dog-caramel", label: "Cão caramelo", category: "dog", tags: ["caramel", "srd"], accent: "peach" },
-  { id: "dog-black", label: "Cão preto", category: "dog", tags: ["black"], accent: "warm-neutral" },
-  { id: "dog-white", label: "Cão branco", category: "dog", tags: ["white"], accent: "cream" },
-  { id: "dog-golden", label: "Golden Retriever", category: "dog", tags: ["golden"], accent: "peach" },
-  { id: "dog-labrador", label: "Labrador", category: "dog", tags: ["labrador"], accent: "warm-neutral" },
-  { id: "dog-shih-tzu", label: "Shih-tzu", category: "dog", tags: ["shih-tzu", "longhair"], accent: "cream" },
-  { id: "dog-poodle", label: "Poodle", category: "dog", tags: ["poodle"], accent: "lavender" },
-  { id: "dog-dachshund", label: "Dachshund", category: "dog", tags: ["dachshund"], accent: "warm-neutral" },
-  { id: "dog-husky", label: "Husky", category: "dog", tags: ["husky"], accent: "sky" },
-  { id: "dog-shepherd", label: "Pastor Alemão", category: "dog", tags: ["shepherd"], accent: "warm-neutral" },
-  { id: "dog-french-bulldog", label: "Bulldog Francês", category: "dog", tags: ["french-bulldog"], accent: "lavender" },
-  // Other
-  { id: "bird-cockatiel", label: "Calopsita", category: "other", tags: ["bird", "cockatiel"], accent: "sky" },
-  { id: "bird-parakeet", label: "Periquito", category: "other", tags: ["bird", "parakeet"], accent: "sage" },
-  { id: "bird-canary", label: "Canário", category: "other", tags: ["bird", "canary"], accent: "peach" },
-  { id: "bird-parrot", label: "Papagaio", category: "other", tags: ["bird", "parrot"], accent: "rose" },
-  { id: "rabbit-cream", label: "Coelho", category: "other", tags: ["rabbit"], accent: "cream" },
-  { id: "hamster-brown", label: "Hamster", category: "other", tags: ["hamster"], accent: "peach" },
-  { id: "paw-neutral", label: "Patinha", category: "other", tags: ["neutral", "paw"], accent: "lavender" },
+  // Cats — SVG outer fill #EDE8F5 (lavender)
+  { id: "cat-cream", label: "Gato creme", category: "cat", tags: ["cream", "shorthair"], surface: surfaceFor("cat-cream") },
+  { id: "cat-orange", label: "Gato laranja", category: "cat", tags: ["orange"], surface: surfaceFor("cat-orange") },
+  { id: "cat-black", label: "Gato preto", category: "cat", tags: ["black"], surface: surfaceFor("cat-black") },
+  { id: "cat-gray", label: "Gato cinza", category: "cat", tags: ["gray"], surface: surfaceFor("cat-gray") },
+  { id: "cat-white", label: "Gato branco", category: "cat", tags: ["white"], surface: surfaceFor("cat-white") },
+  { id: "cat-tabby", label: "Gato tigrado", category: "cat", tags: ["tabby"], surface: surfaceFor("cat-tabby") },
+  { id: "cat-calico", label: "Gato tricolor", category: "cat", tags: ["calico"], surface: surfaceFor("cat-calico") },
+  { id: "cat-tuxedo", label: "Gato frajola", category: "cat", tags: ["tuxedo", "black", "white"], surface: surfaceFor("cat-tuxedo") },
+  { id: "cat-siamese", label: "Siamês", category: "cat", tags: ["siamese"], surface: surfaceFor("cat-siamese") },
+  { id: "cat-persian", label: "Persa", category: "cat", tags: ["persian", "longhair"], surface: surfaceFor("cat-persian") },
+  { id: "cat-maine-coon", label: "Maine Coon", category: "cat", tags: ["maine-coon", "longhair"], surface: surfaceFor("cat-maine-coon") },
+  { id: "cat-sphynx", label: "Sphynx", category: "cat", tags: ["sphynx"], surface: surfaceFor("cat-sphynx") },
+  { id: "cat-tortie", label: "Escaminha", category: "cat", tags: ["tortie"], surface: surfaceFor("cat-tortie") },
+  { id: "cat-blue", label: "Gato azul", category: "cat", tags: ["blue", "gray"], surface: surfaceFor("cat-blue") },
+  { id: "cat-fluffy", label: "Gato peludo", category: "cat", tags: ["longhair", "fluffy"], surface: surfaceFor("cat-fluffy") },
+  { id: "cat-srd", label: "Gato SRD", category: "cat", tags: ["srd"], surface: surfaceFor("cat-srd") },
+  // Dogs — SVG outer fill #F3E6D4 (cream)
+  { id: "dog-cream", label: "Cão creme", category: "dog", tags: ["cream"], surface: surfaceFor("dog-cream") },
+  { id: "dog-brown", label: "Cão marrom", category: "dog", tags: ["brown"], surface: surfaceFor("dog-brown") },
+  { id: "dog-caramel", label: "Cão caramelo", category: "dog", tags: ["caramel", "srd"], surface: surfaceFor("dog-caramel") },
+  { id: "dog-black", label: "Cão preto", category: "dog", tags: ["black"], surface: surfaceFor("dog-black") },
+  { id: "dog-white", label: "Cão branco", category: "dog", tags: ["white"], surface: surfaceFor("dog-white") },
+  { id: "dog-golden", label: "Golden Retriever", category: "dog", tags: ["golden"], surface: surfaceFor("dog-golden") },
+  { id: "dog-labrador", label: "Labrador", category: "dog", tags: ["labrador"], surface: surfaceFor("dog-labrador") },
+  { id: "dog-shih-tzu", label: "Shih-tzu", category: "dog", tags: ["shih-tzu", "longhair"], surface: surfaceFor("dog-shih-tzu") },
+  { id: "dog-poodle", label: "Poodle", category: "dog", tags: ["poodle"], surface: surfaceFor("dog-poodle") },
+  { id: "dog-dachshund", label: "Dachshund", category: "dog", tags: ["dachshund"], surface: surfaceFor("dog-dachshund") },
+  { id: "dog-husky", label: "Husky", category: "dog", tags: ["husky"], surface: surfaceFor("dog-husky") },
+  { id: "dog-shepherd", label: "Pastor Alemão", category: "dog", tags: ["shepherd"], surface: surfaceFor("dog-shepherd") },
+  { id: "dog-french-bulldog", label: "Bulldog Francês", category: "dog", tags: ["french-bulldog"], surface: surfaceFor("dog-french-bulldog") },
+  // Other — SVG outer fill #EDE8F5 (lavender)
+  { id: "bird-cockatiel", label: "Calopsita", category: "other", tags: ["bird", "cockatiel"], surface: surfaceFor("bird-cockatiel") },
+  { id: "bird-parakeet", label: "Periquito", category: "other", tags: ["bird", "parakeet"], surface: surfaceFor("bird-parakeet") },
+  { id: "bird-canary", label: "Canário", category: "other", tags: ["bird", "canary"], surface: surfaceFor("bird-canary") },
+  { id: "bird-parrot", label: "Papagaio", category: "other", tags: ["bird", "parrot"], surface: surfaceFor("bird-parrot") },
+  { id: "rabbit-cream", label: "Coelho", category: "other", tags: ["rabbit"], surface: surfaceFor("rabbit-cream") },
+  { id: "hamster-brown", label: "Hamster", category: "other", tags: ["hamster"], surface: surfaceFor("hamster-brown") },
+  { id: "paw-neutral", label: "Patinha", category: "other", tags: ["neutral", "paw"], surface: surfaceFor("paw-neutral") },
 ] as const satisfies readonly BuiltinPetAvatarMeta[];
 
 export type BuiltinPetAvatarId = (typeof BUILTIN_PET_AVATARS)[number]["id"];
@@ -100,7 +106,7 @@ export const BUILTIN_AVATAR_FILTERS: { id: BuiltinAvatarFilter; label: string }[
 
 const BUILTIN_ID_SET = new Set<string>(BUILTIN_PET_AVATARS.map((item) => item.id));
 const BUILTIN_BY_ID = new Map(BUILTIN_PET_AVATARS.map((item) => [item.id, item]));
-const ACCENT_SET = new Set<string>(BUILTIN_AVATAR_ACCENTS);
+const SURFACE_TOKEN_SET = new Set<string>(BUILTIN_AVATAR_SURFACE_TOKENS);
 
 export function isBuiltinPetAvatarPath(path: string | null | undefined): boolean {
   return Boolean(path && path.startsWith(BUILTIN_AVATAR_PREFIX));
@@ -147,15 +153,22 @@ export function resolvePetPhotoDisplayUrl(photoPath: string | null | undefined, 
   return signedStorageUrl;
 }
 
+export function getBuiltinAvatarSurfaceHex(id: BuiltinPetAvatarId): string {
+  const meta = getBuiltinPetAvatarMeta(id);
+  if (!meta) return SURFACE_PALETTE.lavender.hex;
+  return SURFACE_PALETTE[meta.surface].hex;
+}
+
 /**
  * Profile hero background from photo_path.
- * Builtin whitelist → controlled accent. Uploaded photo / null / invalid → standard lavender.
+ * Builtin whitelist → soft tint from that avatar's real SVG surface.
+ * Uploaded photo / null / invalid → standard CatCare lavender.
  * Never samples uploaded image pixels.
  */
 export function resolveProfileHeroBackground(photoPath: string | null | undefined): string {
   const builtinId = parseBuiltinPetAvatarId(photoPath);
   if (!builtinId) return DEFAULT_PROFILE_HERO_BACKGROUND;
   const meta = getBuiltinPetAvatarMeta(builtinId);
-  if (!meta || !ACCENT_SET.has(meta.accent)) return DEFAULT_PROFILE_HERO_BACKGROUND;
-  return PROFILE_HERO_ACCENT_BACKGROUNDS[meta.accent] ?? DEFAULT_PROFILE_HERO_BACKGROUND;
+  if (!meta || !SURFACE_TOKEN_SET.has(meta.surface)) return DEFAULT_PROFILE_HERO_BACKGROUND;
+  return PROFILE_HERO_SURFACE_BACKGROUNDS[meta.surface] ?? DEFAULT_PROFILE_HERO_BACKGROUND;
 }

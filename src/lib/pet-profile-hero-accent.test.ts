@@ -2,49 +2,64 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import surfaceData from "@/lib/pet-avatar-surfaces.json";
 import {
-  BUILTIN_AVATAR_ACCENTS,
+  BUILTIN_AVATAR_SURFACE_PALETTE,
+  BUILTIN_AVATAR_SURFACE_TOKENS,
   BUILTIN_PET_AVATARS,
   DEFAULT_PROFILE_HERO_BACKGROUND,
-  PROFILE_HERO_ACCENT_BACKGROUNDS,
+  PROFILE_HERO_SURFACE_BACKGROUNDS,
   builtinPetAvatarPath,
+  filterBuiltinPetAvatars,
+  getBuiltinAvatarSurfaceHex,
   resolveProfileHeroBackground,
 } from "@/lib/pet-avatars";
 
 const root = process.cwd();
-const accentSet = new Set<string>(BUILTIN_AVATAR_ACCENTS);
+const surfaceTokenSet = new Set<string>(BUILTIN_AVATAR_SURFACE_TOKENS);
 
-describe("wave-2b profile hero builtin accent", () => {
-  it("every builtin avatar has a valid controlled accent token", () => {
+describe("wave-2b profile hero builtin surface calibration", () => {
+  it("every builtin has valid surface metadata from the shared palette", () => {
+    assert.equal(BUILTIN_PET_AVATARS.length, 36);
+    assert.equal(Object.keys(surfaceData.byId).length, 36);
     for (const avatar of BUILTIN_PET_AVATARS) {
-      assert.ok(accentSet.has(avatar.accent), `${avatar.id} accent ${avatar.accent}`);
-      assert.ok(PROFILE_HERO_ACCENT_BACKGROUNDS[avatar.accent]);
+      assert.ok(surfaceTokenSet.has(avatar.surface), `${avatar.id} surface ${avatar.surface}`);
+      assert.equal(surfaceData.byId[avatar.id], avatar.surface);
+      assert.ok(BUILTIN_AVATAR_SURFACE_PALETTE[avatar.surface]?.hex);
+      assert.ok(PROFILE_HERO_SURFACE_BACKGROUNDS[avatar.surface]);
     }
   });
 
-  it("accent values come only from the allowed palette", () => {
-    assert.deepEqual([...BUILTIN_AVATAR_ACCENTS], [
-      "cream",
-      "peach",
-      "lavender",
-      "rose",
-      "sage",
-      "sky",
-      "warm-neutral",
-    ]);
-    for (const key of Object.keys(PROFILE_HERO_ACCENT_BACKGROUNDS)) {
-      assert.ok(accentSet.has(key));
+  it("registry surface hex matches SVG outer circle and generator source-of-truth", () => {
+    assert.deepEqual([...BUILTIN_AVATAR_SURFACE_TOKENS], ["lavender", "cream"]);
+    assert.equal(surfaceData.palette.lavender.hex, "#EDE8F5");
+    assert.equal(surfaceData.palette.cream.hex, "#F3E6D4");
+
+    for (const avatar of BUILTIN_PET_AVATARS) {
+      const expectedHex = getBuiltinAvatarSurfaceHex(avatar.id);
+      const svg = readFileSync(join(root, "public/avatars", `${avatar.id}.svg`), "utf8");
+      const match = svg.match(/<circle cx="64" cy="64" r="64" fill="(#[0-9A-Fa-f]{6})"\/>/);
+      assert.ok(match, `${avatar.id} missing outer circle`);
+      assert.equal(match![1].toUpperCase(), expectedHex.toUpperCase(), `${avatar.id} SVG surface`);
     }
+
+    const generator = readFileSync(join(root, "scripts/generate-pet-avatars.mjs"), "utf8");
+    assert.match(generator, /pet-avatar-surfaces\.json/);
+    assert.match(generator, /function surfaceHex\(/);
+    assert.doesNotMatch(generator, /bg\("#EDE8F5"\)|bg\("#F3E6D4"\)/);
   });
 
-  it("builtin avatars resolve to their accent; different accents can differ", () => {
-    const orange = resolveProfileHeroBackground(builtinPetAvatarPath("cat-orange"));
-    const blue = resolveProfileHeroBackground(builtinPetAvatarPath("cat-blue"));
-    const cream = resolveProfileHeroBackground(builtinPetAvatarPath("cat-cream"));
-    assert.equal(orange, PROFILE_HERO_ACCENT_BACKGROUNDS.peach);
-    assert.equal(blue, PROFILE_HERO_ACCENT_BACKGROUNDS.sky);
-    assert.equal(cream, PROFILE_HERO_ACCENT_BACKGROUNDS.cream);
-    assert.notEqual(orange, blue);
+  it("hero tint preserves the same hue family as the avatar surface", () => {
+    const catHero = resolveProfileHeroBackground(builtinPetAvatarPath("cat-orange"));
+    const dogHero = resolveProfileHeroBackground(builtinPetAvatarPath("dog-golden"));
+    assert.equal(catHero, PROFILE_HERO_SURFACE_BACKGROUNDS.lavender);
+    assert.equal(dogHero, PROFILE_HERO_SURFACE_BACKGROUNDS.cream);
+    assert.match(catHero, /#EDE8F5/i);
+    assert.match(dogHero, /#F3E6D4/i);
+    assert.notEqual(catHero, dogHero);
+    // Softened stop stays in-family (not beige for lavender / not lavender for cream).
+    assert.match(catHero, /#F6F3FA/i);
+    assert.match(dogHero, /#F9F3EA/i);
   });
 
   it("uploaded photo, null, and invalid builtin fall back to standard lavender", () => {
@@ -55,19 +70,21 @@ describe("wave-2b profile hero builtin accent", () => {
       DEFAULT_PROFILE_HERO_BACKGROUND,
     );
     assert.equal(resolveProfileHeroBackground("builtin:not-real"), DEFAULT_PROFILE_HERO_BACKGROUND);
-    assert.equal(resolveProfileHeroBackground("builtin:"), DEFAULT_PROFILE_HERO_BACKGROUND);
-    assert.equal(DEFAULT_PROFILE_HERO_BACKGROUND, PROFILE_HERO_ACCENT_BACKGROUNDS.lavender);
+    assert.match(DEFAULT_PROFILE_HERO_BACKGROUND, /lavender-soft/);
   });
 
-  it("switching semantics: builtin tint vs photo/default lavender", () => {
-    const tinted = resolveProfileHeroBackground(builtinPetAvatarPath("dog-golden"));
-    assert.equal(tinted, PROFILE_HERO_ACCENT_BACKGROUNDS.peach);
-    assert.equal(resolveProfileHeroBackground("household/pet/profile/intent.jpg"), DEFAULT_PROFILE_HERO_BACKGROUND);
-    assert.equal(resolveProfileHeroBackground(builtinPetAvatarPath("paw-neutral")), PROFILE_HERO_ACCENT_BACKGROUNDS.lavender);
-    assert.equal(resolveProfileHeroBackground(null), DEFAULT_PROFILE_HERO_BACKGROUND);
+  it("all 36 builtins resolve successfully; filters stay intact", () => {
+    for (const avatar of BUILTIN_PET_AVATARS) {
+      const hero = resolveProfileHeroBackground(builtinPetAvatarPath(avatar.id));
+      assert.equal(hero, PROFILE_HERO_SURFACE_BACKGROUNDS[avatar.surface]);
+    }
+    assert.equal(filterBuiltinPetAvatars("all").length, 36);
+    assert.ok(filterBuiltinPetAvatars("cat").every((item) => item.category === "cat"));
+    assert.ok(filterBuiltinPetAvatars("dog").every((item) => item.category === "dog"));
+    assert.ok(filterBuiltinPetAvatars("other").every((item) => item.category === "other"));
   });
 
-  it("pet profile page applies resolveProfileHeroBackground to the hero only", () => {
+  it("pet profile page applies resolveProfileHeroBackground without photo sampling", () => {
     const page = readFileSync(join(root, "src/app/(app)/pets/[id]/page.tsx"), "utf8");
     assert.match(page, /resolveProfileHeroBackground\(pet\.photo_path\)/);
     assert.match(page, /style=\{\{ backgroundImage: heroBackground \}\}/);

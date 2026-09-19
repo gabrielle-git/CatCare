@@ -1,14 +1,27 @@
 /**
  * Generates original CatCare builtin avatar SVGs (ASCII-only, viewBox 0 0 128 128).
  * Run: node scripts/generate-pet-avatars.mjs
+ *
+ * Outer-circle fills come from src/lib/pet-avatar-surfaces.json (shared with the app registry).
  */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, "..", "public", "avatars");
 mkdirSync(outDir, { recursive: true });
+
+const surfaceData = JSON.parse(
+  readFileSync(join(__dirname, "..", "src", "lib", "pet-avatar-surfaces.json"), "utf8"),
+);
+
+function surfaceHex(id) {
+  const token = surfaceData.byId[id];
+  const entry = token ? surfaceData.palette[token] : null;
+  if (!entry?.hex) throw new Error(`Missing surface palette for avatar ${id}`);
+  return entry.hex;
+}
 
 function svg(label, body) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="${label}">
@@ -21,8 +34,8 @@ function bg(fill) {
   return `  <circle cx="64" cy="64" r="64" fill="${fill}"/>`;
 }
 
-function catFace({ fur, earInner, eye, nose, stroke, stripes = "", extra = "" }) {
-  return `${bg("#EDE8F5")}
+function catFace(id, { fur, earInner, eye, nose, stroke, stripes = "", extra = "" }) {
+  return `${bg(surfaceHex(id))}
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="${fur}"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="${fur}"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="${fur}"/>
@@ -36,8 +49,8 @@ ${stripes}  <circle cx="50" cy="72" r="5" fill="${eye}"/>
 ${extra}`;
 }
 
-function dogFace({ fur, ear, eye, nose, stroke, snout = "", extra = "" }) {
-  return `${bg("#F3E6D4")}
+function dogFace(id, { fur, ear, eye, nose, stroke, snout = "", extra = "" }) {
+  return `${bg(surfaceHex(id))}
   <ellipse cx="64" cy="78" rx="30" ry="28" fill="${fur}"/>
   <ellipse cx="38" cy="62" rx="11" ry="20" fill="${ear}"/>
   <ellipse cx="90" cy="62" rx="11" ry="20" fill="${ear}"/>
@@ -50,10 +63,10 @@ ${extra}`;
 }
 
 const avatars = {
-  "cat-cream": svg("Cat cream", catFace({ fur: "#E8D2B5", earInner: "#F6C1B0", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "cat-cream": svg("Cat cream", catFace("cat-cream", { fur: "#E8D2B5", earInner: "#F6C1B0", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
   "cat-orange": svg(
     "Cat orange",
-    catFace({
+    catFace("cat-orange", {
       fur: "#E89A4A",
       earInner: "#F0B27A",
       eye: "#3D3344",
@@ -63,12 +76,12 @@ const avatars = {
 `,
     }),
   ),
-  "cat-black": svg("Cat black", catFace({ fur: "#3D3344", earInner: "#6B5B7A", eye: "#F5C84C", nose: "#E89A8A", stroke: "#F5EDE6" })),
-  "cat-gray": svg("Cat gray", catFace({ fur: "#9A93A6", earInner: "#B7B0C2", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
-  "cat-white": svg("Cat white", catFace({ fur: "#F7F4FB", earInner: "#F6C1B0", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "cat-black": svg("Cat black", catFace("cat-black", { fur: "#3D3344", earInner: "#6B5B7A", eye: "#F5C84C", nose: "#E89A8A", stroke: "#F5EDE6" })),
+  "cat-gray": svg("Cat gray", catFace("cat-gray", { fur: "#9A93A6", earInner: "#B7B0C2", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "cat-white": svg("Cat white", catFace("cat-white", { fur: "#F7F4FB", earInner: "#F6C1B0", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
   "cat-tabby": svg(
     "Cat tabby",
-    catFace({
+    catFace("cat-tabby", {
       fur: "#C4A574",
       earInner: "#E8C9A0",
       eye: "#3D3344",
@@ -83,7 +96,7 @@ const avatars = {
   ),
   "cat-calico": svg(
     "Cat calico",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-calico"))}
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="#F7F4FB"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="#F7F4FB"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="#3D3344"/>
@@ -99,7 +112,7 @@ const avatars = {
   ),
   "cat-tuxedo": svg(
     "Cat tuxedo",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-tuxedo"))}
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="#3D3344"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="#3D3344"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="#3D3344"/>
@@ -114,7 +127,7 @@ const avatars = {
   ),
   "cat-siamese": svg(
     "Cat Siamese",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-siamese"))}
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="#F3E6D4"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="#6B5344"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="#6B5344"/>
@@ -129,7 +142,7 @@ const avatars = {
   ),
   "cat-persian": svg(
     "Cat Persian",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-persian"))}
   <ellipse cx="64" cy="80" rx="38" ry="32" fill="#E8D2B5"/>
   <path d="M26 56 L38 24 L54 56 Z" fill="#E8D2B5"/>
   <path d="M74 56 L90 24 L102 56 Z" fill="#E8D2B5"/>
@@ -143,7 +156,7 @@ const avatars = {
   ),
   "cat-maine-coon": svg(
     "Cat Maine Coon",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-maine-coon"))}
   <ellipse cx="64" cy="80" rx="36" ry="30" fill="#A67C52"/>
   <path d="M24 54 L36 18 L54 54 Z" fill="#A67C52"/>
   <path d="M74 54 L92 18 L104 54 Z" fill="#A67C52"/>
@@ -160,7 +173,7 @@ const avatars = {
   ),
   "cat-sphynx": svg(
     "Cat Sphynx",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-sphynx"))}
   <ellipse cx="64" cy="78" rx="30" ry="26" fill="#E8C9A0"/>
   <path d="M32 54 L42 28 L52 54 Z" fill="#E8C9A0"/>
   <path d="M76 54 L86 28 L96 54 Z" fill="#E8C9A0"/>
@@ -176,7 +189,7 @@ const avatars = {
   ),
   "cat-tortie": svg(
     "Cat tortie",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-tortie"))}
   <ellipse cx="64" cy="78" rx="34" ry="28" fill="#6B5344"/>
   <path d="M28 52 L40 22 L52 52 Z" fill="#E89A4A"/>
   <path d="M76 52 L88 22 L100 52 Z" fill="#6B5344"/>
@@ -190,10 +203,10 @@ const avatars = {
   <path d="M64 86 Q52 94 46 90" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
   <path d="M64 86 Q76 94 82 90" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>`,
   ),
-  "cat-blue": svg("Cat blue-gray", catFace({ fur: "#7A8BA3", earInner: "#A8B4C4", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "cat-blue": svg("Cat blue-gray", catFace("cat-blue", { fur: "#7A8BA3", earInner: "#A8B4C4", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
   "cat-fluffy": svg(
     "Cat fluffy",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("cat-fluffy"))}
   <ellipse cx="64" cy="80" rx="40" ry="34" fill="#D9C4E8"/>
   <path d="M24 56 L38 20 L56 56 Z" fill="#D9C4E8"/>
   <path d="M72 56 L90 20 L104 56 Z" fill="#D9C4E8"/>
@@ -207,7 +220,7 @@ const avatars = {
   ),
   "cat-srd": svg(
     "Cat SRD",
-    catFace({
+    catFace("cat-srd", {
       fur: "#C4A574",
       earInner: "#E8C9A0",
       eye: "#3D3344",
@@ -219,14 +232,14 @@ const avatars = {
     }),
   ),
 
-  "dog-cream": svg("Dog cream", dogFace({ fur: "#E8D2B5", ear: "#D9B996", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
-  "dog-brown": svg("Dog brown", dogFace({ fur: "#8B5E3C", ear: "#6E452A", eye: "#F5EDE6", nose: "#E89A8A", stroke: "#F5EDE6" })),
-  "dog-caramel": svg("Dog caramel", dogFace({ fur: "#D4A574", ear: "#B8834A", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
-  "dog-black": svg("Dog black", dogFace({ fur: "#3D3344", ear: "#2A2230", eye: "#F5C84C", nose: "#E89A8A", stroke: "#F5EDE6" })),
-  "dog-white": svg("Dog white", dogFace({ fur: "#F7F4FB", ear: "#E8D2B5", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "dog-cream": svg("Dog cream", dogFace("dog-cream", { fur: "#E8D2B5", ear: "#D9B996", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "dog-brown": svg("Dog brown", dogFace("dog-brown", { fur: "#8B5E3C", ear: "#6E452A", eye: "#F5EDE6", nose: "#E89A8A", stroke: "#F5EDE6" })),
+  "dog-caramel": svg("Dog caramel", dogFace("dog-caramel", { fur: "#D4A574", ear: "#B8834A", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
+  "dog-black": svg("Dog black", dogFace("dog-black", { fur: "#3D3344", ear: "#2A2230", eye: "#F5C84C", nose: "#E89A8A", stroke: "#F5EDE6" })),
+  "dog-white": svg("Dog white", dogFace("dog-white", { fur: "#F7F4FB", ear: "#E8D2B5", eye: "#3D3344", nose: "#E89A8A", stroke: "#3D3344" })),
   "dog-golden": svg(
     "Dog Golden",
-    dogFace({
+    dogFace("dog-golden", {
       fur: "#E8B86D",
       ear: "#D49A45",
       eye: "#3D3344",
@@ -238,7 +251,7 @@ const avatars = {
   ),
   "dog-labrador": svg(
     "Dog Labrador",
-    dogFace({
+    dogFace("dog-labrador", {
       fur: "#C4A574",
       ear: "#A67C52",
       eye: "#3D3344",
@@ -250,7 +263,7 @@ const avatars = {
   ),
   "dog-shih-tzu": svg(
     "Dog Shih-tzu",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-shih-tzu"))}
   <ellipse cx="64" cy="80" rx="36" ry="32" fill="#F7F4FB"/>
   <ellipse cx="30" cy="78" rx="14" ry="26" fill="#E8D2B5"/>
   <ellipse cx="98" cy="78" rx="14" ry="26" fill="#E8D2B5"/>
@@ -263,7 +276,7 @@ const avatars = {
   ),
   "dog-poodle": svg(
     "Dog Poodle",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-poodle"))}
   <circle cx="40" cy="48" r="14" fill="#F7F4FB"/>
   <circle cx="88" cy="48" r="14" fill="#F7F4FB"/>
   <circle cx="64" cy="42" r="16" fill="#F7F4FB"/>
@@ -278,7 +291,7 @@ const avatars = {
   ),
   "dog-dachshund": svg(
     "Dog Dachshund",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-dachshund"))}
   <ellipse cx="64" cy="78" rx="34" ry="24" fill="#8B5E3C"/>
   <ellipse cx="34" cy="82" rx="14" ry="10" fill="#6E452A"/>
   <ellipse cx="94" cy="82" rx="14" ry="10" fill="#6E452A"/>
@@ -290,7 +303,7 @@ const avatars = {
   ),
   "dog-husky": svg(
     "Dog Husky",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-husky"))}
   <ellipse cx="64" cy="78" rx="32" ry="28" fill="#F7F4FB"/>
   <ellipse cx="36" cy="60" rx="12" ry="22" fill="#3D3344"/>
   <ellipse cx="92" cy="60" rx="12" ry="22" fill="#3D3344"/>
@@ -303,7 +316,7 @@ const avatars = {
   ),
   "dog-shepherd": svg(
     "Dog German Shepherd",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-shepherd"))}
   <ellipse cx="64" cy="78" rx="32" ry="28" fill="#C4A574"/>
   <ellipse cx="36" cy="58" rx="10" ry="22" fill="#3D3344"/>
   <ellipse cx="92" cy="58" rx="10" ry="22" fill="#3D3344"/>
@@ -316,7 +329,7 @@ const avatars = {
   ),
   "dog-french-bulldog": svg(
     "Dog French Bulldog",
-    `${bg("#F3E6D4")}
+    `${bg(surfaceHex("dog-french-bulldog"))}
   <ellipse cx="64" cy="80" rx="34" ry="28" fill="#9A93A6"/>
   <ellipse cx="40" cy="52" rx="12" ry="10" fill="#9A93A6"/>
   <ellipse cx="88" cy="52" rx="12" ry="10" fill="#9A93A6"/>
@@ -329,7 +342,7 @@ const avatars = {
 
   "bird-cockatiel": svg(
     "Cockatiel",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("bird-cockatiel"))}
   <ellipse cx="64" cy="78" rx="26" ry="28" fill="#F5EDE6"/>
   <path d="M64 28 L72 58 L56 58 Z" fill="#F5C84C"/>
   <circle cx="64" cy="68" r="18" fill="#F5EDE6"/>
@@ -340,7 +353,7 @@ const avatars = {
   ),
   "bird-parakeet": svg(
     "Parakeet",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("bird-parakeet"))}
   <ellipse cx="64" cy="78" rx="24" ry="28" fill="#7BC47F"/>
   <circle cx="64" cy="66" r="16" fill="#9ED6A1"/>
   <ellipse cx="54" cy="64" rx="4" ry="5" fill="#3D3344"/>
@@ -350,7 +363,7 @@ const avatars = {
   ),
   "bird-canary": svg(
     "Canary",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("bird-canary"))}
   <ellipse cx="64" cy="78" rx="24" ry="28" fill="#F5C84C"/>
   <circle cx="64" cy="66" r="16" fill="#FFE08A"/>
   <ellipse cx="54" cy="64" rx="4" ry="5" fill="#3D3344"/>
@@ -360,7 +373,7 @@ const avatars = {
   ),
   "bird-parrot": svg(
     "Parrot",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("bird-parrot"))}
   <ellipse cx="64" cy="80" rx="26" ry="30" fill="#5B7CDE"/>
   <circle cx="64" cy="66" r="17" fill="#7BC47F"/>
   <ellipse cx="54" cy="64" rx="4" ry="5" fill="#3D3344"/>
@@ -370,7 +383,7 @@ const avatars = {
   ),
   "rabbit-cream": svg(
     "Rabbit cream",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("rabbit-cream"))}
   <ellipse cx="44" cy="36" rx="10" ry="28" fill="#E8D2B5"/>
   <ellipse cx="84" cy="36" rx="10" ry="28" fill="#E8D2B5"/>
   <ellipse cx="44" cy="36" rx="5" ry="18" fill="#F6C1B0"/>
@@ -382,7 +395,7 @@ const avatars = {
   ),
   "hamster-brown": svg(
     "Hamster",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("hamster-brown"))}
   <ellipse cx="64" cy="78" rx="32" ry="28" fill="#D4A574"/>
   <ellipse cx="40" cy="70" rx="12" ry="14" fill="#E8C9A0"/>
   <ellipse cx="88" cy="70" rx="12" ry="14" fill="#E8C9A0"/>
@@ -393,7 +406,7 @@ const avatars = {
   ),
   "paw-neutral": svg(
     "Paw",
-    `${bg("#EDE8F5")}
+    `${bg(surfaceHex("paw-neutral"))}
   <ellipse cx="64" cy="82" rx="22" ry="18" fill="#9B8EC4"/>
   <circle cx="40" cy="52" r="11" fill="#9B8EC4"/>
   <circle cx="56" cy="42" r="11" fill="#9B8EC4"/>
