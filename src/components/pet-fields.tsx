@@ -1,44 +1,62 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
-import { ImagePlus, Image as ImageIcon } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ImagePlus } from "lucide-react";
 import type { Pet } from "@/types/database";
 import { FactualDateInput } from "@/components/factual-datetime-input";
 import { MicrochipFields } from "@/components/microchip-fields";
 
 /**
- * Local-only photo picker UI (File via Server Action on submit).
- * Does not upload early and does not remove a photo already persisted on edit —
- * only clears an unsaved selection.
+ * Local photo picker — shows existing profile preview on edit.
+ * Parent owns crop dialog + File + direct upload on submit.
+ * Does not invent unsafe persisted-photo delete.
  */
 function PetPhotoField({
   disabled = false,
-  onPhotoFileChange,
+  existingPhotoUrl = null,
+  croppedFile = null,
+  onRequestCrop,
+  onClearCropped,
 }: {
   disabled?: boolean;
-  onPhotoFileChange?: (file: File | null) => void;
+  existingPhotoUrl?: string | null;
+  /** Confirmed 1:1 crop from parent — preview only after crop, not on raw pick. */
+  croppedFile?: File | null;
+  onRequestCrop?: (file: File) => void;
+  onClearCropped?: () => void;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  function setLocalFile(file: File | null) {
-    setFileName(file && file.size > 0 ? file.name : null);
-    onPhotoFileChange?.(file && file.size > 0 ? file : null);
-  }
+  useEffect(() => {
+    if (!croppedFile) {
+      setFileName(null);
+      setLocalPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(croppedFile);
+    setFileName(croppedFile.name);
+    setLocalPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [croppedFile]);
 
   function clearLocalSelection() {
     if (inputRef.current) inputRef.current.value = "";
-    setLocalFile(null);
+    onClearCropped?.();
   }
 
   function openPicker() {
     inputRef.current?.click();
   }
 
+  const previewUrl = localPreview ?? existingPhotoUrl;
+  const hasExisting = Boolean(existingPhotoUrl) && !localPreview;
+
   return (
     <div>
-      <p className="text-sm font-bold">Foto</p>
+      <p className="text-sm font-bold">Foto de perfil</p>
       <input
         ref={inputRef}
         id={inputId}
@@ -50,11 +68,53 @@ function PetPhotoField({
         aria-label="Foto do pet"
         onChange={(event) => {
           const file = event.target.files?.[0] ?? null;
-          setLocalFile(file);
+          event.target.value = "";
+          if (file && file.size > 0) onRequestCrop?.(file);
         }}
       />
 
-      {!fileName ? (
+      {previewUrl ? (
+        <div className="mt-2 rounded-[18px] border border-[var(--border)] bg-white p-4">
+          <div className="flex items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt={hasExisting ? "Foto atual do pet" : "Nova foto selecionada"}
+              className="size-24 shrink-0 rounded-full object-cover object-center"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--graphite)]">
+                {hasExisting ? "Foto atual" : fileName ?? "Nova foto"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {hasExisting
+                  ? "Escolha outra imagem para substituir no perfil."
+                  : "Recorte 1:1 confirmado — será enviada ao salvar."}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={openPicker}
+                  className="focus-ring rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  Alterar foto
+                </button>
+                {localPreview ? (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={clearLocalSelection}
+                    className="focus-ring rounded-2xl border border-red-200 px-3 py-2 text-xs font-bold text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    Descartar seleção
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
         <button
           type="button"
           disabled={disabled}
@@ -62,58 +122,38 @@ function PetPhotoField({
           className="focus-ring mt-2 flex w-full items-center justify-center gap-2 rounded-[18px] border border-dashed border-[var(--lavender)] bg-[var(--lavender-soft)] px-4 py-4 text-xs font-bold text-[var(--lavender-strong)] disabled:cursor-not-allowed disabled:opacity-55"
         >
           <ImagePlus size={17} aria-hidden />
-          Escolher imagem
+          Adicionar foto
         </button>
-      ) : (
-        <div className="mt-2 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <ImageIcon size={16} className="shrink-0 text-[var(--muted)]" aria-hidden />
-            <p className="min-w-0 truncate text-sm font-semibold text-[var(--graphite)]" title={fileName}>
-              {fileName}
-            </p>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={openPicker}
-              className="focus-ring rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-55"
-            >
-              Trocar imagem
-            </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={clearLocalSelection}
-              className="focus-ring rounded-2xl border border-red-200 px-3 py-2 text-xs font-bold text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-55"
-            >
-              Remover imagem
-            </button>
-          </div>
-        </div>
       )}
 
-      <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">JPG, PNG ou WebP, até 5 MB.</span>
+      <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">JPG, PNG ou WebP, até 5 MB. Recorte quadrado para o avatar.</span>
     </div>
   );
 }
 
 export function PetFields({
   defaultValues,
+  existingPhotoUrl = null,
+  croppedFile = null,
   includeInitialWeight = false,
+  includePhoto = true,
   initialWeightKg = "",
   disabled = false,
   nameInputRef,
-  onPhotoFileChange,
+  onRequestCrop,
+  onClearCropped,
 }: {
   defaultValues?: Partial<Pet>;
+  existingPhotoUrl?: string | null;
+  croppedFile?: File | null;
   includeInitialWeight?: boolean;
-  /** Create-only default for peso inicial. */
+  /** When false (Edit Profile), photo management is only via profile camera. */
+  includePhoto?: boolean;
   initialWeightKg?: string;
   disabled?: boolean;
   nameInputRef?: React.RefObject<HTMLInputElement | null>;
-  /** Keep the selected File in parent state across soft server responses. */
-  onPhotoFileChange?: (file: File | null) => void;
+  onRequestCrop?: (file: File) => void;
+  onClearCropped?: () => void;
 }) {
   const [isNeutered, setIsNeutered] = useState(defaultValues?.neutered ?? false);
 
@@ -218,7 +258,15 @@ export function PetFields({
         <span className="mt-1.5 block text-xs font-normal text-[var(--muted)]">Este texto aparece no cartão “Sobre” do perfil.</span>
       </label>
 
-      <PetPhotoField disabled={disabled} onPhotoFileChange={onPhotoFileChange} />
+      {includePhoto ? (
+        <PetPhotoField
+          disabled={disabled}
+          existingPhotoUrl={existingPhotoUrl}
+          croppedFile={croppedFile}
+          onRequestCrop={onRequestCrop}
+          onClearCropped={onClearCropped}
+        />
+      ) : null}
     </div>
   );
 }

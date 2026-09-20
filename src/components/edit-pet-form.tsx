@@ -5,31 +5,25 @@ import { HomonymNameDialog } from "@/components/homonym-name-dialog";
 import { PetFields } from "@/components/pet-fields";
 import { SubmitButton } from "@/components/submit-button";
 import type { UpdatePetResult } from "@/app/(app)/pets/actions";
-import type { Pet } from "@/types/database";
-
-function attachPreservedPhoto(formData: FormData, preserved: File | null) {
-  const current = formData.get("photo");
-  if (current instanceof File && current.size > 0) return;
-  if (preserved && preserved.size > 0) formData.set("photo", preserved);
-}
+import type { PetWithPhotoUrl } from "@/types/database";
 
 /**
- * Edit-pet form with server-authoritative active-homonym confirmation.
- * Imperative Server Action avoids form/File reset on soft duplicate warnings.
+ * Edit-pet form — factual/profile fields only.
+ * Photo/avatar management lives on the profile camera control.
  */
 export function EditPetForm({
   pet,
   action,
   initialError,
 }: {
-  pet: Pet;
+  pet: PetWithPhotoUrl;
   action: (formData: FormData) => Promise<UpdatePetResult>;
   initialError?: string | null;
 }) {
   const [error, setError] = useState<string | null>(initialError ?? null);
+  const [status, setStatus] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
   const allowDuplicateRef = useRef(false);
-  const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const originalName = pet.name;
@@ -38,7 +32,6 @@ export function EditPetForm({
   const closeDuplicateRestoreName = useCallback(() => {
     allowDuplicateRef.current = false;
     setDuplicate(null);
-    // EDIT cancel: restore original name (not empty); keep other unsaved edits + File.
     if (nameInputRef.current) {
       nameInputRef.current.value = originalName;
       nameInputRef.current.focus();
@@ -48,13 +41,11 @@ export function EditPetForm({
   function runUpdate(form: HTMLFormElement, allowDuplicate: boolean) {
     startTransition(async () => {
       setError(null);
+      setStatus("Salvando...");
       if (!allowDuplicate) setDuplicate(null);
       const formData = new FormData(form);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
-      const selected = formData.get("photo");
-      if (selected instanceof File && selected.size > 0) photoFileRef.current = selected;
-      attachPreservedPhoto(formData, photoFileRef.current);
 
       try {
         const result = await action(formData);
@@ -65,13 +56,16 @@ export function EditPetForm({
         if ("duplicateName" in result && result.duplicateName) {
           allowDuplicateRef.current = false;
           setDuplicate({ name: result.name, existingLabel: result.existingLabel });
+          setStatus(null);
           return;
         }
         allowDuplicateRef.current = false;
         setError("error" in result ? result.error : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       } catch (cause) {
         allowDuplicateRef.current = false;
         setError(cause instanceof Error ? cause.message : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       }
     });
   }
@@ -95,19 +89,16 @@ export function EditPetForm({
           </div>
         ) : null}
 
-        {pending ? (
+        {status || pending ? (
           <p className="mb-4 text-sm font-semibold text-[var(--lavender-strong)]" aria-live="polite">
-            Salvando...
+            {status ?? "Salvando..."}
           </p>
         ) : null}
 
-        <PetFields
-          defaultValues={pet}
-          nameInputRef={nameInputRef}
-          onPhotoFileChange={(file) => {
-            photoFileRef.current = file;
-          }}
-        />
+        <PetFields defaultValues={pet} includePhoto={false} disabled={pending} nameInputRef={nameInputRef} />
+        <p className="mt-4 text-xs text-[var(--muted)]">
+          Para alterar a foto ou o avatar, use o botão da câmera no perfil do pet.
+        </p>
         <SubmitButton
           disabled={pending}
           pendingLabel="Salvando..."

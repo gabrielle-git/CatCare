@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog French Bulldog">
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
+  <ellipse cx="64" cy="80" rx="34" ry="28" fill="#9A93A6"/>
+  <ellipse cx="40" cy="52" rx="12" ry="10" fill="#9A93A6"/>
+  <ellipse cx="88" cy="52" rx="12" ry="10" fill="#9A93A6"/>
+  <ellipse cx="64" cy="90" rx="16" ry="12" fill="#6B5B7A"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="8" ry="5" fill="#3D3344"/>
+  <path d="M56 92 Q64 98 72 92" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -215,11 +215,11 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(actions, /isUniqueViolation/);
   });
 
-  it("create form uses imperative Server Action (preventDefault) so File is not reset", () => {
+  it("create form uses imperative Server Action (preventDefault) so selection is not reset", () => {
     assert.match(createForm, /event\.preventDefault\(\)/);
     assert.match(createForm, /new FormData\(form\)/);
     assert.match(createForm, /photoFileRef/);
-    assert.match(createForm, /attachPreservedPhoto|formData\.set\("photo"/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
     assert.doesNotMatch(createForm, /key=\{fieldsKey\}|restoreDraft/);
     assert.match(createForm, /onSubmit=/);
   });
@@ -240,7 +240,7 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(createForm, /nameInputRef\.current\.focus\(\)/);
     assert.match(createForm, /const \[petId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
     assert.match(createForm, /const \[weightRecordId\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
-    assert.equal((createForm.match(/crypto\.randomUUID\(\)/g) ?? []).length, 2);
+    assert.match(createForm, /photoIntentId/);
     assert.doesNotMatch(createForm, /setPetId|setWeightRecordId/);
   });
 
@@ -276,7 +276,7 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(editForm, /nameInputRef\.current\.value = originalName/);
     assert.match(editForm, /Salvar mesmo assim/);
     assert.match(editForm, /runUpdate\(form, true\)/);
-    assert.match(editForm, /photoFileRef/);
+    assert.match(editForm, /includePhoto=\{false\}/);
     assert.match(editPage, /EditPetForm/);
     assert.match(editPage, /updatePet\.bind/);
   });
@@ -295,21 +295,23 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.doesNotMatch(fields, /birth_date_estimated[\s\S]{0,200}bg-\[var\(--cream\)\]/);
   });
 
-  it("pet photo picker: empty / selected / replace / remove without submitting form", () => {
-    assert.match(fields, /Escolher imagem/);
-    assert.match(fields, /Trocar imagem/);
-    assert.match(fields, /Remover imagem/);
+  it("pet photo picker: existing preview / add / alter / discard without persisted delete", () => {
+    assert.match(fields, /Foto de perfil/);
+    assert.match(fields, /Adicionar foto/);
+    assert.match(fields, /Alterar foto/);
+    assert.match(fields, /Descartar seleção/);
+    assert.match(fields, /Foto atual/);
+    assert.match(fields, /existingPhotoUrl/);
     assert.match(fields, /JPG, PNG ou WebP, até 5 MB/);
     assert.match(fields, /type="file"/);
     assert.match(fields, /className="sr-only"/);
     assert.match(fields, /name="photo"/);
     assert.match(fields, /clearLocalSelection/);
     assert.match(fields, /inputRef\.current\.value = ""/);
-    assert.match(fields, /onPhotoFileChange/);
+    assert.match(fields, /onRequestCrop/);
     assert.match(fields, /onClick=\{openPicker\}/);
     assert.match(fields, /onClick=\{clearLocalSelection\}/);
-    // Three type=button controls (choose / replace / remove) — never submit.
-    assert.equal((fields.match(/type="button"/g) ?? []).length, 3);
+    assert.doesNotMatch(fields, /Escolher imagem|Trocar imagem|Remover imagem/);
     assert.doesNotMatch(fields, /createSignedUploadUrl|uploadToSignedUrl|base64/);
     // Local selection only — no persisted-photo delete control in this polish.
     assert.doesNotMatch(fields, /remove_photo|Remover foto atual/);
@@ -319,9 +321,9 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(createForm, /photoFileRef/);
     assert.match(createForm, /closeDuplicateClearName/);
     assert.match(createForm, /nameInputRef\.current\.value = ""/);
-    assert.match(editForm, /photoFileRef/);
-    assert.match(createForm, /attachPreservedPhoto|formData\.set\("photo"/);
-    assert.match(editForm, /attachPreservedPhoto|formData\.set\("photo"/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
+    // Edit form no longer uploads photo — camera control owns that path.
+    assert.doesNotMatch(editForm, /runDirectPetPhotoUpload|photoFileRef/);
   });
 
   it("does not introduce migration 0036 or delete Zabuza", () => {
@@ -329,12 +331,14 @@ describe("pet create + edit wiring (source contracts)", () => {
     assert.match(dialog, /Já existe um pet com esse nome/);
   });
 
-  it("photo remains Server Action File transport (not direct upload in this PR)", () => {
-    assert.match(actions, /instanceof File/);
-    assert.match(actions, /uploadPhoto/);
-    assert.doesNotMatch(actions, /createSignedUploadUrl|uploadToSignedUrl/);
-    assert.doesNotMatch(createForm, /createSignedUploadUrl|uploadToSignedUrl/);
-    assert.doesNotMatch(editForm, /createSignedUploadUrl|uploadToSignedUrl/);
+  it("photo uses direct upload transport with server-side validation (not File in Server Action)", () => {
+    assert.match(actions, /validateStoredPetPhotoObject|finalizePetPhotoPath|pet_photo_payload/);
+    assert.match(actions, /rejectBinaryPhoto|instanceof File/);
+    assert.doesNotMatch(actions, /async function uploadPhoto/);
+    assert.match(createForm, /runDirectPetPhotoUpload/);
+    assert.match(actions, /replacePetProfilePhoto|removePetPhoto/);
+    const photoClient = readFileSync(join(root, "src/lib/pet-photo-direct-upload-client.ts"), "utf8");
+    assert.match(photoClient, /Enviando foto\.\.\./);
   });
 
   it("expected errors stay as structured results (no RSC crash redirect-only path on update)", () => {

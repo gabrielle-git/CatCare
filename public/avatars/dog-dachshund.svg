@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog Dachshund">
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
+  <ellipse cx="64" cy="78" rx="34" ry="24" fill="#8B5E3C"/>
+  <ellipse cx="34" cy="82" rx="14" ry="10" fill="#6E452A"/>
+  <ellipse cx="94" cy="82" rx="14" ry="10" fill="#6E452A"/>
+  <circle cx="50" cy="74" r="5" fill="#F5EDE6"/>
+  <circle cx="78" cy="74" r="5" fill="#F5EDE6"/>
+  <ellipse cx="64" cy="88" rx="8" ry="5" fill="#3D3344"/>
+  <path d="M64 90 Q54 98 48 94" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 90 Q74 98 80 94" fill="none" stroke="#F5EDE6" stroke-width="2" stroke-linecap="round"/>
+</svg>

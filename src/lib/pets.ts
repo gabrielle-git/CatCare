@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseBuiltinPetAvatarId, builtinPetAvatarPublicUrl, isBuiltinPetAvatarPath } from "@/lib/pet-avatars";
 import type { Pet, PetWithPhotoUrl } from "@/types/database";
 
 export const PET_MEDIA_BUCKET = "pet-media";
@@ -7,6 +8,17 @@ const PHOTO_TTL_SECONDS = 60 * 30;
 
 async function addPhotoUrl(supabase: SupabaseClient, pet: Pet): Promise<PetWithPhotoUrl> {
   if (!pet.photo_path) return { ...pet, photo_url: null };
+
+  const builtinId = parseBuiltinPetAvatarId(pet.photo_path);
+  if (builtinId) {
+    return { ...pet, photo_url: builtinPetAvatarPublicUrl(builtinId) };
+  }
+
+  // Unknown builtin-shaped path → no signed URL (do not leak to Storage).
+  if (isBuiltinPetAvatarPath(pet.photo_path)) {
+    return { ...pet, photo_url: null };
+  }
+
   const { data, error } = await supabase.storage.from(PET_MEDIA_BUCKET).createSignedUrl(pet.photo_path, PHOTO_TTL_SECONDS);
   return { ...pet, photo_url: error ? null : data.signedUrl };
 }

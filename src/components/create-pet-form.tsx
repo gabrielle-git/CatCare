@@ -3,23 +3,16 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { HomonymNameDialog } from "@/components/homonym-name-dialog";
 import { PetFields } from "@/components/pet-fields";
+import { ProfilePhotoCropDialog } from "@/components/profile-photo-crop-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import type { CreatePetResult } from "@/app/(app)/pets/actions";
+import {
+  compensatePetPhotoIfNeeded,
+  runDirectPetPhotoUpload,
+} from "@/lib/pet-photo-direct-upload-client";
 
 /**
- * Ensure photo File stays on FormData even if the native file input was cleared.
- * Holds a single File reference — no base64, no pre-upload.
- */
-function attachPreservedPhoto(formData: FormData, preserved: File | null) {
-  const current = formData.get("photo");
-  if (current instanceof File && current.size > 0) return;
-  if (preserved && preserved.size > 0) formData.set("photo", preserved);
-}
-
-/**
- * New-pet form: stable pet_id + weight intent, pending UX, accessible homonym dialog.
- * Uses imperative Server Action (preventDefault) so React does not reset the form —
- * including the selected photo File — when a soft duplicate warning returns.
+ * New-pet form: stable pet_id + weight intent, pending UX, 1:1 crop, direct photo upload.
  */
 export function CreatePetForm({
   action,
@@ -32,8 +25,12 @@ export function CreatePetForm({
 }) {
   const [petId] = useState(() => crypto.randomUUID());
   const [weightRecordId] = useState(() => crypto.randomUUID());
+  const [photoIntentId, setPhotoIntentId] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(initialError ?? null);
+  const [status, setStatus] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; existingLabel: string } | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const allowDuplicateRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +40,6 @@ export function CreatePetForm({
   const closeDuplicateClearName = useCallback(() => {
     allowDuplicateRef.current = false;
     setDuplicate(null);
-    // CREATE cancel: clear only Nome; keep same intent IDs and other fields/File.
     if (nameInputRef.current) {
       nameInputRef.current.value = "";
       nameInputRef.current.focus();
@@ -53,32 +49,42 @@ export function CreatePetForm({
   function runCreate(form: HTMLFormElement, allowDuplicate: boolean) {
     startTransition(async () => {
       setError(null);
+      setStatus(null);
       if (!allowDuplicate) setDuplicate(null);
       const formData = new FormData(form);
       formData.set("pet_id", petId);
       formData.set("initial_weight_record_id", weightRecordId);
       if (allowDuplicate) formData.set("allow_duplicate_name", "true");
       else formData.delete("allow_duplicate_name");
-      const selected = formData.get("photo");
-      if (selected instanceof File && selected.size > 0) photoFileRef.current = selected;
-      attachPreservedPhoto(formData, photoFileRef.current);
 
+      let newlyCreatedPaths: string[] = [];
       try {
+        newlyCreatedPaths = (
+          await runDirectPetPhotoUpload(formData, petId, photoIntentId, photoFileRef.current, (progress) => {
+            setStatus(progress.message);
+          })
+        ).newlyCreatedPaths;
+        setStatus("Salvando...");
         const result = await action(formData);
         if (result.ok) {
           window.location.replace(result.redirectTo);
           return;
         }
+        if (newlyCreatedPaths.length) await compensatePetPhotoIfNeeded(newlyCreatedPaths);
         if ("duplicateName" in result && result.duplicateName) {
           allowDuplicateRef.current = false;
           setDuplicate({ name: result.name, existingLabel: result.existingLabel });
+          setStatus(null);
           return;
         }
         allowDuplicateRef.current = false;
         setError("error" in result ? result.error : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       } catch (cause) {
+        if (newlyCreatedPaths.length) await compensatePetPhotoIfNeeded(newlyCreatedPaths);
         allowDuplicateRef.current = false;
         setError(cause instanceof Error ? cause.message : "Não foi possível salvar. Tente novamente.");
+        setStatus(null);
       }
     });
   }
@@ -105,18 +111,21 @@ export function CreatePetForm({
           </div>
         ) : null}
 
-        {pending ? (
+        {status || pending ? (
           <p className="mb-4 text-sm font-semibold text-[var(--lavender-strong)]" aria-live="polite">
-            Salvando...
+            {status ?? "Salvando..."}
           </p>
         ) : null}
 
         <PetFields
           includeInitialWeight
-          disabled={!configured}
+          disabled={!configured || pending}
           nameInputRef={nameInputRef}
-          onPhotoFileChange={(file) => {
-            photoFileRef.current = file;
+          croppedFile={croppedFile}
+          onRequestCrop={(file) => setCropFile(file)}
+          onClearCropped={() => {
+            photoFileRef.current = null;
+            setCroppedFile(null);
           }}
         />
         <SubmitButton
@@ -127,6 +136,19 @@ export function CreatePetForm({
           Salvar pet
         </SubmitButton>
       </form>
+
+      <ProfilePhotoCropDialog
+        open={Boolean(cropFile)}
+        file={cropFile}
+        pending={pending}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(cropped) => {
+          photoFileRef.current = cropped;
+          setCroppedFile(cropped);
+          setPhotoIntentId(crypto.randomUUID());
+          setCropFile(null);
+        }}
+      />
 
       <HomonymNameDialog
         open={Boolean(duplicate)}

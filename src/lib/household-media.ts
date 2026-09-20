@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isStoragePetPhotoPath } from "@/lib/pet-avatars";
 import { PET_MEDIA_BUCKET } from "@/lib/pets";
 
 async function listFolderPaths(supabase: SupabaseClient, prefix: string): Promise<string[]> {
@@ -23,7 +24,8 @@ export async function removeHouseholdMedia(supabase: SupabaseClient, householdId
   ]);
 
   const fromTables = [
-    ...(pets.data ?? []).map((row) => row.photo_path),
+    // Pet photo_path may be builtin: — only Storage-backed paths are removable.
+    ...(pets.data ?? []).map((row) => row.photo_path).filter((path): path is string => isStoragePetPhotoPath(path)),
     ...(memories.data ?? []).map((row) => row.media_path),
     ...(media.data ?? []).map((row) => row.storage_path),
     ...(documents.data ?? []).map((row) => row.storage_path),

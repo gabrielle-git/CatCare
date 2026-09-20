@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dog cream">
+  <circle cx="64" cy="64" r="64" fill="#F3E6D4"/>
+  <ellipse cx="64" cy="78" rx="30" ry="28" fill="#E8D2B5"/>
+  <ellipse cx="38" cy="62" rx="11" ry="20" fill="#D9B996"/>
+  <ellipse cx="90" cy="62" rx="11" ry="20" fill="#D9B996"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="7" ry="5" fill="#E89A8A"/>
+  <path d="M64 90 Q54 100 48 96" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 90 Q74 100 80 96" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+
+</svg>

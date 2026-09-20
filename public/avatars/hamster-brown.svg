@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Hamster">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
+  <ellipse cx="64" cy="78" rx="32" ry="28" fill="#D4A574"/>
+  <ellipse cx="40" cy="70" rx="12" ry="14" fill="#E8C9A0"/>
+  <ellipse cx="88" cy="70" rx="12" ry="14" fill="#E8C9A0"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="6" ry="4" fill="#E89A8A"/>
+  <ellipse cx="64" cy="96" rx="8" ry="5" fill="#F6C1B0"/>
+</svg>

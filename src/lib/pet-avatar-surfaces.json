@@ -1,0 +1,50 @@
+{
+  "palette": {
+    "lavender": {
+      "hex": "#EDE8F5",
+      "heroSoft": "#F6F3FA"
+    },
+    "cream": {
+      "hex": "#F3E6D4",
+      "heroSoft": "#F9F3EA"
+    }
+  },
+  "byId": {
+    "cat-cream": "lavender",
+    "cat-orange": "lavender",
+    "cat-black": "lavender",
+    "cat-gray": "lavender",
+    "cat-white": "lavender",
+    "cat-tabby": "lavender",
+    "cat-calico": "lavender",
+    "cat-tuxedo": "lavender",
+    "cat-siamese": "lavender",
+    "cat-persian": "lavender",
+    "cat-maine-coon": "lavender",
+    "cat-sphynx": "lavender",
+    "cat-tortie": "lavender",
+    "cat-blue": "lavender",
+    "cat-fluffy": "lavender",
+    "cat-srd": "lavender",
+    "dog-cream": "cream",
+    "dog-brown": "cream",
+    "dog-caramel": "cream",
+    "dog-black": "cream",
+    "dog-white": "cream",
+    "dog-golden": "cream",
+    "dog-labrador": "cream",
+    "dog-shih-tzu": "cream",
+    "dog-poodle": "cream",
+    "dog-dachshund": "cream",
+    "dog-husky": "cream",
+    "dog-shepherd": "cream",
+    "dog-french-bulldog": "cream",
+    "bird-cockatiel": "lavender",
+    "bird-parakeet": "lavender",
+    "bird-canary": "lavender",
+    "bird-parrot": "lavender",
+    "rabbit-cream": "lavender",
+    "hamster-brown": "lavender",
+    "paw-neutral": "lavender"
+  }
+}

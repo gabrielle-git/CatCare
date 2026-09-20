@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cat Maine Coon">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
+  <ellipse cx="64" cy="80" rx="36" ry="30" fill="#A67C52"/>
+  <path d="M24 54 L36 18 L54 54 Z" fill="#A67C52"/>
+  <path d="M74 54 L92 18 L104 54 Z" fill="#A67C52"/>
+  <path d="M30 50 L36 28 L44 50 Z" fill="#C4A574"/>
+  <path d="M84 50 L92 28 L100 50 Z" fill="#C4A574"/>
+  <path d="M44 58 L48 90" stroke="#6E452A" stroke-width="3" stroke-linecap="round"/>
+  <path d="M64 56 L64 92" stroke="#6E452A" stroke-width="3" stroke-linecap="round"/>
+  <path d="M84 58 L80 90" stroke="#6E452A" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="5" ry="3.5" fill="#E89A8A"/>
+  <path d="M64 88 Q52 96 46 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 88 Q76 96 82 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+</svg>

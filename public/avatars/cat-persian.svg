@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cat Persian">
+  <circle cx="64" cy="64" r="64" fill="#EDE8F5"/>
+  <ellipse cx="64" cy="80" rx="38" ry="32" fill="#E8D2B5"/>
+  <path d="M26 56 L38 24 L54 56 Z" fill="#E8D2B5"/>
+  <path d="M74 56 L90 24 L102 56 Z" fill="#E8D2B5"/>
+  <path d="M32 52 L38 32 L46 52 Z" fill="#F6C1B0"/>
+  <path d="M82 52 L90 32 L98 52 Z" fill="#F6C1B0"/>
+  <circle cx="50" cy="74" r="5" fill="#3D3344"/>
+  <circle cx="78" cy="74" r="5" fill="#3D3344"/>
+  <ellipse cx="64" cy="88" rx="6" ry="4" fill="#E89A8A"/>
+  <path d="M64 88 Q52 96 46 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+  <path d="M64 88 Q76 96 82 92" fill="none" stroke="#3D3344" stroke-width="2" stroke-linecap="round"/>
+</svg>
