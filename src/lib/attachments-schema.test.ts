@@ -86,8 +86,8 @@ describe("0035 health_record_attachments", () => {
     assert.match(migration0035, /is_household_member\(household_id\)/);
   });
 
-  it("does not create 0036", () => {
+  it("does not create unrelated 0036 migrations", () => {
     const extras = readdirSync(path.join(process.cwd(), "supabase/migrations")).filter((name) => /^0036/.test(name));
-    assert.deepEqual(extras, []);
+    assert.deepEqual(extras, ["0036_feeding_session_idempotency.sql"]);
   });
 });

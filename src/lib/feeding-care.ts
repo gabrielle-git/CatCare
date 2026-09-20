@@ -110,6 +110,8 @@ export type FeedingItemFields = {
 
 export type FeedingSessionPayloadEntry = {
   pet_id: string;
+  /** Stable client intent id — when set, RPC create-or-reuses that session. */
+  session_id?: string;
   notes: string | null;
   items: FeedingItemFields[];
 };
@@ -334,6 +336,7 @@ export function applyFeedingAmountOverrides(
 /**
  * Build RPC payload for create_feeding_sessions_batch.
  * Shared quality is passed separately; per-pet notes + amount overrides apply here.
+ * When sessionIdsByPetId is provided, each entry includes session_id for idempotent create.
  */
 export function buildFeedingSessionBatchPayload(args: {
   petIds: readonly string[];
@@ -341,12 +344,24 @@ export function buildFeedingSessionBatchPayload(args: {
   defaultItems: readonly FeedingItemFields[];
   formData?: FormData | null;
   overridePetIds?: ReadonlySet<string>;
+  /** Stable feeding session id per pet (from record_ids_json[petId].feeding). */
+  sessionIdsByPetId?: ReadonlyMap<string, string> | ((petId: string) => string | null | undefined);
 }): { ok: true; payload: FeedingSessionPayloadEntry[] } | { ok: false; message: string } {
   if (args.petIds.length === 0) return { ok: false, message: "Selecione ao menos um pet." };
   if (args.defaultItems.length === 0) return { ok: false, message: "Escolha ao menos um alimento." };
 
   const notesFor = (petId: string) =>
     typeof args.notesByPetId === "function" ? args.notesByPetId(petId) : (args.notesByPetId.get(petId) ?? null);
+
+  const sessionFor = (petId: string): string | undefined => {
+    if (!args.sessionIdsByPetId) return undefined;
+    const raw =
+      typeof args.sessionIdsByPetId === "function"
+        ? args.sessionIdsByPetId(petId)
+        : args.sessionIdsByPetId.get(petId);
+    const id = String(raw ?? "").trim();
+    return id || undefined;
+  };
 
   const overridePets = args.overridePetIds ?? new Set<string>();
   const payload: FeedingSessionPayloadEntry[] = [];
@@ -358,8 +373,10 @@ export function buildFeedingSessionBatchPayload(args: {
       if (!applied.ok) return applied;
       items = applied.items;
     }
+    const session_id = sessionFor(petId);
     payload.push({
       pet_id: petId,
+      ...(session_id ? { session_id } : {}),
       notes: notesFor(petId),
       items,
     });

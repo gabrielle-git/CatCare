@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { localFileSelectionKey } from "@/lib/attachments";
@@ -195,19 +195,11 @@ describe("wave-2b wiring (source contracts)", () => {
     assert.match(photoClient, /Enviando foto/);
   });
 
-  it("abandonment limitation documented; no 0036; feeding untouched", () => {
+  it("abandonment limitation documented; memory did not invent 0036; feeding create remains", () => {
     const mediaLib = readFileSync(join(root, "src/lib/memory-media-upload.ts"), "utf8");
     assert.match(mediaLib + memoryActions, /memories\/\{memory_id\}|\/memories\//);
-    // Decision may be documented as "no 0036"; code must not introduce a migration file.
     assert.doesNotMatch(memoryActions + petActions, /migrations\/0036|0036_/);
-    let has0036 = false;
-    try {
-      readFileSync(join(root, "supabase/migrations/0036_anything.sql"));
-      has0036 = true;
-    } catch {
-      has0036 = false;
-    }
-    assert.equal(has0036, false);
+    assert.equal(existsSync(join(root, "supabase/migrations/0036_feeding_session_idempotency.sql")), true);
 
     const recordsActions = readFileSync(join(root, "src/app/(app)/records/new/actions.ts"), "utf8");
     assert.match(recordsActions, /create_feeding_sessions_batch/);

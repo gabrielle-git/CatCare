@@ -245,9 +245,10 @@ describe("direct-upload wiring (source contracts)", () => {
     assert.doesNotMatch(nextConfig, /bodySizeLimit/);
   });
 
-  it("no migration 0036 introduced", () => {
+  it("only feeding session idempotency may own migration 0036", () => {
     const list = readdirSync(join(root, "supabase/migrations"));
-    assert.equal(list.some((name) => name.includes("0036")), false);
+    const extras = list.filter((name) => name.includes("0036"));
+    assert.deepEqual(extras, ["0036_feeding_session_idempotency.sql"]);
   });
 });
 

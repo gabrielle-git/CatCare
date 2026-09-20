@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { isUniqueViolation } from "@/lib/create-idempotency";
@@ -288,25 +288,22 @@ describe("wave-2a createRecord wiring (source contracts)", () => {
     assert.match(healthActionsSnippet, /isAttachableQuickRecordType/);
   });
 
-  it("does not touch feeding RPC, memory, pet photo, or invent 0036", () => {
+  it("feeding create now uses stable session ids; memory/pet photo untouched by this wave-2a file scope", () => {
     assert.match(actions, /create_feeding_sessions_batch/);
-    assert.doesNotMatch(actions, /p_session_id/);
+    assert.match(actions, /readStableRecordIdForPetType\(formData, pet\.id, "feeding"/);
+    assert.match(actions, /sessionIdsByPetId/);
     assert.doesNotMatch(actions, /memory_media|createMemory|photo_path/);
-    assert.doesNotMatch(actions + neonatalLib, /0036/);
+    assert.doesNotMatch(neonatalLib, /0036/);
   });
 });
 
 describe("wave-2a scope guards", () => {
-  it("no migration 0036 file and wave-1 create helpers still present", () => {
+  it("feeding 0036 may exist; wave-1 create helpers still present", () => {
     const root = process.cwd();
-    let has0036 = false;
-    try {
-      readFileSync(join(root, "supabase/migrations/0036_feeding_idempotency.sql"));
-      has0036 = true;
-    } catch {
-      has0036 = false;
-    }
-    assert.equal(has0036, false);
+    assert.equal(
+      existsSync(join(root, "supabase/migrations/0036_feeding_session_idempotency.sql")),
+      true,
+    );
 
     const expense = readFileSync(join(root, "src/app/(app)/expenses/actions.ts"), "utf8");
     const purchase = readFileSync(join(root, "src/app/(app)/shopping/actions.ts"), "utf8");

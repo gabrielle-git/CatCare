@@ -88,6 +88,7 @@ describe("feeding-care catalog", () => {
     assert.equal(batch.payload[0].items.length, 2);
     assert.equal(batch.payload[0].notes, "comeu bem");
     assert.equal(batch.payload[1].notes, null);
+    assert.equal(batch.payload[0].session_id, undefined);
   });
 
   it("search aliases cover racao/sache/leite", () => {
