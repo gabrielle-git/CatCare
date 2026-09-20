@@ -428,12 +428,24 @@ export async function createRecord(formData: FormData) {
           : [],
       );
 
+      const petIdList = pets.map((pet) => pet.id);
+      const sessionIdsByPetId = new Map<string, string>();
+      for (const pet of pets) {
+        const stableId = readStableRecordIdForPetType(formData, pet.id, "feeding", petIdList);
+        if (!stableId) {
+          failHere("Não foi possível identificar esta refeição. Recarregue a página e tente de novo.");
+        } else {
+          sessionIdsByPetId.set(pet.id, stableId);
+        }
+      }
+
       const batch = buildFeedingSessionBatchPayload({
-        petIds: pets.map((pet) => pet.id),
+        petIds: petIdList,
         notesByPetId: (petId) => notesForPet(petId),
         defaultItems,
         formData,
         overridePetIds,
+        sessionIdsByPetId,
       });
       if (!batch.ok) failHere(batch.message);
       const payload = batch.ok ? batch.payload : [];
