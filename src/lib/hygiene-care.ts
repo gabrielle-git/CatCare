@@ -52,6 +52,51 @@ export function resolveHygieneSubtype(raw: string | null | undefined): HygieneSu
   return isHygieneSubtypeKey(value) ? value : null;
 }
 
+/**
+ * Flat stable key for create idempotency inside record_ids_json[petId].
+ * Example: bath → "hygiene:bath". Invalid/unknown subtypes return null.
+ */
+export function hygieneStableRecordKey(subtype: string | null | undefined): string | null {
+  const key = resolveHygieneSubtype(subtype);
+  return key ? `hygiene:${key}` : null;
+}
+
+/**
+ * Merge create-intent IDs without reminting existing keys.
+ * Keeps deselected pet/subtype entries for reselect within the same mount.
+ */
+export function mergeCreateStableRecordIds(
+  prev: Record<string, Record<string, string>>,
+  options: {
+    petIds: readonly string[];
+    activeTypes: readonly string[];
+    hygieneSubtypes: readonly string[];
+    mintId: () => string;
+  },
+): Record<string, Record<string, string>> {
+  const next: Record<string, Record<string, string>> = {};
+  for (const [petId, petMap] of Object.entries(prev)) {
+    next[petId] = { ...petMap };
+  }
+  for (const petId of options.petIds) {
+    const petMap = { ...(next[petId] ?? {}) };
+    for (const type of options.activeTypes) {
+      if (type === "hygiene") {
+        petMap.hygiene = petMap.hygiene ?? options.mintId();
+        for (const subtype of options.hygieneSubtypes) {
+          const stableKey = hygieneStableRecordKey(subtype);
+          if (!stableKey) continue;
+          petMap[stableKey] = petMap[stableKey] ?? options.mintId();
+        }
+      } else {
+        petMap[type] = petMap[type] ?? options.mintId();
+      }
+    }
+    next[petId] = petMap;
+  }
+  return next;
+}
+
 export function hygieneDisplayLabel(subtype: string | null | undefined, customLabel?: string | null): string {
   const key = String(subtype ?? "").trim();
   if (key === "other") {

@@ -13,7 +13,7 @@ import {
 import { isAttachableQuickRecordType } from "@/lib/health-record-type";
 import type { AttachmentWithUrl } from "@/types/database";
 import { gramsToKgInput } from "@/lib/format";
-import { HYGIENE_PRESETS, type HygieneSubtypeKey } from "@/lib/hygiene-care";
+import { HYGIENE_PRESETS, type HygieneSubtypeKey, mergeCreateStableRecordIds } from "@/lib/hygiene-care";
 import {
   FEEDING_CARE_PRESETS,
   countFeedingAwareCreateRecords,
@@ -495,19 +495,15 @@ export function RecordFields({
 
   useEffect(() => {
     if (mode !== "create") return;
-    setRecordIdsByPetType((prev) => {
-      const next: Record<string, Record<string, string>> = {};
-      for (const petId of visibleSelectedIds) {
-        const prevPet = prev[petId] ?? {};
-        const nextPet: Record<string, string> = {};
-        for (const type of activeTypes) {
-          nextPet[type] = prevPet[type] ?? crypto.randomUUID();
-        }
-        next[petId] = nextPet;
-      }
-      return next;
-    });
-  }, [mode, visibleSelectedIds, activeTypes]);
+    setRecordIdsByPetType((prev) =>
+      mergeCreateStableRecordIds(prev, {
+        petIds: visibleSelectedIds,
+        activeTypes,
+        hygieneSubtypes,
+        mintId: () => crypto.randomUUID(),
+      }),
+    );
+  }, [mode, visibleSelectedIds, activeTypes, hygieneSubtypes]);
 
   useEffect(() => {
     if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {

@@ -6,6 +6,7 @@ import {
   compensateIfNeeded,
   runDirectAttachmentUploads,
 } from "@/lib/attachment-direct-upload-client";
+import { resolveDirectUploadActionOutcome } from "@/lib/record-create-result";
 
 type Mode = "records-create" | "records-edit" | "documents";
 
@@ -54,7 +55,17 @@ export function DirectUploadForm({
             newlyCreatedPaths = upload.newlyCreatedPaths;
             setStatus("Salvando...");
             const result = await action(formData);
-            if (onActionResult) onActionResult(result);
+            const outcome = resolveDirectUploadActionOutcome(result, Boolean(onActionResult));
+            if (outcome.kind === "custom") {
+              onActionResult?.(outcome.result);
+              return;
+            }
+            if (outcome.kind === "structured_error") {
+              // Keep form mounted; do not compensate — server may have partially linked uploads.
+              setError(outcome.error);
+              setStatus(null);
+              return;
+            }
           } catch (cause) {
             // Next.js redirect throws; rethrow so navigation proceeds.
             const digest = cause && typeof cause === "object" && "digest" in cause

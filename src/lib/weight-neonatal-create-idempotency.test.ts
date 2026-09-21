@@ -272,7 +272,7 @@ describe("wave-2a createRecord wiring (source contracts)", () => {
   it("client keeps record_ids_json stable across retries; pending UX present", () => {
     assert.match(recordFields, /recordIdsByPetType/);
     assert.match(recordFields, /record_ids_json/);
-    assert.match(recordFields, /prevPet\[type\] \?\? crypto\.randomUUID\(\)/);
+    assert.match(recordFields, /mergeCreateStableRecordIds/);
     assert.doesNotMatch(recordFields, /setRecordIdsByPetType\(\{\}\)/);
     assert.match(recordFields, /pendingLabel="Salvando\.\.\."/);
     assert.match(page, /DirectUploadForm/);
