@@ -325,9 +325,12 @@ describe("hygiene create wiring (Phase B)", () => {
     );
   });
 
-  it("no migration 0037; edit/delete stay on health_records", () => {
+  it("hygiene owns no migration after 0031; later ledgers may exist for other domains", () => {
     const migrations = readdirSync(join(root, "supabase/migrations"));
-    assert.equal(migrations.some((name) => name.includes("0037")), false);
+    assert.equal(migrations.some((name) => /^0031_.*hygiene/i.test(name)), true);
+    assert.equal(migrations.some((name) => /00(3[2-9]|[4-9]\d)_.*hygiene/i.test(name)), false);
+    // 0037 is purchases/expenses V2 schema — not a hygiene ownership claim.
+    assert.equal(migrations.includes("0037_purchase_items_and_cart_economics.sql"), true);
     const updateActions = readFileSync(join(root, "src/app/(app)/records/actions.ts"), "utf8");
     assert.match(updateActions, /type === "hygiene"/);
     assert.doesNotMatch(updateActions, /hygiene_sessions|hygieneStableRecordKey/);
