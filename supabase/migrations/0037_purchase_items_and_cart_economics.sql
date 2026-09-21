@@ -304,29 +304,21 @@ begin
         r.id;
     end if;
 
-    unit_price := null;
-
-    if r.quantity = 1 then
-      unit_price := merch;
-    else
-      select g.u into unit_price
-      from generate_series(0, merch) as g(u)
-      where (round(r.quantity * g.u))::integer = merch
-      order by g.u
-      limit 1;
-    end if;
-
-    if unit_price is null then
+    -- Nearest integer-cent unit price via division (supports qty < 1).
+    -- Do NOT enumerate candidate unit prices from 0..merchandise: that misses
+    -- unit prices > merch when quantity is fractional (e.g. qty=0.50, merch=100 → unit=200).
+    unit_price := round(merch::numeric / r.quantity)::integer;
+    if unit_price is null or unit_price < 0 then
       raise exception
-        '0037 backfill blocked: purchase % qty=% merchandise=% has no integer unit_price_cents satisfying round(qty*unit)=merchandise',
+        '0037 backfill blocked: purchase % qty=% merchandise=% produced invalid unit_price_cents',
         r.id, r.quantity, merch;
     end if;
 
     computed_subtotal := (round(r.quantity * unit_price))::integer;
     if computed_subtotal <> merch then
       raise exception
-        '0037 backfill blocked: purchase % computed line_subtotal % <> merchandise %',
-        r.id, computed_subtotal, merch;
+        '0037 backfill blocked: purchase % qty=% merchandise=% has no integer unit_price_cents satisfying round(qty*unit)=merchandise (candidate unit=% computed=%)',
+        r.id, r.quantity, merch, unit_price, computed_subtotal;
     end if;
 
     insert into public.purchase_items (

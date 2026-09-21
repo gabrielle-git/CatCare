@@ -71,6 +71,17 @@ describe("0037 purchase items cart economics migration contract", () => {
     assert.match(sql, /gen_random_uuid\(\)/);
   });
 
+  it("derives backfill unit_price by division, not generate_series enumeration", () => {
+    const backfillStart = sql.indexOf("Deterministic legacy purchase");
+    const backfillEnd = sql.indexOf("-- G/H already covered");
+    assert.ok(backfillStart >= 0 && backfillEnd > backfillStart);
+    const backfill = sql.slice(backfillStart, backfillEnd);
+    assert.doesNotMatch(backfill, /generate_series/i);
+    assert.match(backfill, /round\(merch::numeric\s*\/\s*r\.quantity\)::integer/);
+    assert.match(backfill, /computed_subtotal\s*<>\s*merch/);
+    assert.match(backfill, /0037 backfill blocked:[\s\S]*satisfying round\(qty\*unit\)=merchandise/);
+  });
+
   it("enables RLS policies and same-household purchase FK", () => {
     assert.match(sql, /enable row level security/);
     assert.match(sql, /purchase_items_member_select/);
