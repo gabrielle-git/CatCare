@@ -35,8 +35,8 @@ export default async function EditProductPage({ params, searchParams }: { params
       </form>
       <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
         <h2 className="font-bold">Apagar produto</h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">Remove o produto, compras e gastos vinculados.</p>
-        <form action={remove} className="mt-4"><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]"><Trash2 size={15} /> Apagar produto</ConfirmButton></form>
+        <p className="mt-1 text-xs text-[var(--muted)]">Só é possível apagar produtos sem compras ou avaliações vinculadas. O histórico da família é preservado.</p>
+        <form action={remove} className="mt-4"><ConfirmButton message="Apagar este produto? Só funciona se ele não tiver compras ou avaliações no histórico." className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]"><Trash2 size={15} /> Apagar produto</ConfirmButton></form>
       </section>
     </div>
   );

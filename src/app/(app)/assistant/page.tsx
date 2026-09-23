@@ -1,7 +1,7 @@
 import { Bot, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
-import { listCommerce, listExpenses } from "@/lib/commerce";
+import { interpretPurchasesOffline, listCommerce, listExpenses } from "@/lib/commerce";
 import { formatCurrency, formatDateTime, formatWeight, getPetLifeStage, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoExpenses, demoPets, demoProductReviews, demoProducts, demoPurchases, demoReminders, demoTimeline } from "@/lib/mock-data";
@@ -13,8 +13,23 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+function formatLineUnitPrice(unitPriceCents: number | null) {
+  return unitPriceCents == null ? null : formatCurrency(unitPriceCents);
+}
+
 async function loadData() {
-  if (!(await isLiveData())) return { pets: demoPets, timeline: demoTimeline, reminders: demoReminders, expenses: demoExpenses, products: demoProducts, purchases: demoPurchases, reviews: demoProductReviews, configured: false };
+  if (!(await isLiveData())) {
+    return {
+      pets: demoPets,
+      timeline: demoTimeline,
+      reminders: demoReminders,
+      expenses: demoExpenses,
+      products: demoProducts,
+      purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
+      reviews: demoProductReviews,
+      configured: false,
+    };
+  }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { pets: [], timeline: [], reminders: [], expenses: [], products: [], purchases: [], reviews: [], configured: true };
@@ -45,8 +60,8 @@ export default async function AssistantPage() {
     expenses: `Neste mês há ${monthExpenses.length} lançamentos, somando ${formatCurrency(monthTotal)}. Você pode abrir Gastos para ver a divisão por categoria e por pet.`,
     weight: currentWeights ? `Os pesos atuais registrados são: ${currentWeights}.${latestWeight ? ` A pesagem mais recente foi de ${names.get(latestWeight.pet_id) ?? "um pet"} em ${formatDateTime(latestWeight.occurred_at)}.` : ""}` : "Ainda não há pesos cadastrados. Registre uma pesagem para começar a acompanhar a evolução.",
     reminder: nextReminder ? `O próximo cuidado é “${nextReminder.title}”, para ${names.get(nextReminder.pet_id ?? "") ?? "a família"}, em ${formatDateTime(nextReminder.due_at)}.` : "A agenda está livre: não encontrei lembretes pendentes.",
-    food: food ? `Entre os alimentos avaliados pela família, “${food.product.name}” lidera: aceitação ${food.acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${food.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. O motivo principal é ${food.reason}.${food.latest ? ` O último preço foi ${formatCurrency(Math.round(food.latest.amount_cents / food.latest.quantity))} por pacote em ${food.latest.store_name}.` : ""}${foodAgeNote}` : "Ainda não há avaliações de ração, sachê ou petisco suficientes. Registre aceitação e custo-benefício para eu comparar sem inventar.",
-    litter: litter ? `A areia mais recomendada pelo histórico é “${litter.product.name}”: qualidade ${litter.quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${litter.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. Ela se destaca porque ${litter.reason}.${litter.latest ? ` O último preço foi ${formatCurrency(Math.round(litter.latest.amount_cents / litter.latest.quantity))} por pacote em ${litter.latest.store_name}.` : ""}` : "Ainda não há uma areia avaliada. Depois de registrar qualidade, controle de odor e custo-benefício, eu consigo comparar as opções.",
+    food: food ? `Entre os alimentos avaliados pela família, “${food.product.name}” lidera: aceitação ${food.acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${food.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. O motivo principal é ${food.reason}.${food.latest && formatLineUnitPrice(food.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(food.latest.unit_price_cents)} por pacote em ${food.latest.store_name}.` : food.latest ? ` A última compra foi em ${food.latest.store_name}.` : ""}${foodAgeNote}` : "Ainda não há avaliações de ração, sachê ou petisco suficientes. Registre aceitação e custo-benefício para eu comparar sem inventar.",
+    litter: litter ? `A areia mais recomendada pelo histórico é “${litter.product.name}”: qualidade ${litter.quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${litter.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. Ela se destaca porque ${litter.reason}.${litter.latest && formatLineUnitPrice(litter.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(litter.latest.unit_price_cents)} por pacote em ${litter.latest.store_name}.` : litter.latest ? ` A última compra foi em ${litter.latest.store_name}.` : ""}` : "Ainda não há uma areia avaliada. Depois de registrar qualidade, controle de odor e custo-benefício, eu consigo comparar as opções.",
     shopping: best ? `Pelas avaliações da família, “${best.product.name}” é a compra mais equilibrada agora, com nota calculada de ${best.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. A indicação vem de ${best.reviewCount} ${best.reviewCount === 1 ? "avaliação" : "avaliações"} registradas, não de publicidade.` : "Ainda não há avaliações suficientes para indicar um produto. Registre qualidade, aceitação e custo-benefício na próxima compra.",
     summary: `A família tem ${pets.length} ${pets.length === 1 ? "pet" : "pets"}, ${reminders.length} lembretes pendentes e ${monthExpenses.length} gastos neste mês. Posso detalhar vacinas, pesos, agenda, gastos ou compras.`,
   };

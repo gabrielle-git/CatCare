@@ -1,9 +1,23 @@
-import type { Product, ProductReview, Purchase } from "@/types/database";
+import type { Product, ProductReview, PurchaseChannel } from "@/types/database";
 import { qualifiesForRepeat } from "@/lib/score-labels";
+import {
+  latestSightingForProduct,
+  type PurchaseReadModel,
+} from "@/lib/purchase-read-model";
+
+export type ProductRecommendationLatest = {
+  purchase_id: string;
+  purchased_at: string;
+  store_name: string;
+  channel: PurchaseChannel;
+  quantity: number;
+  unit_price_cents: number | null;
+  line_subtotal_cents: number;
+};
 
 export type ProductRecommendation = {
   product: Product;
-  latest: Purchase | null;
+  latest: ProductRecommendationLatest | null;
   reviewCount: number;
   quality: number;
   acceptance: number;
@@ -27,7 +41,11 @@ function recommendationReason(quality: number, acceptance: number, value: number
   return strengths.length ? strengths.slice(0, 2).join(" e ") : "é a opção com melhor equilíbrio entre as notas registradas";
 }
 
-export function rankProductRecommendations(products: Product[], purchases: Purchase[], reviews: ProductReview[]) {
+export function rankProductRecommendations(
+  products: Product[],
+  purchases: PurchaseReadModel[],
+  reviews: ProductReview[],
+) {
   return products.map((product): ProductRecommendation | null => {
     const productReviews = reviews.filter((review) => review.product_id === product.id);
     if (productReviews.length === 0) return null;
@@ -40,7 +58,18 @@ export function rankProductRecommendations(products: Product[], purchases: Purch
     const qualityWeight = product.category === "litter" ? 0.35 : 0.3;
     const valueWeight = 0.9 - acceptanceWeight - qualityWeight;
     const score = (acceptance * acceptanceWeight) + (quality * qualityWeight) + (value * valueWeight) + (buyAgainRate * 0.5);
-    const latest = purchases.filter((purchase) => purchase.product_id === product.id).sort((a, b) => new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime())[0] ?? null;
+    const sighting = latestSightingForProduct(purchases, product.id);
+    const latest: ProductRecommendationLatest | null = sighting
+      ? {
+          purchase_id: sighting.purchase.id,
+          purchased_at: sighting.purchase.purchased_at,
+          store_name: sighting.purchase.store_name,
+          channel: sighting.purchase.channel,
+          quantity: sighting.line.quantity,
+          unit_price_cents: sighting.line.unit_price_cents,
+          line_subtotal_cents: sighting.line.line_subtotal_cents,
+        }
+      : null;
     return { product, latest, reviewCount: productReviews.length, quality, acceptance, value, buyAgainRate, buyAgainCount, score, reason: recommendationReason(quality, acceptance, value, buyAgainRate) };
   }).filter((item): item is ProductRecommendation => item !== null).sort((a, b) => b.score - a.score);
 }

@@ -16,6 +16,10 @@ import {
   planCompoundPurchaseCreate,
   shouldCompensateDeleteExpense,
 } from "@/lib/purchase-create-idempotency";
+import {
+  PRODUCT_DELETE_HISTORY_MESSAGE,
+  productHasCommerceHistory,
+} from "@/lib/product-delete-guard";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
@@ -514,11 +518,37 @@ export async function updateProduct(productId: string, formData: FormData) {
 
 export async function deleteProduct(productId: string) {
   const { supabase, household } = await authContext();
-  const purchases = await supabase.from("purchases").select("expense_id").eq("product_id", productId).eq("household_id", household.id);
-  const expenseIds = (purchases.data ?? []).map((row) => row.expense_id).filter(Boolean) as string[];
+  const [headerPurchases, itemRefs, reviewRefs] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId)
+      .eq("household_id", household.id),
+    supabase
+      .from("purchase_items")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId)
+      .eq("household_id", household.id),
+    supabase
+      .from("product_reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId)
+      .eq("household_id", household.id),
+  ]);
+  if (headerPurchases.error) redirect(`/shopping?error=${encodeURIComponent(headerPurchases.error.message)}`);
+  if (itemRefs.error) redirect(`/shopping?error=${encodeURIComponent(itemRefs.error.message)}`);
+  if (reviewRefs.error) redirect(`/shopping?error=${encodeURIComponent(reviewRefs.error.message)}`);
+  if (
+    productHasCommerceHistory({
+      headerPurchaseCount: headerPurchases.count ?? 0,
+      purchaseItemCount: itemRefs.count ?? 0,
+      reviewCount: reviewRefs.count ?? 0,
+    })
+  ) {
+    redirect(`/shopping?error=${encodeURIComponent(PRODUCT_DELETE_HISTORY_MESSAGE)}`);
+  }
   const { error } = await supabase.from("products").delete().eq("id", productId).eq("household_id", household.id);
   if (error) redirect(`/shopping?error=${encodeURIComponent(error.message)}`);
-  if (expenseIds.length) await supabase.from("expenses").delete().in("id", expenseIds).eq("household_id", household.id);
   revalidatePath("/shopping");
   revalidatePath("/expenses");
   redirect("/shopping?deleted=1");
