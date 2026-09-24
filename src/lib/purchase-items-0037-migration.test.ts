@@ -13,10 +13,13 @@ describe("0037 purchase items cart economics migration contract", () => {
   const commerce = readFileSync(commercePath, "utf8");
   const migrations = readdirSync(join(root, "supabase/migrations")).filter((name) => name.endsWith(".sql"));
 
-  it("creates exactly the approved 0037 migration file and no 0038", () => {
+  it("creates exactly the approved 0037 migration file (0038 lifecycle is a later foundation)", () => {
     assert.equal(existsSync(migrationPath), true);
     assert.equal(migrations.includes("0037_purchase_items_and_cart_economics.sql"), true);
-    assert.equal(migrations.some((name) => name.startsWith("0038_")), false);
+    assert.equal(
+      migrations.filter((name) => name.startsWith("0037_")).length,
+      1,
+    );
   });
 
   it("adds V2 header finance columns with safe defaults and no hard final formula CHECK", () => {
