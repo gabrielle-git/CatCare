@@ -104,7 +104,7 @@ describe("0037 purchase items cart economics migration contract", () => {
     assert.match(commerce, /product_id uuid not null references public\.products\(id\) on delete cascade/);
   });
 
-  it("leaves current shopping actions schema-compatible (no new mandatory fields required)", () => {
+  it("leaves current shopping write path schema-compatible (no V2 cart writes yet)", () => {
     const actions = readFileSync(shoppingActionsPath, "utf8");
     assert.match(actions, /export async function createPurchase/);
     assert.match(actions, /export async function updatePurchase/);
@@ -113,6 +113,20 @@ describe("0037 purchase items cart economics migration contract", () => {
     assert.doesNotMatch(actions, /shipping_cents/);
     assert.doesNotMatch(actions, /credits_applied_cents/);
     assert.doesNotMatch(actions, /discount_rate_bps/);
-    assert.doesNotMatch(actions, /purchase_items/);
+
+    const createIdx = actions.indexOf("export async function createPurchase");
+    const updateIdx = actions.indexOf("export async function updatePurchase");
+    const deletePurchaseIdx = actions.indexOf("export async function deletePurchase");
+    const deleteProductIdx = actions.indexOf("export async function deleteProduct");
+    assert.ok(createIdx >= 0 && updateIdx > createIdx && deletePurchaseIdx > updateIdx && deleteProductIdx > deletePurchaseIdx);
+
+    const writeSurface = actions.slice(createIdx, deleteProductIdx);
+    assert.doesNotMatch(writeSurface, /purchase_items/);
+    assert.doesNotMatch(writeSurface, /\.from\(["']purchase_items["']\)\.(insert|upsert|update|delete)/);
+
+    // App-prep history guard may READ purchase_items inside deleteProduct only.
+    const deleteProductSurface = actions.slice(deleteProductIdx);
+    assert.match(deleteProductSurface, /from\(["']purchase_items["']\)/);
+    assert.doesNotMatch(deleteProductSurface, /\.from\(["']purchase_items["']\)\.(insert|upsert|update|delete)/);
   });
 });

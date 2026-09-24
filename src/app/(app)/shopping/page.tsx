@@ -3,17 +3,21 @@ import { ArrowDownRight, ArrowUpRight, BadgeCheck, Brain, Minus, PackageOpen, Pe
 import { ConfirmButton } from "@/components/confirm-button";
 import { PetNameChips } from "@/components/pet-name-chips";
 import { listBenefitMemberships, membershipLabel } from "@/lib/benefit-memberships";
-import { listCommerce } from "@/lib/commerce";
+import { interpretPurchasesOffline, listCommerce } from "@/lib/commerce";
 import { formatCurrency, formatShortDate, getPetLifeStage, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import {
+  findLinkedReviewForPurchase,
+  purchaseDisplayTitle,
+} from "@/lib/purchase-read-model";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
 import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductCategory, ProductReview, Purchase, PurchaseChannel } from "@/types/database";
+import type { ProductCategory, PurchaseChannel } from "@/types/database";
 import { deleteProduct, deletePurchase } from "./actions";
 
 const categoryLabels: Record<ProductCategory, string> = {
@@ -30,7 +34,7 @@ async function loadPage() {
   if (!(await isLiveData())) {
     return {
       products: demoProducts,
-      purchases: demoPurchases,
+      purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
       reviews: demoProductReviews,
       pets: demoPets,
       memberships: demoBenefitMemberships,
@@ -55,29 +59,38 @@ function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
-function reviewForPurchase(purchase: Purchase, allReviews: ProductReview[]) {
-  const day = purchase.purchased_at.slice(0, 10);
-  return allReviews.find((review) => review.product_id === purchase.product_id && review.reviewed_at.slice(0, 10) === day) ?? null;
+function formatUnitPrice(unitPriceCents: number | null) {
+  return unitPriceCents == null ? "—" : formatCurrency(unitPriceCents);
 }
 
-export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string }> }) {
+export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string; error?: string; deleted?: string }> }) {
   const [{ products, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
   const membershipNames = new Map(memberships.map((item) => [item.id, membershipLabel(item)]));
   const now = new Date();
   const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
   const monthTotal = monthPurchases.reduce((sum, item) => sum + item.amount_cents, 0);
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
-  const productNames = new Map(products.map((product) => [product.id, [product.brand, product.name].filter(Boolean).join(" • ")]));
   const insights = products.map((product) => {
-    const productPurchases = purchases.filter((item) => item.product_id === product.id).sort((a, b) => new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime());
+    const sightings = purchases
+      .flatMap((purchase) =>
+        purchase.lines
+          .filter((line) => line.product_id === product.id)
+          .map((line) => ({ purchase, line })),
+      )
+      .sort((a, b) => new Date(b.purchase.purchased_at).getTime() - new Date(a.purchase.purchased_at).getTime());
     const productReviews = reviews.filter((item) => item.product_id === product.id);
-    const latest = productPurchases[0];
-    const previous = productPurchases[1];
-    const latestUnit = latest ? latest.amount_cents / latest.quantity : 0;
-    const previousUnit = previous ? previous.amount_cents / previous.quantity : 0;
-    const priceChange = previousUnit ? ((latestUnit - previousUnit) / previousUnit) * 100 : 0;
+    const latest = sightings[0] ?? null;
+    const previous = sightings[1] ?? null;
+    const latestUnit = latest?.line.unit_price_cents ?? null;
+    const previousUnit = previous?.line.unit_price_cents ?? null;
+    const priceChange =
+      latestUnit != null && previousUnit != null && previousUnit > 0
+        ? ((latestUnit - previousUnit) / previousUnit) * 100
+        : 0;
     return {
-      product, latest, priceChange,
+      product,
+      latest,
+      priceChange,
       quality: average(productReviews.map((item) => item.quality_score)),
       acceptance: average(productReviews.map((item) => item.acceptance_score)),
       value: average(productReviews.map((item) => item.cost_benefit_score)),
@@ -102,6 +115,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
     const TrendIcon = priceChange < -0.1 ? ArrowDownRight : priceChange > 0.1 ? ArrowUpRight : Minus;
     const trendTone = priceChange < -0.1 ? "text-[var(--success)]" : priceChange > 0.1 ? "text-[var(--danger)]" : "text-[var(--muted)]";
     const overall = reviewCount ? (quality + acceptance + value) / 3 : 0;
+    const showTrend = latest?.line.unit_price_cents != null && Number.isFinite(priceChange) && Math.abs(priceChange) > 0.1;
     return (
       <article key={product.id} className="cat-card overflow-hidden">
         <div className="p-5">
@@ -115,11 +129,11 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
           <div className="mt-4 flex items-end justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold text-[var(--muted)]">Último preço por pacote</p>
-              <p className="mt-1 text-xl font-bold">{latest ? formatCurrency(Math.round(latest.amount_cents / latest.quantity)) : "—"}</p>
+              <p className="mt-1 text-xl font-bold">{latest ? formatUnitPrice(latest.line.unit_price_cents) : "—"}</p>
             </div>
-            {latest && <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${trendTone}`}><TrendIcon size={14} />{Math.abs(priceChange).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>}
+            {latest && showTrend && <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${trendTone}`}><TrendIcon size={14} />{Math.abs(priceChange).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>}
           </div>
-          {latest && <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Store size={13} /> {latest.store_name} • {channelLabels[latest.channel]}</p>}
+          {latest && <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Store size={13} /> {latest.purchase.store_name} • {channelLabels[latest.purchase.channel]}</p>}
         </div>
         <div className="grid grid-cols-3 border-t border-[var(--border)] bg-[var(--cream)]">
           <div className="p-3 text-center"><p className="text-[10px] text-[var(--muted)]">Qualidade</p><p className="mt-1 text-sm font-bold">{reviewCount ? quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}</p></div>
@@ -135,7 +149,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         {editable && (
           <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3">
             <Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link>
-            <form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto e todo o histórico dele?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form>
+            <form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto? Só funciona se ele não tiver compras ou avaliações no histórico." className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form>
           </div>
         )}
       </article>
@@ -145,6 +159,8 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
   return <div className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço e aceitação dos produtos. Cada compra registrada vira gasto automaticamente em Gastos da família.</p></div>{editable && <Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link>}</header>
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Compra salva, gasto lançado e comparações atualizadas.</div>}
+    {flags.deleted && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Produto removido.</div>}
+    {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
     {flags.review === "done" && <div className="mt-3 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Avaliação salva — o comparador da família foi atualizado.</div>}
     {(flags.review === "partial" || flags.review === "pending") && flags.purchase && (
       <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">
@@ -162,7 +178,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
     <section className="mt-7 overflow-hidden rounded-[26px] border border-[#d9cfee] bg-[linear-gradient(135deg,var(--lavender-soft),#fff)]">
       <div className="flex flex-col gap-3 border-b border-[#d9cfee] p-5 sm:flex-row sm:items-center sm:justify-between md:p-6"><div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-[17px] bg-white text-[var(--lavender-strong)]"><Brain size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Recomendação inteligente</p><h2 className="mt-1 text-xl font-bold">O histórico da família escolheria</h2><p className="mt-1 text-xs text-[var(--muted)]">Ranking baseado nas suas notas e recompras — nunca em publicidade.</p></div></div><Link href="/assistant" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-xs font-bold text-[var(--lavender-strong)]"><Sparkles size={14} /> Perguntar ao assistente</Link></div>
-      {recommendations.length === 0 ? <p className="p-6 text-sm text-[var(--muted)]">Avalie um produto com nota média ≥ 4 e marque «compraria de novo» para liberar recomendações confiáveis.</p> : <div className="grid gap-px bg-[#d9cfee] md:grid-cols-2">{recommendations.map((recommendation) => <div key={recommendation.product.id} className="bg-white p-5 md:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{recommendation.product.category === "litter" ? "Areia recomendada" : "Alimento recomendado"}</p><h3 className="mt-1 text-lg font-bold">{recommendation.product.name}</h3><p className="mt-1 text-xs text-[var(--muted)]">{recommendation.product.brand || "Sem marca"} • {recommendation.reviewCount} {recommendation.reviewCount === 1 ? "avaliação" : "avaliações"} • {scoreLabel((recommendation.quality + recommendation.acceptance + recommendation.value) / 3)}</p></div><span className="rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-xs font-bold text-[var(--success)]">{recommendation.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5</span></div><p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Recomendada por {recommendation.reason}.</p>{recommendation.latest && <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold"><Store size={14} /> {formatCurrency(Math.round(recommendation.latest.amount_cents / recommendation.latest.quantity))} por pacote • {recommendation.latest.store_name}</p>}</div>)}</div>}
+      {recommendations.length === 0 ? <p className="p-6 text-sm text-[var(--muted)]">Avalie um produto com nota média ≥ 4 e marque «compraria de novo» para liberar recomendações confiáveis.</p> : <div className="grid gap-px bg-[#d9cfee] md:grid-cols-2">{recommendations.map((recommendation) => <div key={recommendation.product.id} className="bg-white p-5 md:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{recommendation.product.category === "litter" ? "Areia recomendada" : "Alimento recomendado"}</p><h3 className="mt-1 text-lg font-bold">{recommendation.product.name}</h3><p className="mt-1 text-xs text-[var(--muted)]">{recommendation.product.brand || "Sem marca"} • {recommendation.reviewCount} {recommendation.reviewCount === 1 ? "avaliação" : "avaliações"} • {scoreLabel((recommendation.quality + recommendation.acceptance + recommendation.value) / 3)}</p></div><span className="rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-xs font-bold text-[var(--success)]">{recommendation.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5</span></div><p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">Recomendada por {recommendation.reason}.</p>{recommendation.latest && <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold"><Store size={14} /> {recommendation.latest.unit_price_cents != null ? `${formatCurrency(recommendation.latest.unit_price_cents)} por pacote • ${recommendation.latest.store_name}` : `Última compra • ${recommendation.latest.store_name}`}</p>}</div>)}</div>}
       {(hasNeonatal || hasKittens) && <p className="border-t border-[#d9cfee] bg-[var(--peach)] px-5 py-3 text-[11px] leading-relaxed text-[var(--muted)]"><strong className="text-[var(--foreground)]">Atenção à fase de vida:</strong> {hasNeonatal ? "as recomendações de ração não se aplicam aos filhotes neonatais; mantenha a orientação veterinária para eles. " : ""}{hasKittens ? "Para os filhotes maiores, confira no rótulo se a fórmula é própria para filhotes." : ""}</p>}
     </section>
 
@@ -176,8 +192,8 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2><p className="mt-1 text-xs text-[var(--muted)]">Cada compra com gasto vinculado aparece também em Gastos da família.</p></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);
-      const linkedReview = reviewForPurchase(purchase, reviews);
-      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{productNames.get(purchase.product_id) || "Produto"}</p>{purchase.expense_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Em gastos</span>}{linkedReview && <span className="rounded-full bg-[var(--lavender-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--lavender-strong)]">Avaliada</span>}{purchase.membership_id && membershipNames.get(purchase.membership_id) && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">{membershipNames.get(purchase.membership_id)}</span>}{!purchase.membership_id && purchase.petlove_club && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">Clube Petlove</span>}{purchase.coupon_code && <span className="rounded-full bg-[var(--cream)] px-2 py-0.5 text-[9px] font-bold text-[var(--muted)]">{purchase.coupon_code}</span>}{purchase.discount_cents > 0 && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">−{formatCurrency(purchase.discount_cents)}</span>}</div><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>{!linkedReview && <Link href={`/shopping/reviews/new?purchase=${purchase.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Avaliar</Link>}{linkedReview && <Link href={`/shopping/reviews/${linkedReview.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Editar avaliação</Link>}{purchase.expense_id && <Link href={`/expenses/${purchase.expense_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ReceiptText size={12} /> Ver gasto</Link>}<form action={remove}><ConfirmButton message="Apagar esta compra e o gasto vinculado?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
+      const linkedReview = findLinkedReviewForPurchase(purchase, reviews);
+      return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{purchaseDisplayTitle(purchase)}</p>{purchase.expense_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Em gastos</span>}{linkedReview && <span className="rounded-full bg-[var(--lavender-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--lavender-strong)]">Avaliada</span>}{purchase.membership_id && membershipNames.get(purchase.membership_id) && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">{membershipNames.get(purchase.membership_id)}</span>}{!purchase.membership_id && purchase.petlove_club && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">Clube Petlove</span>}{purchase.coupon_code && <span className="rounded-full bg-[var(--cream)] px-2 py-0.5 text-[9px] font-bold text-[var(--muted)]">{purchase.coupon_code}</span>}{purchase.discount_cents > 0 && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">−{formatCurrency(purchase.discount_cents)}</span>}</div><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>{!linkedReview && purchase.lines.length === 1 && <Link href={`/shopping/reviews/new?purchase=${purchase.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Avaliar</Link>}{linkedReview && <Link href={`/shopping/reviews/${linkedReview.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Editar avaliação</Link>}{purchase.expense_id && <Link href={`/expenses/${purchase.expense_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ReceiptText size={12} /> Ver gasto</Link>}<form action={remove}><ConfirmButton message="Apagar esta compra e o gasto vinculado?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
     })}</div></section>
   </div>;
 }
