@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Product, Purchase } from "@/types/database";
 import {
   buildPurchaseReadModel,
   buildPurchaseReadModels,
   deriveLegacyUnitPriceCents,
+  findLinkedReviewForPurchase,
   isMultiItemPurchase,
   latestSightingForProduct,
   merchandiseCents,
@@ -12,6 +12,7 @@ import {
   type PurchaseItemRow,
   type PurchaseReadModel,
 } from "@/lib/purchase-read-model";
+import type { Product, ProductReview, Purchase } from "@/types/database";
 
 const HOUSEHOLD = "11111111-1111-4111-8111-111111111111";
 const PURCHASE_A = "22222222-2222-4222-8222-222222222222";
@@ -207,5 +208,77 @@ describe("purchase read model type contracts", () => {
     const model: PurchaseReadModel = buildPurchaseReadModel(basePurchase(), [], new Map(), new Map([[PRODUCT_A, product()]]));
     assert.ok("source" in model);
     assert.ok(Array.isArray(model.lines));
+  });
+});
+
+const REVIEW_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function review(overrides: Partial<ProductReview> = {}): ProductReview {
+  return {
+    id: REVIEW_A,
+    household_id: HOUSEHOLD,
+    product_id: PRODUCT_A,
+    pet_id: null,
+    quality_score: 5,
+    acceptance_score: 5,
+    cost_benefit_score: 4,
+    would_buy_again: true,
+    notes: null,
+    reviewed_at: "2026-09-20T12:00:00-03:00",
+    created_at: "2026-09-20T12:00:00-03:00",
+    updated_at: "2026-09-20T12:00:00-03:00",
+    ...overrides,
+  };
+}
+
+describe("findLinkedReviewForPurchase", () => {
+  it("A: one-line Purchase + matching review → linked review found", () => {
+    const model = buildPurchaseReadModel(basePurchase(), [], new Map(), new Map([[PRODUCT_A, product()]]));
+    assert.equal(model.lines.length, 1);
+    const linked = findLinkedReviewForPurchase(model, [review()]);
+    assert.equal(linked?.id, REVIEW_A);
+  });
+
+  it("B: one-line Purchase + different product → no linked review", () => {
+    const model = buildPurchaseReadModel(basePurchase(), [], new Map(), new Map([[PRODUCT_A, product()]]));
+    const linked = findLinkedReviewForPurchase(model, [review({ product_id: PRODUCT_B })]);
+    assert.equal(linked, null);
+  });
+
+  it("C: two-line Purchase where header product_id matches a review → NO linked review", () => {
+    const purchase = basePurchase({ product_id: PRODUCT_A });
+    const items = [
+      item({ id: ITEM_1, product_id: PRODUCT_A, product_name: "A", position: 0 }),
+      item({ id: ITEM_2, product_id: PRODUCT_B, product_name: "B", quantity: 1, unit_price_cents: 100, line_subtotal_cents: 100, position: 1 }),
+    ];
+    const model = buildPurchaseReadModel(purchase, items, new Map(), new Map());
+    assert.equal(model.lines.length, 2);
+    assert.equal(model.product_id, PRODUCT_A);
+    const linked = findLinkedReviewForPurchase(model, [review({ product_id: PRODUCT_A })]);
+    assert.equal(linked, null);
+  });
+
+  it("D: two lines with the same product_id → still NO purchase-level linked review", () => {
+    const purchase = basePurchase({ product_id: PRODUCT_A });
+    const items = [
+      item({ id: ITEM_1, product_id: PRODUCT_A, product_name: "A1", position: 0 }),
+      item({ id: ITEM_2, product_id: PRODUCT_A, product_name: "A2", quantity: 1, unit_price_cents: 100, line_subtotal_cents: 100, position: 1 }),
+    ];
+    const model = buildPurchaseReadModel(purchase, items, new Map(), new Map());
+    assert.equal(model.lines.length, 2);
+    const distinct = new Set(model.lines.map((line) => line.product_id));
+    assert.equal(distinct.size, 1);
+    const linked = findLinkedReviewForPurchase(model, [review({ product_id: PRODUCT_A })]);
+    assert.equal(linked, null);
+  });
+
+  it("E: one-line with null product_id → no linked review", () => {
+    const purchase = basePurchase();
+    const items = [item({ product_id: null, product_name: "Orphan snapshot" })];
+    const model = buildPurchaseReadModel(purchase, items, new Map(), new Map());
+    assert.equal(model.lines.length, 1);
+    assert.equal(model.lines[0].product_id, null);
+    const linked = findLinkedReviewForPurchase(model, [review({ product_id: PRODUCT_A })]);
+    assert.equal(linked, null);
   });
 });

@@ -9,15 +9,15 @@ import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import {
+  findLinkedReviewForPurchase,
   purchaseDisplayTitle,
-  type PurchaseReadModel,
 } from "@/lib/purchase-read-model";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
 import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductCategory, ProductReview, PurchaseChannel } from "@/types/database";
+import type { ProductCategory, PurchaseChannel } from "@/types/database";
 import { deleteProduct, deletePurchase } from "./actions";
 
 const categoryLabels: Record<ProductCategory, string> = {
@@ -57,17 +57,6 @@ async function loadPage() {
 
 function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
-function reviewForPurchase(purchase: PurchaseReadModel, allReviews: ProductReview[]) {
-  const day = purchase.purchased_at.slice(0, 10);
-  const productIds = new Set(purchase.lines.map((line) => line.product_id).filter((id): id is string => Boolean(id)));
-  if (productIds.size === 1) {
-    const only = [...productIds][0];
-    return allReviews.find((review) => review.product_id === only && review.reviewed_at.slice(0, 10) === day) ?? null;
-  }
-  // Multi-item carts: keep soft match on header mirror for transitional single-item reviews.
-  return allReviews.find((review) => review.product_id === purchase.product_id && review.reviewed_at.slice(0, 10) === day) ?? null;
 }
 
 function formatUnitPrice(unitPriceCents: number | null) {
@@ -203,7 +192,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2><p className="mt-1 text-xs text-[var(--muted)]">Cada compra com gasto vinculado aparece também em Gastos da família.</p></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);
-      const linkedReview = reviewForPurchase(purchase, reviews);
+      const linkedReview = findLinkedReviewForPurchase(purchase, reviews);
       return <div key={purchase.id} className="rounded-[18px] border border-[var(--border)] p-3.5"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]"><ShoppingBasket size={17} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{purchaseDisplayTitle(purchase)}</p>{purchase.expense_id && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">Em gastos</span>}{linkedReview && <span className="rounded-full bg-[var(--lavender-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--lavender-strong)]">Avaliada</span>}{purchase.membership_id && membershipNames.get(purchase.membership_id) && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">{membershipNames.get(purchase.membership_id)}</span>}{!purchase.membership_id && purchase.petlove_club && <span className="rounded-full bg-[var(--peach)] px-2 py-0.5 text-[9px] font-bold text-[#96613e]">Clube Petlove</span>}{purchase.coupon_code && <span className="rounded-full bg-[var(--cream)] px-2 py-0.5 text-[9px] font-bold text-[var(--muted)]">{purchase.coupon_code}</span>}{purchase.discount_cents > 0 && <span className="rounded-full bg-[var(--mint-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--success)]">−{formatCurrency(purchase.discount_cents)}</span>}</div><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{formatShortDate(purchase.purchased_at)} • {purchase.store_name} • <PetNameChips petIds={purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : [])} names={names} /></p></div><strong className="shrink-0 text-sm">{formatCurrency(purchase.amount_cents)}</strong></div>{editable && <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3"><Link href={`/shopping/purchases/${purchase.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>{!linkedReview && purchase.lines.length === 1 && <Link href={`/shopping/reviews/new?purchase=${purchase.id}`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Avaliar</Link>}{linkedReview && <Link href={`/shopping/reviews/${linkedReview.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Editar avaliação</Link>}{purchase.expense_id && <Link href={`/expenses/${purchase.expense_id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ReceiptText size={12} /> Ver gasto</Link>}<form action={remove}><ConfirmButton message="Apagar esta compra e o gasto vinculado?" className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form></div>}</div>;
     })}</div></section>
   </div>;

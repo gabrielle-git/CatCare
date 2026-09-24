@@ -1,4 +1,4 @@
-import type { Product, ProductCategory, Purchase } from "@/types/database";
+import type { Product, ProductCategory, ProductReview, Purchase } from "@/types/database";
 
 /**
  * Persisted purchase_items row (0037). Not economic truth on the header.
@@ -225,4 +225,22 @@ export function purchaseDisplayTitle(purchase: PurchaseReadModel): string {
 
 export function isMultiItemPurchase(purchase: PurchaseReadModel): boolean {
   return purchase.source === "items" && purchase.lines.length > 1;
+}
+
+/**
+ * Soft-link a Product-scoped review to a Purchase for shopping UI.
+ *
+ * Eligibility is line COUNT, not distinct product_id count:
+ * - exactly one interpreted line → may associate review for that line's product_id + purchase day
+ * - multi-line carts → never purchase-level inline review (header product_id is a mirror only)
+ */
+export function findLinkedReviewForPurchase(
+  purchase: PurchaseReadModel,
+  allReviews: ProductReview[],
+): ProductReview | null {
+  if (purchase.lines.length !== 1) return null;
+  const productId = purchase.lines[0]?.product_id ?? null;
+  if (!productId) return null;
+  const day = purchase.purchased_at.slice(0, 10);
+  return allReviews.find((review) => review.product_id === productId && review.reviewed_at.slice(0, 10) === day) ?? null;
 }
