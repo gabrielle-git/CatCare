@@ -85,16 +85,37 @@ describe("0038 commerce lifecycle schema foundation contract", () => {
     assert.match(sql, /else p\.product_id = r\.product_id/);
   });
 
-  it("M: backfill links only exactly-one candidate", () => {
-    assert.match(sql, /having count\(\*\) = 1/);
+  it("M: backfill requires exactly-one Purchase candidate AND uncontested (purchase_id, product_id)", () => {
+    const backfill = sql.slice(sql.indexOf("Deterministic backfill"));
+    assert.match(backfill, /single_candidate/);
+    assert.match(backfill, /having count\(\*\) = 1/);
+    assert.match(backfill, /uncontested/);
+    assert.match(backfill, /target_claim_counts|claim_count = 1/);
+    assert.match(backfill, /Fan-in ambiguity|uncontested/i);
   });
 
-  it("N/O: zero-match and ambiguous stay NULL (no arbitrary pick / no abort)", () => {
-    assert.match(sql, /0 or >1 → leave NULL|Exactly one DISTINCT candidate/i);
-    assert.doesNotMatch(sql, /raise exception[\s\S]*ambiguous/i);
-    // No ORDER BY LIMIT 1 backfill without HAVING count = 1
+  it("N/O: zero-match, multi-Purchase ambiguity, and fan-in stay NULL (no arbitrary Review winner)", () => {
     const backfill = sql.slice(sql.indexOf("Deterministic backfill"));
-    assert.match(backfill, /having count\(\*\) = 1/);
+    assert.match(backfill, /leave ALL NULL|uncontested/i);
+    assert.doesNotMatch(backfill, /raise exception[\s\S]*ambiguous/i);
+    assert.doesNotMatch(backfill, /order by[\s\S]*limit 1/i);
+    assert.doesNotMatch(backfill, /min\(\s*review_id\s*\)/i);
+    assert.doesNotMatch(backfill, /distinct on\s*\(/i);
+    // Already-linked (purchase_id, product_id) must block another claim
+    assert.match(backfill, /existing\.purchase_id = swp\.purchase_id[\s\S]*existing\.product_id = swp\.product_id/);
+  });
+
+  it("fan-in: competing Reviews for the same (purchase_id, product_id) are not linked", () => {
+    const backfill = sql.slice(sql.indexOf("Deterministic backfill"));
+    assert.match(backfill, /claim_count = 1/);
+    assert.match(backfill, /Do NOT pick an arbitrary Review winner/i);
+  });
+
+  it("multi-Product same Purchase: uniqueness is per (purchase_id, product_id), not per Purchase alone", () => {
+    assert.match(sql, /unique index[\s\S]*\(purchase_id,\s*product_id\)[\s\S]*where purchase_id is not null/i);
+    // Backfill contests on (purchase_id, product_id), so different Products on one Purchase remain eligible
+    const backfill = sql.slice(sql.indexOf("Deterministic backfill"));
+    assert.match(backfill, /group by purchase_id,\s*product_id/);
   });
 
   it("P: timezone comparison explicitly uses America/Sao_Paulo", () => {

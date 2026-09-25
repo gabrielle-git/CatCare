@@ -142,7 +142,14 @@ revoke all on function public.product_reviews_assert_purchase_context() from aut
 -- D. Deterministic backfill of purchase_id
 -- ---------------------------------------------------------------------------
 -- Civil day in America/Sao_Paulo. Product truth matches trigger semantics.
--- Exactly one DISTINCT candidate Purchase → link; 0 or >1 → leave NULL.
+--
+-- A Review is linked only when BOTH:
+--   A. exactly one DISTINCT candidate Purchase for that Review
+--   B. the resulting (purchase_id, product_id) target is uncontested
+--      (exactly one eligible Review would claim it, and no already-linked
+--      Review already occupies that pair)
+-- Fan-in ambiguity (two Reviews → same Purchase+Product): leave ALL NULL.
+-- Do NOT pick an arbitrary Review winner (no ORDER BY LIMIT / MIN / DISTINCT ON).
 
 with candidates as (
   select distinct
@@ -172,16 +179,50 @@ with candidates as (
       end
     )
 ),
-singleton as (
+single_candidate as (
   select
     review_id,
-    (array_agg(purchase_id order by purchase_id))[1] as purchase_id
+    (array_agg(purchase_id))[1] as purchase_id
   from candidates
   group by review_id
   having count(*) = 1
+),
+single_with_product as (
+  select
+    sc.review_id,
+    sc.purchase_id,
+    r.product_id
+  from single_candidate sc
+  inner join public.product_reviews r
+    on r.id = sc.review_id
+),
+target_claim_counts as (
+  select
+    purchase_id,
+    product_id,
+    count(*) as claim_count
+  from single_with_product
+  group by purchase_id, product_id
+),
+uncontested as (
+  select
+    swp.review_id,
+    swp.purchase_id
+  from single_with_product swp
+  inner join target_claim_counts tc
+    on tc.purchase_id = swp.purchase_id
+   and tc.product_id = swp.product_id
+   and tc.claim_count = 1
+  where not exists (
+    select 1
+    from public.product_reviews existing
+    where existing.purchase_id = swp.purchase_id
+      and existing.product_id = swp.product_id
+      and existing.id is distinct from swp.review_id
+  )
 )
 update public.product_reviews r
-set purchase_id = s.purchase_id
-from singleton s
-where r.id = s.review_id
+set purchase_id = u.purchase_id
+from uncontested u
+where r.id = u.review_id
   and r.purchase_id is null;
