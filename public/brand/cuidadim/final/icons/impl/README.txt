@@ -1,0 +1,1 @@
+IMPLEMENTATION COPIES — Brand Lab only.\n\nSource: ../icon-pets.svg (= assets finais / icon pata sem estrela.svg)\n\nicon-pets-currentcolor.svg: #2A1F2F -> currentColor (for future inline use)\nicon-pets-on-dark.svg: #2A1F2F -> #FCFAF5 (used with <img> on dark Home)\n\nGold: N/A. Originals untouched. assets finais untouched.\n

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../styles/cuidadim-brand.css";
 
 :root {
   --background: #faf7f2;
