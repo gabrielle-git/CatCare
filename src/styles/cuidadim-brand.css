@@ -3163,3 +3163,79 @@
   width: 0;
   height: 0;
 }
+
+/* ============================================================
+   Fase 4B · Real app shell (authenticated app)
+   Reuses the Visual Freeze V1 shell classes (cd-med-*, cd-mob-*,
+   cd-reg-soft, cd-util-btn). Only live-layout placement and the
+   active states the lab frames never showed are added here.
+
+   Implementation decisions (Fase 4B, not part of Visual Freeze V1):
+   - Registrar active state: ring + four-point star.
+   - Assistente has its own active state (rail util + header button).
+   - Demo notice surface uses the local --cuidadim-gold-100 token.
+   - Mobile bottom shell is z-40 (set in bottom-nav.tsx) so legacy
+     z-50 overlays stay above it.
+   ============================================================ */
+
+[data-brand="cuidadim"] .cd-app-rail {
+  height: 100%;
+  overflow-y: auto;
+}
+
+[data-brand="cuidadim"] .cd-app-rail-brand {
+  display: block;
+  border-radius: var(--cd-radius-sm);
+}
+
+[data-brand="cuidadim"] .cd-app-rail-brand .cd-final-logo {
+  width: 100%;
+}
+
+[data-brand="cuidadim"] .cd-app-mobile-brand {
+  display: inline-flex;
+  border-radius: var(--cd-radius-sm);
+}
+
+[data-brand="cuidadim"] .cd-med-util[data-active="true"] {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+[data-brand="cuidadim"] .cd-util-btn[data-active="true"] {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-reg-soft[data-active="true"] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+[data-brand="cuidadim"].cd-app-mobile-bar {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+[data-brand="cuidadim"] .cd-app-mobile-bar-inner {
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+/* Desktop rail Mais — positioned next to the 84px rail */
+[data-brand="cuidadim"].cd-app-overflow-anchor {
+  position: fixed;
+  left: calc(84px + 0.35rem);
+  background: transparent;
+}
+
+[data-brand="cuidadim"] .cd-app-overflow {
+  position: static;
+}
+
+[data-brand="cuidadim"] .cd-app-overflow-group-label {
+  margin: 0.55rem 0 0.1rem;
+}
+
+/* Demo notice — local Cuidadim surface instead of legacy --peach */
+[data-brand="cuidadim"].cd-app-demo-notice {
+  background: var(--cuidadim-gold-100);
+}

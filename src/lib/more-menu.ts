@@ -1,10 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Bot,
+  CalendarDays,
   HeartHandshake,
   HeartPulse,
-  History,
-  ImageIcon,
   ReceiptText,
   Repeat2,
   Settings,
@@ -25,38 +23,28 @@ export type MoreMenuGroup = {
   items: MoreMenuItem[];
 };
 
-/** Shared secondary modules for /more and the mobile Mais sheet. */
+/**
+ * Secondary modules for /more, the mobile Mais sheet and the desktop rail Mais popover.
+ * Primary destinations (Agora, Pets, Cuidados, Memórias), Registrar and Assistente
+ * live in the shell contract (`app-navigation.ts`) and are not repeated here.
+ */
 export const MORE_MENU_GROUPS: MoreMenuGroup[] = [
   {
     id: "care",
-    label: "Cuidado",
+    label: "Cuidados",
     items: [
-      { label: "Histórico", detail: "O que aconteceu com a família", href: "/historico", icon: History, tone: "bg-[var(--cream)]" },
-      { label: "Neonatal", detail: "Alimentação, peso e eliminações", href: "/neonatal", icon: HeartPulse, tone: "bg-[var(--rose-soft)]" },
+      { label: "Agenda", detail: "Lembretes e próximos cuidados", href: "/agenda", icon: CalendarDays, tone: "bg-[var(--lavender-soft)]" },
       { label: "Rotinas", detail: "Cuidados que se repetem", href: "/routines", icon: Repeat2, tone: "bg-[var(--rose-soft)]" },
-    ],
-  },
-  {
-    id: "health",
-    label: "Saúde",
-    items: [
+      { label: "Neonatal", detail: "Alimentação, peso e eliminações", href: "/neonatal", icon: HeartPulse, tone: "bg-[var(--rose-soft)]" },
       { label: "Plano de saúde", detail: "Coparticipação e operadora", href: "/health-plan", icon: HeartHandshake, tone: "bg-[var(--lavender-soft)]" },
     ],
   },
   {
-    id: "org",
-    label: "Organização",
-    items: [
-      { label: "Assistente", detail: "Pergunte aos seus registros", href: "/assistant", icon: Bot, tone: "bg-[var(--lavender-soft)]" },
-      { label: "Memórias", detail: "Fotos e pequenos momentos", href: "/memories", icon: ImageIcon, tone: "bg-[var(--rose-soft)]" },
-    ],
-  },
-  {
-    id: "money",
-    label: "Financeiro",
+    id: "home-finance",
+    label: "Casa e finanças",
     items: [
       { label: "Gastos", detail: "Investimento da família", href: "/expenses", icon: ReceiptText, tone: "bg-[#fbead9]" },
-      { label: "Compras e avaliações", detail: "Preço, loja e aceitação", href: "/shopping", icon: ShoppingBasket, tone: "bg-[var(--mint-soft)]" },
+      { label: "Compras", detail: "Preço, loja e aceitação", href: "/shopping", icon: ShoppingBasket, tone: "bg-[var(--mint-soft)]" },
     ],
   },
 ];
