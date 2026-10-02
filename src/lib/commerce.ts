@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadPetIdsByEntity, resolvePetIdsFromRow } from "@/lib/entity-pets";
 import type { ProductHistoryRefs } from "@/lib/product-delete-guard";
-import { splitProductsByLifecycle } from "@/lib/product-lifecycle";
+import {
+  PRODUCT_HISTORY_COUNT_SELECT,
+  productIdsWithHistory,
+  splitProductsByLifecycle,
+  type ProductHistoryCountRow,
+} from "@/lib/product-lifecycle";
 import {
   buildPurchaseReadModels,
   type PurchaseItemRow,
@@ -212,14 +217,17 @@ export async function listExpenses(supabase: SupabaseClient, householdId: string
 }
 
 export async function listCommerce(supabase: SupabaseClient, householdId: string) {
-  const [products, purchases, reviews] = await Promise.all([
+  const [products, purchases, reviews, historyCounts] = await Promise.all([
     supabase.from("products").select("*").eq("household_id", householdId).order("updated_at", { ascending: false }),
     supabase.from("purchases").select("*").eq("household_id", householdId).order("purchased_at", { ascending: false }).limit(120),
     supabase.from("product_reviews").select("*").eq("household_id", householdId).order("reviewed_at", { ascending: false }).limit(200),
+    // Purchases/Reviews above are capped windows; delete eligibility needs the full history.
+    supabase.from("products").select(PRODUCT_HISTORY_COUNT_SELECT).eq("household_id", householdId),
   ]);
   if (products.error) throw products.error;
   if (purchases.error) throw purchases.error;
   if (reviews.error) throw reviews.error;
+  if (historyCounts.error) throw historyCounts.error;
   const productRows = (products.data ?? []) as Product[];
   const purchaseRows = (purchases.data ?? []) as Purchase[];
   const reviewRows = (reviews.data ?? []) as ProductReview[];
@@ -236,5 +244,7 @@ export async function listCommerce(supabase: SupabaseClient, householdId: string
     archivedProducts: archived,
     purchases: purchaseModels,
     reviews: reviewsWithPets,
+    /** Authoritative (uncapped) history signal for archive vs hard-delete UX. */
+    productIdsWithHistory: productIdsWithHistory((historyCounts.data ?? []) as ProductHistoryCountRow[]),
   };
 }

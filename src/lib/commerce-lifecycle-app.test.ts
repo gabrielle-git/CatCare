@@ -4,12 +4,16 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   PRODUCT_ARCHIVED_FOR_PURCHASE_MESSAGE,
+  PRODUCT_HISTORY_COUNT_SELECT,
   PRODUCT_NOT_FOUND_MESSAGE,
   activeProducts,
+  demoProductIdsWithHistory,
   isProductActive,
+  productIdsWithHistory,
   productLifecycleOptions,
   productSelectableForNewPurchase,
   splitProductsByLifecycle,
+  type ProductHistoryCountRow,
 } from "@/lib/product-lifecycle";
 import {
   buildProductReviewInsert,
@@ -401,5 +405,54 @@ describe("commerce lifecycle app — ranking and recommendations", () => {
       assert.ok(end > 0, fn);
       assert.match(body.slice(0, end), /revalidateReviewSurfaces\(\)/, fn);
     }
+  });
+});
+
+describe("commerce lifecycle app — authoritative delete eligibility", () => {
+  const counts = (id: string, purchases: number, items: number, reviews: number): ProductHistoryCountRow => ({
+    id,
+    purchases: [{ count: purchases }],
+    purchase_items: [{ count: items }],
+    product_reviews: [{ count: reviews }],
+  });
+  const canHardDelete = (id: string, rows: ProductHistoryCountRow[]) =>
+    productLifecycleOptions({ archived: false, hasHistory: new Set(productIdsWithHistory(rows)).has(id) }).canHardDelete;
+
+  it("A: Purchase history outside the loaded Purchase window still shows the archive path", () => {
+    // The capped window (latest 120 Purchases) holds nothing for this Product; the DB count does.
+    const loadedWindow = { purchases: [] as never[], reviews: [] as never[] };
+    assert.equal(loadedWindow.purchases.length, 0);
+    assert.equal(canHardDelete(PRODUCT_A, [counts(PRODUCT_A, 1, 0, 0)]), false);
+    assert.match(read("src/app/(app)/shopping/page.tsx"), /hasHistory: productsWithHistory\.has\(product\.id\)/);
+  });
+
+  it("B: Review history outside the loaded Review window still shows the archive path", () => {
+    assert.equal(canHardDelete(PRODUCT_A, [counts(PRODUCT_A, 0, 0, 1)]), false);
+  });
+
+  it("C: a Product referenced only by purchase_items still shows the archive path", () => {
+    assert.deepEqual(productIdsWithHistory([counts(PRODUCT_A, 0, 3, 0)]), [PRODUCT_A]);
+    assert.equal(canHardDelete(PRODUCT_A, [counts(PRODUCT_A, 0, 3, 0)]), false);
+  });
+
+  it("D: a Product with zero history can show hard delete", () => {
+    assert.equal(canHardDelete(PRODUCT_A, [counts(PRODUCT_A, 0, 0, 0)]), true);
+    assert.equal(canHardDelete(PRODUCT_A, [{ id: PRODUCT_A, purchases: null, purchase_items: [], product_reviews: undefined }]), true);
+    // Demo data is complete, so in-memory derivation is exact there.
+    assert.deepEqual(demoProductIdsWithHistory([product(), product({ id: PRODUCT_B })], [], [review()]), [PRODUCT_A]);
+  });
+
+  it("E: no N+1 — one uncapped, household-scoped embedded-count query for all Products", () => {
+    assert.equal(PRODUCT_HISTORY_COUNT_SELECT, "id, purchases(count), purchase_items(count), product_reviews(count)");
+    const commerce = read("src/lib/commerce.ts");
+    const list = commerce.slice(commerce.indexOf("export async function listCommerce"));
+    const parallel = list.slice(list.indexOf("await Promise.all(["), list.indexOf("]);"));
+    const historyQuery = parallel.split(/\r?\n/).find((line) => line.includes("PRODUCT_HISTORY_COUNT_SELECT")) ?? "";
+    assert.match(historyQuery, /from\("products"\)\.select\(PRODUCT_HISTORY_COUNT_SELECT\)\.eq\("household_id", householdId\),/);
+    assert.doesNotMatch(historyQuery, /\.limit\(|\.in\(/);
+    assert.equal((commerce.match(/PRODUCT_HISTORY_COUNT_SELECT/g) ?? []).length, 2, "imported once, queried once");
+    assert.doesNotMatch(list, /\.map\([^)]*=>[^;]*\.from\(/);
+    const page = read("src/app/(app)/shopping/page.tsx");
+    assert.doesNotMatch(page, /loadProductHistoryRefs|productHasLoadedHistory|\.from\(/);
   });
 });

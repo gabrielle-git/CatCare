@@ -13,7 +13,7 @@ import {
   purchaseDisplayTitle,
 } from "@/lib/purchase-read-model";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { productHasLoadedHistory, splitProductsByLifecycle } from "@/lib/product-lifecycle";
+import { demoProductIdsWithHistory, splitProductsByLifecycle } from "@/lib/product-lifecycle";
 import { latestProductReview } from "@/lib/product-review-link";
 import {
   bestFoodRecommendation,
@@ -42,10 +42,12 @@ const tones: Record<ProductCategory, string> = {
 async function loadPage() {
   if (!(await isLiveData())) {
     const { active, archived } = splitProductsByLifecycle(demoProducts);
+    const purchases = interpretPurchasesOffline(demoPurchases, demoProducts);
     return {
       catalogProducts: active,
       archivedProducts: archived,
-      purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
+      productIdsWithHistory: demoProductIdsWithHistory(demoProducts, purchases, demoProductReviews),
+      purchases,
       reviews: demoProductReviews,
       pets: demoPets,
       memberships: demoBenefitMemberships,
@@ -55,7 +57,7 @@ async function loadPage() {
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { catalogProducts: [], archivedProducts: [], purchases: [], reviews: [], pets: [], memberships: [], configured: true, editable: false };
+  if (!data.user) return { catalogProducts: [], archivedProducts: [], productIdsWithHistory: [], purchases: [], reviews: [], pets: [], memberships: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
   const role = await getMyRole(supabase);
   const [commerce, pets, memberships] = await Promise.all([
@@ -71,7 +73,8 @@ function formatUnitPrice(unitPriceCents: number | null) {
 }
 
 export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string; error?: string; deleted?: string; archived?: string; restored?: string; updated?: string }> }) {
-  const [{ catalogProducts: products, archivedProducts, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+  const [{ catalogProducts: products, archivedProducts, productIdsWithHistory, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+  const productsWithHistory = new Set(productIdsWithHistory);
   const membershipNames = new Map(memberships.map((item) => [item.id, membershipLabel(item)]));
   const now = new Date();
   const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
@@ -105,7 +108,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
       buyAgain: summary.buyAgainCount,
       qualified: summaryQualifiesForRepeat(summary),
       latestReview: latestProductReview(product.id, reviews),
-      hasHistory: productHasLoadedHistory(product.id, purchases, reviews),
+      hasHistory: productsWithHistory.has(product.id),
     };
   });
   // Same qualification path as the Assistant: active Products, recomputed from current reviews.
