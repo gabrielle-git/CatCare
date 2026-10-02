@@ -127,9 +127,13 @@ describe("0037 purchase items cart economics migration contract", () => {
     assert.doesNotMatch(writeSurface, /purchase_items/);
     assert.doesNotMatch(writeSurface, /\.from\(["']purchase_items["']\)\.(insert|upsert|update|delete)/);
 
-    // App-prep history guard may READ purchase_items inside deleteProduct only.
+    // History guard READS purchase_items via the shared loader only (never writes).
     const deleteProductSurface = actions.slice(deleteProductIdx);
-    assert.match(deleteProductSurface, /from\(["']purchase_items["']\)/);
+    assert.match(deleteProductSurface, /loadProductHistoryRefs\(/);
     assert.doesNotMatch(deleteProductSurface, /\.from\(["']purchase_items["']\)\.(insert|upsert|update|delete)/);
+    const commerceLib = readFileSync(join(root, "src/lib/commerce.ts"), "utf8");
+    const refsLoader = commerceLib.slice(commerceLib.indexOf("export async function loadProductHistoryRefs"));
+    assert.match(refsLoader, /from\(["']purchase_items["']\)\.select\(/);
+    assert.doesNotMatch(refsLoader.slice(0, refsLoader.indexOf("export async function findPurchaseProductReviewId")), /\.(insert|upsert|update|delete)\(/);
   });
 });

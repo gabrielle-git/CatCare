@@ -153,12 +153,15 @@ describe("0038 commerce lifecycle schema foundation contract", () => {
     assert.doesNotMatch(sql, /security definer/i);
   });
 
-  it("legacy shopping write path remains schema-compatible without code changes", () => {
+  it("Phase A app contract: shopping writes use the 0038 columns without schema changes", () => {
     assert.match(actions, /export async function createPurchase/);
     assert.match(actions, /ensurePurchaseReview/);
     assert.match(actions, /export async function createProductReview/);
-    assert.doesNotMatch(actions, /archived_at/);
-    // Review inserts must not yet require purchase_id (nullable schema keeps old app compatible).
-    assert.doesNotMatch(actions, /from\(["']product_reviews["']\)\.insert\(\{[^}]*\bpurchase_id\b/);
+    // Lifecycle is a column flip on the same row (archive/restore), never a delete.
+    assert.match(actions, /update\(\{ archived_at: now, updated_at: now \}\)/);
+    assert.match(actions, /update\(\{ archived_at: null,/);
+    // Purchase-originated Review inserts go through the builder that always sets purchase_id.
+    assert.match(actions, /from\("product_reviews"\)\.insert\(buildProductReviewInsert\(\{[\s\S]*?purchaseId: args\.purchaseId/);
+    assert.match(actions, /from\("product_reviews"\)\.insert\(buildProductReviewInsert\(\{[\s\S]*?purchaseId: purchase\.id/);
   });
 });

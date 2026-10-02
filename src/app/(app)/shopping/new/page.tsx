@@ -6,6 +6,7 @@ import { listCommerce } from "@/lib/commerce";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoPets, demoProducts } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
+import { activeProducts } from "@/lib/product-lifecycle";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { createPurchase } from "../actions";
@@ -13,7 +14,7 @@ import { createPurchase } from "../actions";
 async function loadForm() {
   if (!(await isLiveData())) {
     return {
-      products: demoProducts,
+      products: activeProducts(demoProducts),
       pets: demoPets,
       memberships: demoBenefitMemberships.filter((item) => item.active),
       configured: false,
@@ -23,7 +24,8 @@ async function loadForm() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { products: [], pets: [], memberships: [], configured: true };
   const household = await ensureHousehold(supabase, data.user.id);
-  const [{ products }, pets, memberships] = await Promise.all([
+  // Picker offers active Products only; createPurchase re-checks server-side.
+  const [{ catalogProducts: products }, pets, memberships] = await Promise.all([
     listCommerce(supabase, household.id),
     listPets(supabase, household.id),
     listActiveMembershipsForShopping(supabase, household.id),

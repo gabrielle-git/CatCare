@@ -38,6 +38,9 @@ function basePurchase(overrides: Partial<Purchase> = {}): Purchase {
     amount_cents: 1975,
     subtotal_cents: 1975,
     discount_cents: 0,
+    shipping_cents: 0,
+    credits_applied_cents: 0,
+    discount_rate_bps: null,
     coupon_code: null,
     petlove_club: false,
     membership_id: null,
@@ -58,6 +61,7 @@ function product(overrides: Partial<Product> = {}): Product {
     category: "dry_food",
     package_size: "1kg",
     notes: null,
+    archived_at: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -218,6 +222,7 @@ function review(overrides: Partial<ProductReview> = {}): ProductReview {
     id: REVIEW_A,
     household_id: HOUSEHOLD,
     product_id: PRODUCT_A,
+    purchase_id: PURCHASE_A,
     pet_id: null,
     quality_score: 5,
     acceptance_score: 5,
@@ -280,5 +285,15 @@ describe("findLinkedReviewForPurchase", () => {
     assert.equal(model.lines[0].product_id, null);
     const linked = findLinkedReviewForPurchase(model, [review({ product_id: PRODUCT_A })]);
     assert.equal(linked, null);
+  });
+
+  it("F: same Product + same day but purchase_id NULL (standalone) → NO linked review (soft match removed)", () => {
+    const model = buildPurchaseReadModel(basePurchase(), [], new Map(), new Map([[PRODUCT_A, product()]]));
+    assert.equal(findLinkedReviewForPurchase(model, [review({ purchase_id: null })]), null);
+  });
+
+  it("G: same Product reviewed for ANOTHER Purchase → NO linked review", () => {
+    const model = buildPurchaseReadModel(basePurchase(), [], new Map(), new Map([[PRODUCT_A, product()]]));
+    assert.equal(findLinkedReviewForPurchase(model, [review({ purchase_id: PURCHASE_B })]), null);
   });
 });

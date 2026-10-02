@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, Star } from "lucide-react";
 import { PetMultiSelect } from "@/components/pet-multi-select";
 import { StarRating } from "@/components/star-rating";
-import { getProduct, getPurchase } from "@/lib/commerce";
+import { findPurchaseProductReviewId, getProduct, getPurchase } from "@/lib/commerce";
+import { existingReviewEditPath } from "@/lib/product-review-link";
+import { resolvePurchaseReviewProductId } from "@/lib/purchase-read-model";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { listPets } from "@/lib/pets";
@@ -16,7 +19,7 @@ const scoreFields = [
   { name: "cost_benefit_score", legend: "Custo-benefício" },
 ] as const;
 
-export default async function NewReviewPage({ searchParams }: { searchParams: Promise<{ purchase?: string; error?: string }> }) {
+export default async function NewReviewPage({ searchParams }: { searchParams: Promise<{ purchase?: string; product?: string; error?: string }> }) {
   const flags = await searchParams;
   if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
   if (!flags.purchase) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Informe a compra para avaliar.</div>;
@@ -32,7 +35,12 @@ export default async function NewReviewPage({ searchParams }: { searchParams: Pr
   ]);
   if (!purchase) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Compra não encontrada.</div>;
 
-  const product = await getProduct(supabase, household.id, purchase.product_id);
+  const target = resolvePurchaseReviewProductId(purchase, flags.product ?? null);
+  if (!target.ok) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">{target.error}</div>;
+  const existingReviewId = await findPurchaseProductReviewId(supabase, household.id, purchase.id, target.productId);
+  if (existingReviewId) redirect(existingReviewEditPath(existingReviewId));
+
+  const product = await getProduct(supabase, household.id, target.productId);
   const save = createProductReview.bind(null, purchase.id);
   const defaultPetIds = purchase.pet_ids ?? (purchase.pet_id ? [purchase.pet_id] : []);
 
@@ -56,6 +64,7 @@ export default async function NewReviewPage({ searchParams }: { searchParams: Pr
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
+        <input type="hidden" name="product_id" value={target.productId} />
         <p className="text-xs text-[var(--muted)]">As três notas alimentam o comparador da família e liberam recomendações.</p>
         <div className="grid gap-5 sm:grid-cols-3">
           {scoreFields.map((field) => (

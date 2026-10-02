@@ -9,17 +9,24 @@ import {
   isUniqueViolation,
   resolveHouseholdCreateOwnership,
 } from "@/lib/create-idempotency";
+import { findPurchaseProductReviewId, getProduct, getPurchase, loadProductHistoryRefs } from "@/lib/commerce";
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
-import { validateFactualCivilDate } from "@/lib/factual-datetime";
+import { civilDateInAppTz, validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
 import {
   planCompoundPurchaseCreate,
   shouldCompensateDeleteExpense,
 } from "@/lib/purchase-create-idempotency";
+import { productHasCommerceHistory, type ProductHistoryRefs } from "@/lib/product-delete-guard";
+import { PRODUCT_NOT_FOUND_MESSAGE, productSelectableForNewPurchase } from "@/lib/product-lifecycle";
 import {
-  PRODUCT_DELETE_HISTORY_MESSAGE,
-  productHasCommerceHistory,
-} from "@/lib/product-delete-guard";
+  REVIEW_PURCHASE_CONTEXT_MESSAGE,
+  buildProductReviewInsert,
+  existingReviewEditPath,
+  isPurchaseContextViolation,
+  planPurchaseReviewCreate,
+} from "@/lib/product-review-link";
+import { resolvePurchaseReviewProductId } from "@/lib/purchase-read-model";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-form";
 import { createClient } from "@/lib/supabase/server";
@@ -82,14 +89,25 @@ function purchaseExtras(formData: FormData) {
 function finishPurchase(redirectTo: string): CreatePurchaseResult {
   revalidatePath("/shopping");
   revalidatePath("/expenses");
+  revalidatePath("/assistant");
   return { ok: true, redirectTo };
+}
+
+function revalidateReviewSurfaces() {
+  revalidatePath("/shopping");
+  revalidatePath("/assistant");
 }
 
 type PurchaseAuth = Awaited<ReturnType<typeof authContext>>;
 
+/**
+ * Inline review written with the Purchase: always linked through purchase_id.
+ * If another Review already owns this Purchase + Product, it is kept untouched (no duplicate).
+ */
 async function ensurePurchaseReview(args: {
   supabase: PurchaseAuth["supabase"];
   householdId: string;
+  purchaseId: string;
   reviewId: string;
   productId: string;
   petId: string | null;
@@ -112,20 +130,31 @@ async function ensurePurchaseReview(args: {
     };
   }
   if (reviewOwnership.status === "create") {
-    const { error: reviewError } = await args.supabase.from("product_reviews").insert({
+    let linkedReviewId: string | null;
+    try {
+      linkedReviewId = await findPurchaseProductReviewId(args.supabase, args.householdId, args.purchaseId, args.productId);
+    } catch (lookupError) {
+      return { ok: false, error: lookupError instanceof Error ? lookupError.message : "Não foi possível conferir a avaliação." };
+    }
+    if (planPurchaseReviewCreate(linkedReviewId ? { id: linkedReviewId } : null).action === "edit_existing") return null;
+
+    const { error: reviewError } = await args.supabase.from("product_reviews").insert(buildProductReviewInsert({
       id: args.reviewId,
-      household_id: args.householdId,
-      product_id: args.productId,
-      pet_id: args.petId,
-      quality_score: args.scores[0],
-      acceptance_score: args.scores[1],
-      cost_benefit_score: args.scores[2],
-      would_buy_again: args.wouldBuyAgain,
+      householdId: args.householdId,
+      productId: args.productId,
+      purchaseId: args.purchaseId,
+      petId: args.petId,
+      scores: args.scores,
+      wouldBuyAgain: args.wouldBuyAgain,
       notes: args.notes,
-      reviewed_at: args.reviewedAt,
-    });
-    if (reviewError && !isUniqueViolation(reviewError)) {
-      return { ok: false, error: reviewError.message };
+      reviewedAt: args.reviewedAt,
+    }));
+    if (reviewError) {
+      if (isPurchaseContextViolation(reviewError)) return { ok: false, error: REVIEW_PURCHASE_CONTEXT_MESSAGE };
+      if (!isUniqueViolation(reviewError)) return { ok: false, error: reviewError.message };
+      // 23505: either our own retry (same review id) or another Review owns Purchase + Product.
+      const { data: ownRow } = await args.supabase.from("product_reviews").select("id").eq("id", args.reviewId).eq("household_id", args.householdId).maybeSingle();
+      if (!ownRow) return null;
     }
   }
   await syncEntityPets(args.supabase, "review_pets", args.householdId, args.reviewId, args.petIds);
@@ -269,6 +298,7 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
       const reviewError = await ensurePurchaseReview({
         supabase,
         householdId: household.id,
+        purchaseId,
         reviewId,
         productId: product.id,
         petId,
@@ -294,7 +324,10 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
     if (created) return created;
   }
 
-  if (!product) return { ok: false, error: "Produto não encontrado." };
+  // NEW Purchase only: stale client state must not buy an archived Product (no silent restore).
+  const selectable = productSelectableForNewPurchase(product, household.id);
+  if (!selectable.ok) return { ok: false, error: selectable.error };
+  product = selectable.product;
 
   const description = [product.brand, product.name].filter(Boolean).join(" • ");
   const expenseNotes = `Compra em ${storeName}`;
@@ -367,6 +400,7 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
           const reviewError = await ensurePurchaseReview({
             supabase,
             householdId: household.id,
+            purchaseId,
             reviewId,
             productId: product.id,
             petId,
@@ -400,6 +434,7 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
     const reviewError = await ensurePurchaseReview({
       supabase,
       householdId: household.id,
+      purchaseId,
       reviewId,
       productId: product.id,
       petId,
@@ -484,6 +519,7 @@ export async function updatePurchase(purchaseId: string, formData: FormData) {
 
   revalidatePath("/shopping");
   revalidatePath("/expenses");
+  revalidatePath("/assistant");
   redirect("/shopping?updated=1");
 }
 
@@ -493,8 +529,10 @@ export async function deletePurchase(purchaseId: string) {
   const { error } = await supabase.from("purchases").delete().eq("id", purchaseId).eq("household_id", household.id);
   if (error) redirect(`/shopping?error=${encodeURIComponent(error.message)}`);
   if (existing.data?.expense_id) await supabase.from("expenses").delete().eq("id", existing.data.expense_id).eq("household_id", household.id);
+  // Linked Reviews survive: the DB sets product_reviews.purchase_id to NULL (0038 FK).
   revalidatePath("/shopping");
   revalidatePath("/expenses");
+  revalidatePath("/assistant");
   redirect("/shopping?deleted=1");
 }
 
@@ -513,45 +551,76 @@ export async function updateProduct(productId: string, formData: FormData) {
   }).eq("id", productId).eq("household_id", household.id);
   if (error) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/shopping");
+  revalidatePath("/shopping/new");
+  revalidatePath("/assistant");
   redirect("/shopping?updated=1");
 }
 
 export async function deleteProduct(productId: string) {
   const { supabase, household } = await authContext();
-  const [headerPurchases, itemRefs, reviewRefs] = await Promise.all([
-    supabase
-      .from("purchases")
-      .select("id", { count: "exact", head: true })
-      .eq("product_id", productId)
-      .eq("household_id", household.id),
-    supabase
-      .from("purchase_items")
-      .select("id", { count: "exact", head: true })
-      .eq("product_id", productId)
-      .eq("household_id", household.id),
-    supabase
-      .from("product_reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("product_id", productId)
-      .eq("household_id", household.id),
-  ]);
-  if (headerPurchases.error) redirect(`/shopping?error=${encodeURIComponent(headerPurchases.error.message)}`);
-  if (itemRefs.error) redirect(`/shopping?error=${encodeURIComponent(itemRefs.error.message)}`);
-  if (reviewRefs.error) redirect(`/shopping?error=${encodeURIComponent(reviewRefs.error.message)}`);
-  if (
-    productHasCommerceHistory({
-      headerPurchaseCount: headerPurchases.count ?? 0,
-      purchaseItemCount: itemRefs.count ?? 0,
-      reviewCount: reviewRefs.count ?? 0,
-    })
-  ) {
-    redirect(`/shopping?error=${encodeURIComponent(PRODUCT_DELETE_HISTORY_MESSAGE)}`);
+  let refs: ProductHistoryRefs;
+  try {
+    refs = await loadProductHistoryRefs(supabase, household.id, productId);
+  } catch (refsError) {
+    redirect(`/shopping?error=${encodeURIComponent(refsError instanceof Error ? refsError.message : "Não foi possível conferir o histórico do produto.")}`);
+  }
+  if (productHasCommerceHistory(refs)) {
+    // History blocks destructive delete; the edit screen offers "Arquivar produto" instead.
+    redirect(`/shopping/products/${productId}/edit?blocked=history`);
   }
   const { error } = await supabase.from("products").delete().eq("id", productId).eq("household_id", household.id);
   if (error) redirect(`/shopping?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/shopping");
+  revalidatePath("/shopping/new");
+  revalidatePath("/assistant");
   revalidatePath("/expenses");
   redirect("/shopping?deleted=1");
+}
+
+function revalidateProductLifecycle(productId: string) {
+  revalidatePath("/shopping");
+  revalidatePath("/shopping/new");
+  revalidatePath("/assistant");
+  revalidatePath(`/shopping/products/${productId}/edit`);
+}
+
+/** Archive: archived_at = now. Never deletes and never touches Purchases, items, Reviews or Expenses. */
+export async function archiveProduct(productId: string) {
+  if (!isUuid(productId)) redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  const { supabase, household } = await authContext();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("products")
+    .update({ archived_at: now, updated_at: now })
+    .eq("id", productId)
+    .eq("household_id", household.id)
+    .is("archived_at", null)
+    .select("id");
+  if (error) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (!data?.length && !(await getProduct(supabase, household.id, productId))) {
+    redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  }
+  revalidateProductLifecycle(productId);
+  redirect("/shopping?archived=1");
+}
+
+/** Restore: archived_at = NULL on the same row — back in catalog, picker and recommendations. */
+export async function restoreProduct(productId: string) {
+  if (!isUuid(productId)) redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  const { supabase, household } = await authContext();
+  const { data, error } = await supabase
+    .from("products")
+    .update({ archived_at: null, updated_at: new Date().toISOString() })
+    .eq("id", productId)
+    .eq("household_id", household.id)
+    .not("archived_at", "is", null)
+    .select("id");
+  if (error) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (!data?.length && !(await getProduct(supabase, household.id, productId))) {
+    redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  }
+  revalidateProductLifecycle(productId);
+  redirect("/shopping?restored=1");
 }
 
 export async function updateProductReview(reviewId: string, formData: FormData) {
@@ -576,7 +645,7 @@ export async function updateProductReview(reviewId: string, formData: FormData) 
   } catch (petError) {
     redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
-  revalidatePath("/shopping");
+  revalidateReviewSurfaces();
   redirect("/shopping?updated=1");
 }
 
@@ -584,50 +653,75 @@ export async function deleteProductReview(reviewId: string) {
   const { supabase, household } = await authContext();
   const { error } = await supabase.from("product_reviews").delete().eq("id", reviewId).eq("household_id", household.id);
   if (error) redirect(`/shopping?error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/shopping");
+  revalidateReviewSurfaces();
   redirect("/shopping?deleted=1");
 }
 
+/**
+ * Deferred review from a Purchase. Idempotent per (purchase_id, product_id): an existing Review
+ * is opened for exact edit instead of inserting a duplicate (also on a concurrent double submit,
+ * where the 0038 partial unique index rejects the second insert).
+ */
 export async function createProductReview(purchaseId: string, formData: FormData) {
+  const requestedProductId = value(formData, "product_id") || null;
+  const retryPath = `/shopping/reviews/new?purchase=${purchaseId}${requestedProductId ? `&product=${requestedProductId}` : ""}`;
   const scores = ["quality_score", "acceptance_score", "cost_benefit_score"].map((name) => Number(value(formData, name)));
   if (!scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 5)) {
-    redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=Informe%20as%20tr%C3%AAs%20notas%20de%201%20a%205.`);
+    redirect(`${retryPath}&error=Informe%20as%20tr%C3%AAs%20notas%20de%201%20a%205.`);
   }
+  if (!isUuid(purchaseId) || (requestedProductId && !isUuid(requestedProductId))) redirect("/shopping?error=Compra%20n%C3%A3o%20encontrada.");
 
   const { supabase, household } = await authContext();
-  const { data: purchaseRow, error: purchaseError } = await supabase
-    .from("purchases")
-    .select("*")
-    .eq("id", purchaseId)
-    .eq("household_id", household.id)
-    .maybeSingle();
-  if (purchaseError) redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(purchaseError.message)}`);
-  if (!purchaseRow) redirect("/shopping?error=Compra%20n%C3%A3o%20encontrada.");
+  let purchase: Awaited<ReturnType<typeof getPurchase>>;
+  try {
+    purchase = await getPurchase(supabase, household.id, purchaseId);
+  } catch (purchaseError) {
+    redirect(`${retryPath}&error=${encodeURIComponent(purchaseError instanceof Error ? purchaseError.message : "Não foi possível carregar a compra.")}`);
+  }
+  if (!purchase) redirect("/shopping?error=Compra%20n%C3%A3o%20encontrada.");
+
+  const target = resolvePurchaseReviewProductId(purchase, requestedProductId);
+  if (!target.ok) redirect(`${retryPath}&error=${encodeURIComponent(target.error)}`);
+
+  let existingReviewId: string | null;
+  try {
+    existingReviewId = await findPurchaseProductReviewId(supabase, household.id, purchase.id, target.productId);
+  } catch (lookupError) {
+    redirect(`${retryPath}&error=${encodeURIComponent(lookupError instanceof Error ? lookupError.message : "Não foi possível conferir a avaliação.")}`);
+  }
+  const plan = planPurchaseReviewCreate(existingReviewId ? { id: existingReviewId } : null);
+  if (plan.action === "edit_existing") redirect(existingReviewEditPath(plan.reviewId));
 
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
-  const purchaseDay = String(purchaseRow.purchased_at).slice(0, 10);
-  const reviewResult = await supabase.from("product_reviews").insert({
-    household_id: household.id,
-    product_id: purchaseRow.product_id,
-    pet_id: petId,
-    quality_score: scores[0],
-    acceptance_score: scores[1],
-    cost_benefit_score: scores[2],
-    would_buy_again: formData.get("would_buy_again") === "on",
+  const purchaseDay = civilDateInAppTz(new Date(purchase.purchased_at));
+  const reviewResult = await supabase.from("product_reviews").insert(buildProductReviewInsert({
+    householdId: household.id,
+    productId: target.productId,
+    purchaseId: purchase.id,
+    petId,
+    scores,
+    wouldBuyAgain: formData.get("would_buy_again") === "on",
     notes: value(formData, "review_notes") || null,
-    reviewed_at: `${purchaseDay}T12:00:00-03:00`,
-  }).select("id").single();
-  if (reviewResult.error) redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(reviewResult.error.message)}`);
+    reviewedAt: `${purchaseDay}T12:00:00-03:00`,
+  })).select("id").single();
+  if (reviewResult.error) {
+    if (isUniqueViolation(reviewResult.error)) {
+      const winnerId = await findPurchaseProductReviewId(supabase, household.id, purchase.id, target.productId).catch(() => null);
+      if (winnerId) redirect(existingReviewEditPath(winnerId));
+    }
+    if (isPurchaseContextViolation(reviewResult.error)) redirect(`${retryPath}&error=${encodeURIComponent(REVIEW_PURCHASE_CONTEXT_MESSAGE)}`);
+    redirect(`${retryPath}&error=${encodeURIComponent(reviewResult.error.message)}`);
+  }
 
   try {
     await validateEntityPets(supabase, household.id, petIds);
-    if (reviewResult.data) await syncEntityPets(supabase, "review_pets", household.id, reviewResult.data.id, petIds);
+    await syncEntityPets(supabase, "review_pets", household.id, reviewResult.data.id, petIds);
   } catch (petError) {
-    if (reviewResult.data) await supabase.from("product_reviews").delete().eq("id", reviewResult.data.id).eq("household_id", household.id);
-    redirect(`/shopping/reviews/new?purchase=${purchaseId}&error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
+    await supabase.from("product_reviews").delete().eq("id", reviewResult.data.id).eq("household_id", household.id);
+    redirect(`${retryPath}&error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
   }
 
-  revalidatePath("/shopping");
+  revalidateReviewSurfaces();
   redirect("/shopping?saved=1&review=done");
 }
