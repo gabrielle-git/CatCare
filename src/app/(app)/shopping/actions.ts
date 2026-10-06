@@ -18,7 +18,9 @@ import {
   shouldCompensateDeleteExpense,
 } from "@/lib/purchase-create-idempotency";
 import { productHasCommerceHistory, type ProductHistoryRefs } from "@/lib/product-delete-guard";
-import { PRODUCT_NOT_FOUND_MESSAGE, productSelectableForNewPurchase } from "@/lib/product-lifecycle";
+import { createOrReuseCatalogProduct, parseProductCatalogFields, productCreatedRedirect } from "@/lib/product-catalog";
+import { PRODUCT_NOT_FOUND_MESSAGE, isProductArchived, productSelectableForNewPurchase } from "@/lib/product-lifecycle";
+import { PRODUCT_ARCHIVED_REVIEW_MESSAGE, productStandaloneReviewPath } from "@/lib/product-review-entry";
 import {
   REVIEW_PURCHASE_CONTEXT_MESSAGE,
   buildProductReviewInsert,
@@ -32,7 +34,6 @@ import { parsePetIds, resolveOptionalPetId, sharedFromPetIds } from "@/lib/pet-f
 import { createClient } from "@/lib/supabase/server";
 import type { ExpenseCategory, Product, ProductCategory, PurchaseChannel } from "@/types/database";
 
-const productCategories = new Set<ProductCategory>(["dry_food", "wet_food", "litter", "treat", "hygiene", "medicine", "accessory", "other"]);
 const purchaseChannels = new Set<PurchaseChannel>(["physical_store", "online_store", "marketplace", "delivery", "veterinary", "other"]);
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
@@ -238,51 +239,11 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
   async function resolveOrCreateNewProduct(): Promise<CreatePurchaseResult | null> {
     const newProductId = value(formData, "new_product_id");
     if (!isUuid(newProductId)) return { ok: false, error: invalidIntentErrorMessage() };
-    const name = value(formData, "product_name");
-    const category = value(formData, "category") as ProductCategory;
-    if (!name || !productCategories.has(category)) {
-      return { ok: false, error: "Dê um nome e uma categoria ao novo produto." };
-    }
-
-    const { data: existingProduct } = await supabase.from("products").select("*").eq("id", newProductId).maybeSingle();
-    const productOwnership = resolveHouseholdCreateOwnership(newProductId, household.id, existingProduct);
-    if (!productOwnership.ok) {
-      return {
-        ok: false,
-        error: productOwnership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage(),
-      };
-    }
-    if (productOwnership.status === "reuse") {
-      product = existingProduct as Product;
-      return null;
-    }
-
-    const result = await supabase
-      .from("products")
-      .insert({
-        id: newProductId,
-        household_id: household.id,
-        name,
-        brand: value(formData, "brand") || null,
-        category,
-        package_size: value(formData, "package_size") || null,
-        notes: value(formData, "product_notes") || null,
-      })
-      .select("*")
-      .single();
-    if (result.error) {
-      if (isUniqueViolation(result.error)) {
-        const { data: again } = await supabase.from("products").select("*").eq("id", newProductId).maybeSingle();
-        const retry = resolveHouseholdCreateOwnership(newProductId, household.id, again);
-        if (retry.ok && retry.status === "reuse") {
-          product = again as Product;
-          return null;
-        }
-        return { ok: false, error: foreignIntentErrorMessage() };
-      }
-      return { ok: false, error: result.error.message };
-    }
-    product = result.data as Product;
+    const parsed = parseProductCatalogFields((name) => value(formData, name));
+    if (!parsed.ok) return parsed;
+    const created = await createOrReuseCatalogProduct(supabase, household.id, newProductId, parsed.fields);
+    if (!created.ok) return created;
+    product = created.product;
     return null;
   }
 
@@ -537,16 +498,11 @@ export async function deletePurchase(purchaseId: string) {
 }
 
 export async function updateProduct(productId: string, formData: FormData) {
-  const name = value(formData, "product_name");
-  const category = value(formData, "category") as ProductCategory;
-  if (!name || !productCategories.has(category)) redirect(`/shopping/products/${productId}/edit?error=Confira%20nome%20e%20categoria.`);
+  const parsed = parseProductCatalogFields((name) => value(formData, name));
+  if (!parsed.ok) redirect(`/shopping/products/${productId}/edit?error=Confira%20nome%20e%20categoria.`);
   const { supabase, household } = await authContext();
   const { error } = await supabase.from("products").update({
-    name,
-    brand: value(formData, "brand") || null,
-    category,
-    package_size: value(formData, "package_size") || null,
-    notes: value(formData, "product_notes") || null,
+    ...parsed.fields,
     updated_at: new Date().toISOString(),
   }).eq("id", productId).eq("household_id", household.id);
   if (error) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
@@ -723,5 +679,92 @@ export async function createProductReview(purchaseId: string, formData: FormData
   }
 
   revalidateReviewSurfaces();
-  redirect("/shopping?saved=1&review=done");
+  redirect("/shopping?review=done");
+}
+
+export type CreateProductResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string };
+
+/** Catalog-only create: one form mount = one product_id intent. No Purchase, Expense or Review. */
+export async function createProduct(formData: FormData): Promise<CreateProductResult> {
+  const productId = value(formData, "product_id");
+  if (!isUuid(productId)) return { ok: false, error: invalidIntentErrorMessage() };
+  const parsed = parseProductCatalogFields((name) => value(formData, name));
+  if (!parsed.ok) return parsed;
+  const { supabase, household } = await authContext();
+  const created = await createOrReuseCatalogProduct(supabase, household.id, productId, parsed.fields);
+  if (!created.ok) return created;
+  revalidatePath("/shopping");
+  revalidatePath("/shopping/new");
+  revalidatePath("/assistant");
+  return { ok: true, redirectTo: productCreatedRedirect(created.product.id) };
+}
+
+/**
+ * Product-level Review with no Purchase origin (purchase_id NULL). One page render = one
+ * review_id intent, so a double submit reuses the row instead of inserting a second Review.
+ */
+export async function createStandaloneProductReview(productId: string, formData: FormData) {
+  const retryPath = productStandaloneReviewPath(productId);
+  const scores = ["quality_score", "acceptance_score", "cost_benefit_score"].map((name) => Number(value(formData, name)));
+  if (!scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 5)) {
+    redirect(`${retryPath}&error=Informe%20as%20tr%C3%AAs%20notas%20de%201%20a%205.`);
+  }
+  if (!isUuid(productId)) redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  const reviewId = value(formData, "review_id");
+  if (!isUuid(reviewId)) redirect(`${retryPath}&error=${encodeURIComponent(invalidIntentErrorMessage())}`);
+
+  const { supabase, household } = await authContext();
+  const { data: existingReview } = await supabase.from("product_reviews").select("id, household_id").eq("id", reviewId).maybeSingle();
+  const ownership = resolveHouseholdCreateOwnership(reviewId, household.id, existingReview);
+  if (!ownership.ok) {
+    redirect(`${retryPath}&error=${encodeURIComponent(ownership.reason === "foreign_household" ? foreignIntentErrorMessage() : invalidIntentErrorMessage())}`);
+  }
+  if (ownership.status === "reuse") {
+    revalidateReviewSurfaces();
+    redirect("/shopping?review=done");
+  }
+
+  let product: Awaited<ReturnType<typeof getProduct>>;
+  try {
+    product = await getProduct(supabase, household.id, productId);
+  } catch (productError) {
+    redirect(`${retryPath}&error=${encodeURIComponent(productError instanceof Error ? productError.message : "Não foi possível carregar o produto.")}`);
+  }
+  if (!product) redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+  if (isProductArchived(product)) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(PRODUCT_ARCHIVED_REVIEW_MESSAGE)}`);
+
+  const petIds = parsePetIds(formData);
+  const petId = resolveOptionalPetId(petIds);
+  const { error: insertError } = await supabase.from("product_reviews").insert(buildProductReviewInsert({
+    id: reviewId,
+    householdId: household.id,
+    productId: product.id,
+    purchaseId: null,
+    petId,
+    scores,
+    wouldBuyAgain: formData.get("would_buy_again") === "on",
+    notes: value(formData, "review_notes") || null,
+    reviewedAt: `${civilDateInAppTz()}T12:00:00-03:00`,
+  }));
+  if (insertError) {
+    if (!isUniqueViolation(insertError)) redirect(`${retryPath}&error=${encodeURIComponent(insertError.message)}`);
+    const { data: ownRow } = await supabase.from("product_reviews").select("id").eq("id", reviewId).eq("household_id", household.id).maybeSingle();
+    if (!ownRow) redirect(`${retryPath}&error=${encodeURIComponent(foreignIntentErrorMessage())}`);
+    revalidateReviewSurfaces();
+    redirect("/shopping?review=done");
+  }
+
+  try {
+    await validateEntityPets(supabase, household.id, petIds);
+    await syncEntityPets(supabase, "review_pets", household.id, reviewId, petIds);
+  } catch (petError) {
+    await supabase.from("product_reviews").delete().eq("id", reviewId).eq("household_id", household.id);
+    redirect(`${retryPath}&error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
+  }
+
+  revalidateReviewSurfaces();
+  revalidatePath(`/shopping/products/${productId}/edit`);
+  redirect("/shopping?review=done");
 }

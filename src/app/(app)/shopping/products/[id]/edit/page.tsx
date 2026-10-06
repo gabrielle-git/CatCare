@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { Archive, ArchiveRestore, ArrowLeft, PackageOpen, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, PackageOpen, Pencil, Star, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
-import { getProduct, loadProductHistoryRefs } from "@/lib/commerce";
+import { getProduct, loadProductHistoryRefs, loadProductReviewSummary } from "@/lib/commerce";
+import { formatShortDate } from "@/lib/format";
+import { productReviewEntryPoints } from "@/lib/product-review-entry";
+import { scoreLabel } from "@/lib/score-labels";
 import { ensureHousehold } from "@/lib/households";
 import { isLiveData } from "@/lib/demo-mode";
 import { PRODUCT_DELETE_HISTORY_MESSAGE, productHasCommerceHistory } from "@/lib/product-delete-guard";
@@ -23,8 +26,14 @@ export default async function EditProductPage({ params, searchParams }: { params
   if (!product) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Produto não encontrado.</div>;
 
   const archived = isProductArchived(product);
-  const hasHistory = productHasCommerceHistory(await loadProductHistoryRefs(supabase, household.id, id));
+  const [historyRefs, reviewSummary] = await Promise.all([
+    loadProductHistoryRefs(supabase, household.id, id),
+    loadProductReviewSummary(supabase, household.id, id),
+  ]);
+  const hasHistory = productHasCommerceHistory(historyRefs);
   const lifecycle = productLifecycleOptions({ archived, hasHistory });
+  const latestReview = reviewSummary.latest;
+  const reviewEntry = productReviewEntryPoints({ productId: id, archived, latestReviewId: latestReview?.id ?? null });
 
   const save = updateProduct.bind(null, id);
   const remove = deleteProduct.bind(null, id);
@@ -43,6 +52,23 @@ export default async function EditProductPage({ params, searchParams }: { params
         <label className="block text-sm font-bold">Notas<textarea name="product_notes" rows={3} defaultValue={product.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white">Salvar produto</button>
       </form>
+      <section className="cat-card mt-5 p-5 md:p-6">
+        <div className="flex items-center gap-2"><Star size={18} className="text-[var(--lavender-strong)]" /><h2 className="text-lg font-bold">Avaliações</h2></div>
+        {reviewSummary.count === 0 ? (
+          <p className="mt-2 text-xs text-[var(--muted)]">Nenhuma avaliação ainda. Avalie qualidade, aceitação dos pets e custo-benefício — com ou sem uma compra relacionada.{archived ? " Restaure o produto para avaliá-lo." : ""}</p>
+        ) : (
+          <div className="mt-2 text-xs text-[var(--muted)]">
+            <p><strong className="text-[var(--foreground)]">{reviewSummary.count} {reviewSummary.count === 1 ? "avaliação" : "avaliações"}</strong></p>
+            {latestReview && <p className="mt-1">Última em {formatShortDate(latestReview.reviewed_at)} • média {scoreLabel((latestReview.quality_score + latestReview.acceptance_score + latestReview.cost_benefit_score) / 3)} • {latestReview.would_buy_again ? "compraria de novo" : "não compraria de novo"}{latestReview.purchase_id ? " • ligada a uma compra" : " • avaliação geral"}</p>}
+          </div>
+        )}
+        {(reviewEntry.editLatest || reviewEntry.create) && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {reviewEntry.editLatest && <Link href={reviewEntry.editLatest} className="focus-ring inline-flex items-center gap-1.5 rounded-2xl bg-[var(--lavender-soft)] px-4 py-2.5 text-xs font-bold text-[var(--lavender-strong)]"><Pencil size={14} /> Editar última avaliação</Link>}
+            {reviewEntry.create && <Link href={reviewEntry.create} className="focus-ring inline-flex items-center gap-1.5 rounded-2xl bg-[var(--peach)] px-4 py-2.5 text-xs font-bold text-[#96613e]"><Star size={14} /> {reviewSummary.count === 0 ? "Avaliar produto" : "Avaliar novamente"}</Link>}
+          </div>
+        )}
+      </section>
       {lifecycle.canRestore && (
         <section className="mt-5 rounded-[22px] border border-[var(--border)] bg-white p-5">
           <h2 className="font-bold">Restaurar produto</h2>

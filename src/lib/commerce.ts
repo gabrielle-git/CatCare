@@ -9,6 +9,7 @@ import {
 } from "@/lib/product-lifecycle";
 import {
   buildPurchaseReadModels,
+  purchasesContainingProduct,
   type PurchaseItemRow,
   type PurchaseReadModel,
 } from "@/lib/purchase-read-model";
@@ -195,6 +196,51 @@ export async function findPurchaseProductReviewId(supabase: SupabaseClient, hous
     .maybeSingle();
   if (error) throw error;
   return (data?.id as string | undefined) ?? null;
+}
+
+/**
+ * Household Purchases that contain the Product by interpreted line truth, plus the Product's
+ * Purchase-linked Reviews. Header product_id only nominates candidates; persisted carts are
+ * re-checked against their purchase_items lines.
+ */
+export async function loadProductReviewContext(supabase: SupabaseClient, householdId: string, productId: string) {
+  const [headerPurchases, itemRefs, linkedReviews] = await Promise.all([
+    supabase.from("purchases").select("*").eq("household_id", householdId).eq("product_id", productId).order("purchased_at", { ascending: false }).limit(100),
+    supabase.from("purchase_items").select("purchase_id").eq("household_id", householdId).eq("product_id", productId).limit(200),
+    supabase.from("product_reviews").select("purchase_id, product_id").eq("household_id", householdId).eq("product_id", productId).not("purchase_id", "is", null),
+  ]);
+  if (headerPurchases.error) throw headerPurchases.error;
+  if (itemRefs.error) throw itemRefs.error;
+  if (linkedReviews.error) throw linkedReviews.error;
+  const headerRows = (headerPurchases.data ?? []) as Purchase[];
+  const known = new Set(headerRows.map((row) => row.id));
+  const itemOnlyIds = [...new Set((itemRefs.data ?? []).map((row) => String(row.purchase_id)))].filter((id) => !known.has(id));
+  let itemRows: Purchase[] = [];
+  if (itemOnlyIds.length > 0) {
+    const { data, error } = await supabase.from("purchases").select("*").eq("household_id", householdId).in("id", itemOnlyIds);
+    if (error) throw error;
+    itemRows = (data ?? []) as Purchase[];
+  }
+  const withPets = await attachPurchasePetIds(supabase, householdId, [...headerRows, ...itemRows]);
+  const models = await toPurchaseReadModels(supabase, householdId, withPets, []);
+  return {
+    purchases: purchasesContainingProduct(models, productId),
+    linkedReviews: (linkedReviews.data ?? []) as Pick<ProductReview, "purchase_id" | "product_id">[],
+  };
+}
+
+/** Exact Review count and the latest Review of one Product (any lifecycle state). */
+export async function loadProductReviewSummary(supabase: SupabaseClient, householdId: string, productId: string) {
+  const { data, count, error } = await supabase
+    .from("product_reviews")
+    .select("*", { count: "exact" })
+    .eq("household_id", householdId)
+    .eq("product_id", productId)
+    .order("reviewed_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return { count: count ?? 0, latest: ((data ?? [])[0] as ProductReview | undefined) ?? null };
 }
 
 export async function getProductReview(supabase: SupabaseClient, householdId: string, id: string) {

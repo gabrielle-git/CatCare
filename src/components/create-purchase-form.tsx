@@ -90,10 +90,16 @@ export function CreatePurchaseForm({
       <section className="cat-card p-5 md:p-7">
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">1. Produto</p>
         <h2 className="mt-1 text-xl font-bold">O que você comprou?</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          Escolha um produto já cadastrado ou cadastre um novo nesta compra.{" "}
+          <Link href="/shopping/products/new" className="font-bold text-[var(--lavender-strong)] underline">
+            Quero apenas cadastrar um produto
+          </Link>
+        </p>
         <label className="mt-5 block text-sm font-bold">
-          Usar um produto já acompanhado
+          Produto já cadastrado
           <select disabled={!configured || pending} name="product_id" className="field mt-2">
-            <option value="">Cadastrar um produto novo</option>
+            <option value="">Cadastrar um produto novo nesta compra</option>
             {products.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.brand ? `${product.brand} • ` : ""}
@@ -104,7 +110,7 @@ export function CreatePurchaseForm({
           </select>
         </label>
         <div className="mt-4 rounded-[20px] bg-[var(--cream)] p-4">
-          <p className="text-xs font-bold">Se for um produto novo</p>
+          <p className="text-xs font-bold">Se for um produto novo, ele entra no catálogo junto com esta compra</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-bold">
               Nome
