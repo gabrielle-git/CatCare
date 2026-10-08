@@ -168,6 +168,8 @@ export type Product = {
   category: ProductCategory;
   package_size: string | null;
   notes: string | null;
+  /** NULL = active catalog Product; non-NULL = archived (history preserved, restorable). */
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -185,6 +187,10 @@ export type Purchase = {
   amount_cents: number;
   subtotal_cents: number | null;
   discount_cents: number;
+  shipping_cents: number;
+  credits_applied_cents: number;
+  /** When NULL, discount_cents is a fixed discount; when set (0..10000), the UI entered a percentage. */
+  discount_rate_bps: number | null;
   coupon_code: string | null;
   /** @deprecated Prefer membership_id — kept for legacy rows */
   petlove_club: boolean;
@@ -288,6 +294,8 @@ export type ProductReview = {
   id: string;
   household_id: string;
   product_id: string;
+  /** Originating Purchase; NULL for standalone Product reviews or after the Purchase is deleted. */
+  purchase_id: string | null;
   pet_id: string | null;
   pet_ids?: string[];
   quality_score: number;

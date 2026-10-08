@@ -10,7 +10,7 @@ import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteProductReview, updateProductReview } from "../../../actions";
 
-export default async function EditReviewPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function EditReviewPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; existing?: string }> }) {
   const { id } = await params;
   const flags = await searchParams;
   if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
@@ -39,6 +39,7 @@ export default async function EditReviewPage({ params, searchParams }: { params:
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
       <Link href="/shopping" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar às compras</Link>
       <div className="mt-4 flex items-center gap-3"><Star size={20} className="text-[var(--lavender-strong)]" /><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Editar avaliação</p><h1 className="text-3xl font-bold tracking-[-0.04em]">{product?.name ?? "Produto"}</h1></div></div>
+      {flags.existing && <div className="mt-6 rounded-[20px] bg-[var(--lavender-soft)] px-4 py-3 text-sm">Este item desta compra já foi avaliado. Você está editando a avaliação existente — nenhuma duplicata foi criada.</div>}
       {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
       <form action={save} className="cat-card mt-6 space-y-5 p-5 md:p-7">
         <div className="grid gap-5 sm:grid-cols-3">{scoreFields.map((field) => <StarRating key={field.name} name={field.name} legend={field.legend} defaultValue={field.value} required />)}</div>

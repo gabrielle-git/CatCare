@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, BadgeCheck, Brain, Minus, PackageOpen, Pencil, Plus, ReceiptText, ShoppingBasket, Sparkles, Star, Store, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownRight, ArrowUpRight, BadgeCheck, Brain, Minus, PackageOpen, PackagePlus, Pencil, Plus, ReceiptText, ShoppingBasket, Sparkles, Star, Store, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PetNameChips } from "@/components/pet-name-chips";
+import { isUuid } from "@/lib/attachments";
 import { listBenefitMemberships, membershipLabel } from "@/lib/benefit-memberships";
 import { interpretPurchasesOffline, listCommerce } from "@/lib/commerce";
 import { formatCurrency, formatShortDate, getPetLifeStage, isNeonatalPet } from "@/lib/format";
@@ -13,12 +14,23 @@ import {
   purchaseDisplayTitle,
 } from "@/lib/purchase-read-model";
 import { canEdit, getMyRole } from "@/lib/roles";
-import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations, worthRepeatingRecommendations } from "@/lib/recommendations";
-import { qualifiesForRepeat, scoreLabel } from "@/lib/score-labels";
+import { PRODUCT_CREATED_MESSAGE } from "@/lib/product-catalog";
+import { demoProductIdsWithHistory, isProductArchived, splitProductsByLifecycle } from "@/lib/product-lifecycle";
+import { productReviewEntryPoints, productReviewPath } from "@/lib/product-review-entry";
+import { latestProductReview } from "@/lib/product-review-link";
+import {
+  bestFoodRecommendation,
+  bestLitterRecommendation,
+  bestValueRecommendation,
+  qualifiedProductRecommendations,
+  summarizeProductReviews,
+  summaryQualifiesForRepeat,
+} from "@/lib/recommendations";
+import { scoreLabel } from "@/lib/score-labels";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import type { ProductCategory, PurchaseChannel } from "@/types/database";
-import { deleteProduct, deletePurchase } from "./actions";
+import { archiveProduct, deleteProduct, deletePurchase, restoreProduct } from "./actions";
 
 const categoryLabels: Record<ProductCategory, string> = {
   dry_food: "Ração seca", wet_food: "Sachê / úmido", litter: "Areia", treat: "Petisco", hygiene: "Higiene", medicine: "Medicamento", accessory: "Acessório", other: "Outro",
@@ -32,9 +44,13 @@ const tones: Record<ProductCategory, string> = {
 
 async function loadPage() {
   if (!(await isLiveData())) {
+    const { active, archived } = splitProductsByLifecycle(demoProducts);
+    const purchases = interpretPurchasesOffline(demoPurchases, demoProducts);
     return {
-      products: demoProducts,
-      purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
+      catalogProducts: active,
+      archivedProducts: archived,
+      productIdsWithHistory: demoProductIdsWithHistory(demoProducts, purchases, demoProductReviews),
+      purchases,
       reviews: demoProductReviews,
       pets: demoPets,
       memberships: demoBenefitMemberships,
@@ -44,7 +60,7 @@ async function loadPage() {
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { products: [], purchases: [], reviews: [], pets: [], memberships: [], configured: true, editable: false };
+  if (!data.user) return { catalogProducts: [], archivedProducts: [], productIdsWithHistory: [], purchases: [], reviews: [], pets: [], memberships: [], configured: true, editable: false };
   const household = await ensureHousehold(supabase, data.user.id);
   const role = await getMyRole(supabase);
   const [commerce, pets, memberships] = await Promise.all([
@@ -55,16 +71,14 @@ async function loadPage() {
   return { ...commerce, pets, memberships, configured: true, editable: canEdit(role) };
 }
 
-function average(values: number[]) {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
 function formatUnitPrice(unitPriceCents: number | null) {
   return unitPriceCents == null ? "—" : formatCurrency(unitPriceCents);
 }
 
-export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string; error?: string; deleted?: string }> }) {
-  const [{ products, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+export default async function ShoppingPage({ searchParams }: { searchParams: Promise<{ saved?: string; review?: string; purchase?: string; error?: string; deleted?: string; archived?: string; restored?: string; updated?: string; productCreated?: string }> }) {
+  const [{ catalogProducts: products, archivedProducts, productIdsWithHistory, purchases, reviews, pets, memberships, configured, editable }, flags] = await Promise.all([loadPage(), searchParams]);
+  const productsWithHistory = new Set(productIdsWithHistory);
+  const createdProductId = flags.productCreated && isUuid(flags.productCreated) ? flags.productCreated : null;
   const membershipNames = new Map(memberships.map((item) => [item.id, membershipLabel(item)]));
   const now = new Date();
   const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
@@ -78,7 +92,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
           .map((line) => ({ purchase, line })),
       )
       .sort((a, b) => new Date(b.purchase.purchased_at).getTime() - new Date(a.purchase.purchased_at).getTime());
-    const productReviews = reviews.filter((item) => item.product_id === product.id);
+    const summary = summarizeProductReviews(reviews.filter((item) => item.product_id === product.id));
     const latest = sightings[0] ?? null;
     const previous = sightings[1] ?? null;
     const latestUnit = latest?.line.unit_price_cents ?? null;
@@ -91,31 +105,33 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
       product,
       latest,
       priceChange,
-      quality: average(productReviews.map((item) => item.quality_score)),
-      acceptance: average(productReviews.map((item) => item.acceptance_score)),
-      value: average(productReviews.map((item) => item.cost_benefit_score)),
-      reviews: productReviews.length,
-      buyAgain: productReviews.filter((item) => item.would_buy_again).length,
-      latestReview: productReviews[0] ?? null,
+      quality: summary.quality,
+      acceptance: summary.acceptance,
+      value: summary.value,
+      reviews: summary.reviewCount,
+      buyAgain: summary.buyAgainCount,
+      qualified: summaryQualifiesForRepeat(summary),
+      latestReview: latestProductReview(product.id, reviews),
+      hasHistory: productsWithHistory.has(product.id),
     };
   });
-  const bestValue = [...insights].filter((item) => qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain)).sort((a, b) => b.value - a.value)[0]
-    ?? [...insights].filter((item) => item.reviews > 0).sort((a, b) => b.value - a.value)[0];
-  const rankedProducts = rankProductRecommendations(products, purchases, reviews);
-  const worthRanked = worthRepeatingRecommendations(rankedProducts);
-  const foodRecommendation = bestFoodRecommendation(worthRanked);
-  const litterRecommendation = bestLitterRecommendation(worthRanked);
+  // Same qualification path as the Assistant: active Products, recomputed from current reviews.
+  const qualified = qualifiedProductRecommendations(products, purchases, reviews);
+  const bestValue = bestValueRecommendation(qualified);
+  const foodRecommendation = bestFoodRecommendation(qualified);
+  const litterRecommendation = bestLitterRecommendation(qualified);
   const recommendations = [foodRecommendation, litterRecommendation].filter((item) => item !== null);
-  const worthRepeating = insights.filter((item) => qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain));
-  const catalog = insights.filter((item) => !qualifiesForRepeat(item.reviews, item.quality, item.acceptance, item.value, item.buyAgain));
+  const worthRepeating = insights.filter((item) => item.qualified);
+  const catalog = insights.filter((item) => !item.qualified);
   const hasNeonatal = pets.some(isNeonatalPet);
   const hasKittens = pets.some((pet) => getPetLifeStage(pet.birth_date) === "kitten");
 
-  function renderInsightCard({ product, latest, priceChange, quality, acceptance, value, reviews: reviewCount, buyAgain, latestReview }: (typeof insights)[number]) {
+  function renderInsightCard({ product, latest, priceChange, quality, acceptance, value, reviews: reviewCount, buyAgain, latestReview, hasHistory }: (typeof insights)[number]) {
     const TrendIcon = priceChange < -0.1 ? ArrowDownRight : priceChange > 0.1 ? ArrowUpRight : Minus;
     const trendTone = priceChange < -0.1 ? "text-[var(--success)]" : priceChange > 0.1 ? "text-[var(--danger)]" : "text-[var(--muted)]";
     const overall = reviewCount ? (quality + acceptance + value) / 3 : 0;
     const showTrend = latest?.line.unit_price_cents != null && Number.isFinite(priceChange) && Math.abs(priceChange) > 0.1;
+    const reviewEntry = productReviewEntryPoints({ productId: product.id, archived: isProductArchived(product), latestReviewId: latestReview?.id ?? null });
     return (
       <article key={product.id} className="cat-card overflow-hidden">
         <div className="p-5">
@@ -143,13 +159,21 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         {reviewCount > 0 && (
           <div className="border-t border-[var(--border)] px-5 py-3">
             <p className="text-[10px] text-[var(--muted)]"><Star size={11} className="mr-1 inline fill-[var(--lavender)] text-[var(--lavender)]" /> Média {scoreLabel(overall)} • {buyAgain} de {reviewCount} comprariam novamente</p>
-            {editable && latestReview && <Link href={`/shopping/reviews/${latestReview.id}/edit`} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar avaliação</Link>}
+            {editable && reviewEntry.editLatest && <Link href={reviewEntry.editLatest} className="focus-ring mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar última avaliação</Link>}
+          </div>
+        )}
+        {reviewCount === 0 && editable && reviewEntry.create && (
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3">
+            <p className="text-[10px] text-[var(--muted)]">Ainda sem avaliação.</p>
+            <Link href={reviewEntry.create} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--peach)] px-2.5 py-1 text-[10px] font-bold text-[#96613e]"><Star size={12} /> Avaliar</Link>
           </div>
         )}
         {editable && (
           <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-3">
             <Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar produto</Link>
-            <form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar este produto? Só funciona se ele não tiver compras ou avaliações no histórico." className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar</ConfirmButton></form>
+            {hasHistory
+              ? <form action={archiveProduct.bind(null, product.id)}><ConfirmButton message="Arquivar este produto? Ele sai do catálogo e das novas compras, mas as compras e avaliações antigas continuam no histórico. Você pode restaurar depois." className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[var(--border)] px-2.5 py-1 text-[10px] font-bold text-[var(--muted)]"><Archive size={12} /> Arquivar produto</ConfirmButton></form>
+              : <form action={deleteProduct.bind(null, product.id)}><ConfirmButton message="Apagar definitivamente este produto? Ele não tem compras nem avaliações; esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-1 rounded-xl border border-red-200 px-2.5 py-1 text-[10px] font-bold text-[var(--danger)]"><Trash2 size={12} /> Apagar definitivamente</ConfirmButton></form>}
           </div>
         )}
       </article>
@@ -157,11 +181,14 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
   }
 
   return <div className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Compare preço e aceitação dos produtos. Cada compra registrada vira gasto automaticamente em Gastos da família.</p></div>{editable && <Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link>}</header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Casa e consumo</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Compras e avaliações</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Produto é o item que você acompanha. Compras registram quando, onde e por quanto ele foi comprado — e viram gasto automaticamente em Gastos da família.</p></div>{editable && <div className="flex flex-wrap gap-2"><Link href="/shopping/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Registrar compra</Link><Link href="/shopping/products/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold text-[var(--lavender-strong)]"><PackagePlus size={18} /> Cadastrar produto</Link></div>}</header>
+    {createdProductId && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{PRODUCT_CREATED_MESSAGE}{editable && <> <Link href="/shopping/new" className="underline">Registrar compra</Link> • <Link href={productReviewPath(createdProductId)} className="underline">Avaliar</Link></>}</div>}
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Compra salva, gasto lançado e comparações atualizadas.</div>}
     {flags.deleted && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Produto removido.</div>}
+    {flags.archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Produto arquivado. Ele saiu do catálogo e das novas compras; o histórico continua guardado.</div>}
+    {flags.restored && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Produto restaurado. Ele voltou ao catálogo e às novas compras.</div>}
     {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
-    {flags.review === "done" && <div className="mt-3 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Avaliação salva — o comparador da família foi atualizado.</div>}
+    {flags.review === "done" && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Avaliação salva — o comparador da família foi atualizado.</div>}
     {(flags.review === "partial" || flags.review === "pending") && flags.purchase && (
       <div className="mt-3 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">
         {flags.review === "partial" ? "A compra foi salva, mas faltou uma das três notas." : "Compra salva sem avaliação."}{" "}
@@ -183,12 +210,25 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
     </section>
 
     <div className="mt-8 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Comparador da família</p><h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">O que vale repetir</h2><p className="mt-1 text-xs text-[var(--muted)]">Só entra com avaliação, nota média ≥ 4 e «compraria de novo».</p></div><span className="hidden text-xs text-[var(--muted)] sm:block">Preço por pacote na compra mais recente</span></div>
-    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{worthRepeating.length === 0 ? <div className="cat-card p-6 text-sm text-[var(--muted)]">{insights.length === 0 ? "Registre a primeira compra para iniciar sua comparação." : "Nenhum produto qualificado ainda. Avalie uma compra com boa nota e marque «compraria de novo»."}</div> : worthRepeating.map(renderInsightCard)}</section>
+    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{worthRepeating.length === 0 ? <div className="cat-card p-6 text-sm text-[var(--muted)]">{insights.length === 0 ? "Cadastre um produto ou registre a primeira compra para iniciar sua comparação." : "Nenhum produto qualificado ainda. Avalie um produto com boa nota e marque «compraria de novo»."}</div> : worthRepeating.map(renderInsightCard)}</section>
 
     {catalog.length > 0 && <>
       <div className="mt-10 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">Histórico completo</p><h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">Catálogo e acompanhamento</h2><p className="mt-1 text-xs text-[var(--muted)]">Sem avaliação, notas baixas ou sem intenção de recompra.</p></div></div>
       <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{catalog.map(renderInsightCard)}</section>
     </>}
+
+    {archivedProducts.length > 0 && <section className="cat-card mt-8 p-5 md:p-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">Fora do catálogo</p>
+      <h2 className="mt-1 text-xl font-bold">Produtos arquivados</h2>
+      <p className="mt-1 text-xs text-[var(--muted)]">Não aparecem em novas compras nem nas recomendações. Compras e avaliações antigas continuam no histórico.</p>
+      <div className="mt-4 grid gap-2.5 md:grid-cols-2">{archivedProducts.map((product) => <div key={product.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] p-3.5">
+        <div className="min-w-0"><p className="truncate text-sm font-bold">{product.name}</p><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{product.brand || "Sem marca"} • {categoryLabels[product.category]}</p></div>
+        {editable && <div className="flex flex-wrap gap-2">
+          <Link href={`/shopping/products/${product.id}/edit`} className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"><Pencil size={12} /> Editar</Link>
+          <form action={restoreProduct.bind(null, product.id)}><button type="submit" className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[var(--mint-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><ArchiveRestore size={12} /> Restaurar produto</button></form>
+        </div>}
+      </div>)}</div>
+    </section>}
 
     <section className="cat-card mt-8 min-w-0 p-5 md:p-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico de preços</p><h2 className="mt-1 text-xl font-bold">Compras recentes</h2><p className="mt-1 text-xs text-[var(--muted)]">Cada compra com gasto vinculado aparece também em Gastos da família.</p></div><Link href="/expenses" className="focus-ring shrink-0 rounded-xl px-2 py-1.5 text-xs font-bold text-[var(--lavender-strong)]">Ver gastos</Link></div><div className="mt-4 grid min-w-0 gap-2.5 lg:grid-cols-2">{purchases.slice(0, 8).map((purchase) => {
       const remove = deletePurchase.bind(null, purchase.id);

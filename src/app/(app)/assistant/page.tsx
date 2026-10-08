@@ -7,7 +7,8 @@ import { ensureHousehold } from "@/lib/households";
 import { demoExpenses, demoPets, demoProductReviews, demoProducts, demoPurchases, demoReminders, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { listHouseholdTimeline, listUpcomingReminders } from "@/lib/records";
-import { bestFoodRecommendation, bestLitterRecommendation, rankProductRecommendations } from "@/lib/recommendations";
+import { activeProducts } from "@/lib/product-lifecycle";
+import { bestFoodRecommendation, bestLitterRecommendation, qualifiedProductRecommendations } from "@/lib/recommendations";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,7 +25,7 @@ async function loadData() {
       timeline: demoTimeline,
       reminders: demoReminders,
       expenses: demoExpenses,
-      products: demoProducts,
+      catalogProducts: activeProducts(demoProducts),
       purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
       reviews: demoProductReviews,
       configured: false,
@@ -32,14 +33,14 @@ async function loadData() {
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], reminders: [], expenses: [], products: [], purchases: [], reviews: [], configured: true };
+  if (!data.user) return { pets: [], timeline: [], reminders: [], expenses: [], catalogProducts: [], purchases: [], reviews: [], configured: true };
   const household = await ensureHousehold(supabase, data.user.id);
   const [pets, timeline, reminders, expenses, commerce] = await Promise.all([listPets(supabase, household.id), listHouseholdTimeline(supabase, household.id, 80), listUpcomingReminders(supabase, household.id, 30), listExpenses(supabase, household.id), listCommerce(supabase, household.id)]);
   return { pets, timeline, reminders, expenses, ...commerce, configured: true };
 }
 
 export default async function AssistantPage() {
-  const { pets, timeline, reminders, expenses, products, purchases, reviews, configured } = await loadData();
+  const { pets, timeline, reminders, expenses, catalogProducts, purchases, reviews, configured } = await loadData();
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
   const latestVaccine = timeline.find((item) => item.kind === "vaccine");
   const latestWeight = timeline.find((item) => item.kind === "weight");
@@ -47,10 +48,11 @@ export default async function AssistantPage() {
   const now = new Date();
   const monthExpenses = expenses.filter((item) => { const date = new Date(item.occurred_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
   const monthTotal = monthExpenses.reduce((sum, item) => sum + item.amount_cents, 0);
-  const rankedProducts = rankProductRecommendations(products, purchases, reviews);
-  const best = rankedProducts[0] ?? null;
-  const food = bestFoodRecommendation(rankedProducts);
-  const litter = bestLitterRecommendation(rankedProducts);
+  // Same eligibility as Shopping: active + ≥1 review, average ≥ 4, ≥1 «compraria de novo».
+  const qualified = qualifiedProductRecommendations(catalogProducts, purchases, reviews);
+  const best = qualified[0] ?? null;
+  const food = bestFoodRecommendation(qualified);
+  const litter = bestLitterRecommendation(qualified);
   const hasNeonatal = pets.some(isNeonatalPet);
   const hasKittens = pets.some((pet) => getPetLifeStage(pet.birth_date) === "kitten");
   const foodAgeNote = hasNeonatal ? " Essa recomendação não se aplica à alimentação neonatal; para os filhotes, mantenha o protocolo orientado pelo veterinário." : hasKittens ? " Como há filhotes na família, confirme no rótulo se a fórmula é indicada para essa fase." : "";
@@ -60,9 +62,9 @@ export default async function AssistantPage() {
     expenses: `Neste mês há ${monthExpenses.length} lançamentos, somando ${formatCurrency(monthTotal)}. Você pode abrir Gastos para ver a divisão por categoria e por pet.`,
     weight: currentWeights ? `Os pesos atuais registrados são: ${currentWeights}.${latestWeight ? ` A pesagem mais recente foi de ${names.get(latestWeight.pet_id) ?? "um pet"} em ${formatDateTime(latestWeight.occurred_at)}.` : ""}` : "Ainda não há pesos cadastrados. Registre uma pesagem para começar a acompanhar a evolução.",
     reminder: nextReminder ? `O próximo cuidado é “${nextReminder.title}”, para ${names.get(nextReminder.pet_id ?? "") ?? "a família"}, em ${formatDateTime(nextReminder.due_at)}.` : "A agenda está livre: não encontrei lembretes pendentes.",
-    food: food ? `Entre os alimentos avaliados pela família, “${food.product.name}” lidera: aceitação ${food.acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${food.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. O motivo principal é ${food.reason}.${food.latest && formatLineUnitPrice(food.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(food.latest.unit_price_cents)} por pacote em ${food.latest.store_name}.` : food.latest ? ` A última compra foi em ${food.latest.store_name}.` : ""}${foodAgeNote}` : "Ainda não há avaliações de ração, sachê ou petisco suficientes. Registre aceitação e custo-benefício para eu comparar sem inventar.",
-    litter: litter ? `A areia mais recomendada pelo histórico é “${litter.product.name}”: qualidade ${litter.quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${litter.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. Ela se destaca porque ${litter.reason}.${litter.latest && formatLineUnitPrice(litter.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(litter.latest.unit_price_cents)} por pacote em ${litter.latest.store_name}.` : litter.latest ? ` A última compra foi em ${litter.latest.store_name}.` : ""}` : "Ainda não há uma areia avaliada. Depois de registrar qualidade, controle de odor e custo-benefício, eu consigo comparar as opções.",
-    shopping: best ? `Pelas avaliações da família, “${best.product.name}” é a compra mais equilibrada agora, com nota calculada de ${best.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. A indicação vem de ${best.reviewCount} ${best.reviewCount === 1 ? "avaliação" : "avaliações"} registradas, não de publicidade.` : "Ainda não há avaliações suficientes para indicar um produto. Registre qualidade, aceitação e custo-benefício na próxima compra.",
+    food: food ? `Entre os alimentos avaliados pela família, “${food.product.name}” lidera: aceitação ${food.acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${food.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. O motivo principal é ${food.reason}.${food.latest && formatLineUnitPrice(food.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(food.latest.unit_price_cents)} por pacote em ${food.latest.store_name}.` : food.latest ? ` A última compra foi em ${food.latest.store_name}.` : ""}${foodAgeNote}` : "Ainda não há ração, sachê ou petisco qualificado: é preciso ao menos uma avaliação com nota média ≥ 4 e «compraria de novo». Registre aceitação e custo-benefício para eu comparar sem inventar.",
+    litter: litter ? `A areia mais recomendada pelo histórico é “${litter.product.name}”: qualidade ${litter.quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${litter.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. Ela se destaca porque ${litter.reason}.${litter.latest && formatLineUnitPrice(litter.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(litter.latest.unit_price_cents)} por pacote em ${litter.latest.store_name}.` : litter.latest ? ` A última compra foi em ${litter.latest.store_name}.` : ""}` : "Ainda não há uma areia qualificada (nota média ≥ 4 e «compraria de novo»). Depois de registrar qualidade, controle de odor e custo-benefício, eu consigo comparar as opções.",
+    shopping: best ? `Pelas avaliações da família, “${best.product.name}” é a compra mais equilibrada agora, com nota calculada de ${best.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. A indicação vem de ${best.reviewCount} ${best.reviewCount === 1 ? "avaliação" : "avaliações"} registradas, não de publicidade.` : "Ainda não há produto qualificado para indicar: é preciso ao menos uma avaliação com nota média ≥ 4 e «compraria de novo». Registre qualidade, aceitação e custo-benefício na próxima compra.",
     summary: `A família tem ${pets.length} ${pets.length === 1 ? "pet" : "pets"}, ${reminders.length} lembretes pendentes e ${monthExpenses.length} gastos neste mês. Posso detalhar vacinas, pesos, agenda, gastos ou compras.`,
   };
 

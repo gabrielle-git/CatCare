@@ -28,14 +28,20 @@ describe("product delete history guard", () => {
 
   it("E: deleteProduct action scopes history checks to household and blocks before delete", () => {
     const actions = readFileSync(join(root, "src/app/(app)/shopping/actions.ts"), "utf8");
-    assert.match(actions, /productHasCommerceHistory/);
-    assert.match(actions, /PRODUCT_DELETE_HISTORY_MESSAGE/);
-    assert.match(actions, /purchase_items[\s\S]*product_id[\s\S]*household_id/);
-    assert.match(actions, /product_reviews[\s\S]*product_id[\s\S]*household_id/);
-    // Guard must run before products.delete
-    const guardIdx = actions.indexOf("productHasCommerceHistory");
-    const deleteIdx = actions.indexOf('.from("products").delete()');
+    const commerce = readFileSync(join(root, "src/lib/commerce.ts"), "utf8");
+    const refsLoader = commerce.slice(commerce.indexOf("export async function loadProductHistoryRefs"));
+    assert.match(refsLoader, /from\("purchases"\)[\s\S]*product_id[\s\S]*household_id/);
+    assert.match(refsLoader, /purchase_items[\s\S]*product_id[\s\S]*household_id/);
+    assert.match(refsLoader, /product_reviews[\s\S]*product_id[\s\S]*household_id/);
+    const deleteAction = actions.slice(actions.indexOf("export async function deleteProduct"));
+    assert.match(deleteAction, /loadProductHistoryRefs\(supabase, household\.id, productId\)/);
+    // Guard must run before products.delete; history routes to the archive offer.
+    const guardIdx = deleteAction.indexOf("productHasCommerceHistory(refs)");
+    const deleteIdx = deleteAction.indexOf('.from("products").delete()');
     assert.ok(guardIdx >= 0 && deleteIdx > guardIdx);
+    assert.match(deleteAction.slice(guardIdx, deleteIdx), /edit\?blocked=history/);
+    const editPage = readFileSync(join(root, "src/app/(app)/shopping/products/[id]/edit/page.tsx"), "utf8");
+    assert.match(editPage, /PRODUCT_DELETE_HISTORY_MESSAGE/);
   });
 
   it("exposes clear pt-BR user message without FK jargon", () => {

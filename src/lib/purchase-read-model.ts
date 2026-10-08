@@ -227,11 +227,20 @@ export function isMultiItemPurchase(purchase: PurchaseReadModel): boolean {
   return purchase.source === "items" && purchase.lines.length > 1;
 }
 
+/** Exact Review for one Purchase + Product via product_reviews.purchase_id (0038). */
+export function findReviewForPurchaseProduct(
+  purchaseId: string,
+  productId: string,
+  allReviews: ProductReview[],
+): ProductReview | null {
+  return allReviews.find((review) => review.purchase_id === purchaseId && review.product_id === productId) ?? null;
+}
+
 /**
- * Soft-link a Product-scoped review to a Purchase for shopping UI.
+ * Purchase-level Review link for shopping UI — explicit purchase_id only, never Product + day.
  *
  * Eligibility is line COUNT, not distinct product_id count:
- * - exactly one interpreted line → may associate review for that line's product_id + purchase day
+ * - exactly one interpreted line → the Review linked to this Purchase for that line's product_id
  * - multi-line carts → never purchase-level inline review (header product_id is a mirror only)
  */
 export function findLinkedReviewForPurchase(
@@ -241,6 +250,25 @@ export function findLinkedReviewForPurchase(
   if (purchase.lines.length !== 1) return null;
   const productId = purchase.lines[0]?.product_id ?? null;
   if (!productId) return null;
-  const day = purchase.purchased_at.slice(0, 10);
-  return allReviews.find((review) => review.product_id === productId && review.reviewed_at.slice(0, 10) === day) ?? null;
+  return findReviewForPurchaseProduct(purchase.id, productId, allReviews);
+}
+
+export type PurchaseReviewProductResult = { ok: true; productId: string } | { ok: false; error: string };
+
+/**
+ * Which Product a Purchase-originated Review targets, from interpreted line truth (items when
+ * persisted, legacy header otherwise). Multi-line carts require an explicit line product.
+ */
+export function resolvePurchaseReviewProductId(
+  purchase: PurchaseReadModel,
+  requestedProductId?: string | null,
+): PurchaseReviewProductResult {
+  const lineProductIds = [...new Set(purchase.lines.map((line) => line.product_id).filter((id): id is string => Boolean(id)))];
+  if (requestedProductId) {
+    return lineProductIds.includes(requestedProductId)
+      ? { ok: true, productId: requestedProductId }
+      : { ok: false, error: "Este produto não faz parte desta compra." };
+  }
+  if (purchase.lines.length === 1 && lineProductIds.length === 1) return { ok: true, productId: lineProductIds[0] };
+  return { ok: false, error: "Escolha qual item desta compra você quer avaliar." };
 }

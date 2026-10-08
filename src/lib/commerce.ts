@@ -1,7 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadPetIdsByEntity, resolvePetIdsFromRow } from "@/lib/entity-pets";
+import type { ProductHistoryRefs } from "@/lib/product-delete-guard";
+import {
+  PRODUCT_HISTORY_COUNT_SELECT,
+  productIdsWithHistory,
+  splitProductsByLifecycle,
+  type ProductHistoryCountRow,
+} from "@/lib/product-lifecycle";
 import {
   buildPurchaseReadModels,
+  purchasesContainingProduct,
   type PurchaseItemRow,
   type PurchaseReadModel,
 } from "@/lib/purchase-read-model";
@@ -153,10 +161,86 @@ export async function getPurchase(supabase: SupabaseClient, householdId: string,
   return models[0] ?? null;
 }
 
+/** Any lifecycle state — history, edit and restore must resolve archived Products. */
 export async function getProduct(supabase: SupabaseClient, householdId: string, id: string) {
   const { data, error } = await supabase.from("products").select("*").eq("id", id).eq("household_id", householdId).maybeSingle();
   if (error) throw error;
   return data as Product | null;
+}
+
+/** Full household history counts used by the hard-delete guard and lifecycle UI. */
+export async function loadProductHistoryRefs(supabase: SupabaseClient, householdId: string, productId: string): Promise<ProductHistoryRefs> {
+  const [headerPurchases, itemRefs, reviewRefs] = await Promise.all([
+    supabase.from("purchases").select("id", { count: "exact", head: true }).eq("product_id", productId).eq("household_id", householdId),
+    supabase.from("purchase_items").select("id", { count: "exact", head: true }).eq("product_id", productId).eq("household_id", householdId),
+    supabase.from("product_reviews").select("id", { count: "exact", head: true }).eq("product_id", productId).eq("household_id", householdId),
+  ]);
+  if (headerPurchases.error) throw headerPurchases.error;
+  if (itemRefs.error) throw itemRefs.error;
+  if (reviewRefs.error) throw reviewRefs.error;
+  return {
+    headerPurchaseCount: headerPurchases.count ?? 0,
+    purchaseItemCount: itemRefs.count ?? 0,
+    reviewCount: reviewRefs.count ?? 0,
+  };
+}
+
+/** Exact Review linked to Purchase + Product (unique by 0038 partial index). */
+export async function findPurchaseProductReviewId(supabase: SupabaseClient, householdId: string, purchaseId: string, productId: string) {
+  const { data, error } = await supabase
+    .from("product_reviews")
+    .select("id")
+    .eq("household_id", householdId)
+    .eq("purchase_id", purchaseId)
+    .eq("product_id", productId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.id as string | undefined) ?? null;
+}
+
+/**
+ * Household Purchases that contain the Product by interpreted line truth, plus the Product's
+ * Purchase-linked Reviews. Header product_id only nominates candidates; persisted carts are
+ * re-checked against their purchase_items lines.
+ */
+export async function loadProductReviewContext(supabase: SupabaseClient, householdId: string, productId: string) {
+  const [headerPurchases, itemRefs, linkedReviews] = await Promise.all([
+    supabase.from("purchases").select("*").eq("household_id", householdId).eq("product_id", productId).order("purchased_at", { ascending: false }).limit(100),
+    supabase.from("purchase_items").select("purchase_id").eq("household_id", householdId).eq("product_id", productId).limit(200),
+    supabase.from("product_reviews").select("purchase_id, product_id").eq("household_id", householdId).eq("product_id", productId).not("purchase_id", "is", null),
+  ]);
+  if (headerPurchases.error) throw headerPurchases.error;
+  if (itemRefs.error) throw itemRefs.error;
+  if (linkedReviews.error) throw linkedReviews.error;
+  const headerRows = (headerPurchases.data ?? []) as Purchase[];
+  const known = new Set(headerRows.map((row) => row.id));
+  const itemOnlyIds = [...new Set((itemRefs.data ?? []).map((row) => String(row.purchase_id)))].filter((id) => !known.has(id));
+  let itemRows: Purchase[] = [];
+  if (itemOnlyIds.length > 0) {
+    const { data, error } = await supabase.from("purchases").select("*").eq("household_id", householdId).in("id", itemOnlyIds);
+    if (error) throw error;
+    itemRows = (data ?? []) as Purchase[];
+  }
+  const withPets = await attachPurchasePetIds(supabase, householdId, [...headerRows, ...itemRows]);
+  const models = await toPurchaseReadModels(supabase, householdId, withPets, []);
+  return {
+    purchases: purchasesContainingProduct(models, productId),
+    linkedReviews: (linkedReviews.data ?? []) as Pick<ProductReview, "purchase_id" | "product_id">[],
+  };
+}
+
+/** Exact Review count and the latest Review of one Product (any lifecycle state). */
+export async function loadProductReviewSummary(supabase: SupabaseClient, householdId: string, productId: string) {
+  const { data, count, error } = await supabase
+    .from("product_reviews")
+    .select("*", { count: "exact" })
+    .eq("household_id", householdId)
+    .eq("product_id", productId)
+    .order("reviewed_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return { count: count ?? 0, latest: ((data ?? [])[0] as ProductReview | undefined) ?? null };
 }
 
 export async function getProductReview(supabase: SupabaseClient, householdId: string, id: string) {
@@ -179,14 +263,17 @@ export async function listExpenses(supabase: SupabaseClient, householdId: string
 }
 
 export async function listCommerce(supabase: SupabaseClient, householdId: string) {
-  const [products, purchases, reviews] = await Promise.all([
+  const [products, purchases, reviews, historyCounts] = await Promise.all([
     supabase.from("products").select("*").eq("household_id", householdId).order("updated_at", { ascending: false }),
     supabase.from("purchases").select("*").eq("household_id", householdId).order("purchased_at", { ascending: false }).limit(120),
     supabase.from("product_reviews").select("*").eq("household_id", householdId).order("reviewed_at", { ascending: false }).limit(200),
+    // Purchases/Reviews above are capped windows; delete eligibility needs the full history.
+    supabase.from("products").select(PRODUCT_HISTORY_COUNT_SELECT).eq("household_id", householdId),
   ]);
   if (products.error) throw products.error;
   if (purchases.error) throw purchases.error;
   if (reviews.error) throw reviews.error;
+  if (historyCounts.error) throw historyCounts.error;
   const productRows = (products.data ?? []) as Product[];
   const purchaseRows = (purchases.data ?? []) as Purchase[];
   const reviewRows = (reviews.data ?? []) as ProductReview[];
@@ -194,10 +281,16 @@ export async function listCommerce(supabase: SupabaseClient, householdId: string
     attachPurchasePetIds(supabase, householdId, purchaseRows),
     attachReviewPetIds(supabase, householdId, reviewRows),
   ]);
+  // Purchase lines resolve against the FULL Product map so archived Products keep their history.
   const purchaseModels = await toPurchaseReadModels(supabase, householdId, purchasesWithPets, productRows);
+  const { active, archived } = splitProductsByLifecycle(productRows);
   return {
-    products: productRows,
+    /** Active catalog: Shopping cards, new-Purchase picker, recommendations, Assistant. */
+    catalogProducts: active,
+    archivedProducts: archived,
     purchases: purchaseModels,
     reviews: reviewsWithPets,
+    /** Authoritative (uncapped) history signal for archive vs hard-delete UX. */
+    productIdsWithHistory: productIdsWithHistory((historyCounts.data ?? []) as ProductHistoryCountRow[]),
   };
 }
