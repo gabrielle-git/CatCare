@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { resolveHouseholdCreateOwnership } from "@/lib/create-idempotency";
 import {
   planCompoundPurchaseCreate,
+  planPurchaseInsertCollision,
   shouldCompensateDeleteExpense,
 } from "@/lib/purchase-create-idempotency";
 
@@ -105,6 +107,27 @@ describe("compound purchase+expense partial plans", () => {
   });
 });
 
+describe("purchase insert collision (23505 on purchase_id)", () => {
+  // Under RLS a foreign Purchase is invisible: the re-read after 23505 returns null.
+  const hiddenForeign = resolveHouseholdCreateOwnership(PURCHASE_A, HOUSEHOLD_A, null);
+
+  it("A: foreign purchase_id after this attempt inserted the Expense → reject and compensate", () => {
+    assert.deepEqual(planPurchaseInsertCollision(hiddenForeign, true), { action: "reject_foreign", compensateExpense: true });
+    const visibleForeign = resolveHouseholdCreateOwnership(PURCHASE_A, HOUSEHOLD_A, { id: PURCHASE_A, household_id: HOUSEHOLD_B });
+    assert.deepEqual(planPurchaseInsertCollision(visibleForeign, true), { action: "reject_foreign", compensateExpense: true });
+  });
+
+  it("B: foreign purchase_id with a reused/pre-existing Expense → reject, never delete it", () => {
+    assert.deepEqual(planPurchaseInsertCollision(hiddenForeign, false), { action: "reject_foreign", compensateExpense: false });
+  });
+
+  it("C/D: own Purchase already stored (retry / multiclick) → reuse, no compensation", () => {
+    const own = resolveHouseholdCreateOwnership(PURCHASE_A, HOUSEHOLD_A, { id: PURCHASE_A, household_id: HOUSEHOLD_A });
+    assert.deepEqual(planPurchaseInsertCollision(own, false), { action: "reuse" });
+    assert.deepEqual(planPurchaseInsertCollision(own, true), { action: "reuse" });
+  });
+});
+
 describe("compound purchase wiring (source contracts)", () => {
   const root = process.cwd();
   const actions = readFileSync(join(root, "src/app/(app)/shopping/actions.ts"), "utf8");
@@ -126,5 +149,15 @@ describe("compound purchase wiring (source contracts)", () => {
     assert.match(actions, /planCompoundPurchaseCreate/);
     assert.match(actions, /if \(!purchasePlan\.ok\)/);
     assert.match(actions, /foreignIntentErrorMessage/);
+  });
+
+  it("purchase 23505 foreign branch compensates the household-scoped Expense before failing", () => {
+    const start = actions.indexOf("if (isUniqueViolation(purchaseError))");
+    const branch = actions.slice(start, actions.indexOf("return { ok: false, error: purchaseError.message }", start));
+    assert.match(branch, /planPurchaseInsertCollision\(retry, expenseInsertedThisAttempt\)/);
+    assert.match(
+      branch,
+      /if \(collision\.compensateExpense\) \{\s*await supabase\.from\("expenses"\)\.delete\(\)\.eq\("id", expenseId\)\.eq\("household_id", household\.id\);\s*\}\s*return \{ ok: false, error: foreignIntentErrorMessage\(\) \};/,
+    );
   });
 });

@@ -13,8 +13,10 @@ import { findPurchaseProductReviewId, getProduct, getPurchase, loadProductHistor
 import { syncEntityPets, validateEntityPets } from "@/lib/entity-pets";
 import { civilDateInAppTz, validateFactualCivilDate } from "@/lib/factual-datetime";
 import { ensureHousehold } from "@/lib/households";
+import { REVIEW_NOT_FOUND_MESSAGE, updateHouseholdRow, updateProductReviewWithPets } from "@/lib/household-row-update";
 import {
   planCompoundPurchaseCreate,
+  planPurchaseInsertCollision,
   shouldCompensateDeleteExpense,
 } from "@/lib/purchase-create-idempotency";
 import { productHasCommerceHistory, type ProductHistoryRefs } from "@/lib/product-delete-guard";
@@ -354,7 +356,8 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
     if (isUniqueViolation(purchaseError)) {
       const { data: again } = await supabase.from("purchases").select("id, household_id").eq("id", purchaseId).maybeSingle();
       const retry = resolveHouseholdCreateOwnership(purchaseId, household.id, again);
-      if (retry.ok && retry.status === "reuse") {
+      const collision = planPurchaseInsertCollision(retry, expenseInsertedThisAttempt);
+      if (collision.action === "reuse") {
         if (hasAnyScore && !hasAllScores) return finishPurchase(`/shopping?saved=1&review=partial&purchase=${purchaseId}`);
         if (hasAllScores) {
           if (!isUuid(reviewId)) return { ok: false, error: invalidIntentErrorMessage() };
@@ -375,6 +378,9 @@ export async function createPurchase(formData: FormData): Promise<CreatePurchase
           return finishPurchase("/shopping?saved=1");
         }
         return finishPurchase(`/shopping?saved=1&review=pending&purchase=${purchaseId}`);
+      }
+      if (collision.compensateExpense) {
+        await supabase.from("expenses").delete().eq("id", expenseId).eq("household_id", household.id);
       }
       return { ok: false, error: foreignIntentErrorMessage() };
     }
@@ -501,11 +507,14 @@ export async function updateProduct(productId: string, formData: FormData) {
   const parsed = parseProductCatalogFields((name) => value(formData, name));
   if (!parsed.ok) redirect(`/shopping/products/${productId}/edit?error=Confira%20nome%20e%20categoria.`);
   const { supabase, household } = await authContext();
-  const { error } = await supabase.from("products").update({
+  const updated = await updateHouseholdRow(supabase, "products", productId, household.id, {
     ...parsed.fields,
     updated_at: new Date().toISOString(),
-  }).eq("id", productId).eq("household_id", household.id);
-  if (error) redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  });
+  if (!updated.ok) {
+    if (updated.reason === "not_found") redirect(`/shopping?error=${encodeURIComponent(PRODUCT_NOT_FOUND_MESSAGE)}`);
+    redirect(`/shopping/products/${productId}/edit?error=${encodeURIComponent(updated.message)}`);
+  }
   revalidatePath("/shopping");
   revalidatePath("/shopping/new");
   revalidatePath("/assistant");
@@ -585,7 +594,7 @@ export async function updateProductReview(reviewId: string, formData: FormData) 
   const { supabase, household } = await authContext();
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
-  const { error } = await supabase.from("product_reviews").update({
+  const updated = await updateProductReviewWithPets(supabase, household.id, reviewId, {
     pet_id: petId,
     quality_score: scores[0],
     acceptance_score: scores[1],
@@ -593,13 +602,10 @@ export async function updateProductReview(reviewId: string, formData: FormData) 
     would_buy_again: formData.get("would_buy_again") === "on",
     notes: value(formData, "review_notes") || null,
     updated_at: new Date().toISOString(),
-  }).eq("id", reviewId).eq("household_id", household.id);
-  if (error) redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(error.message)}`);
-  try {
-    await validateEntityPets(supabase, household.id, petIds);
-    await syncEntityPets(supabase, "review_pets", household.id, reviewId, petIds);
-  } catch (petError) {
-    redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(petError instanceof Error ? petError.message : "Não foi possível vincular os pets.")}`);
+  }, petIds);
+  if (!updated.ok) {
+    if (updated.reason === "not_found") redirect(`/shopping?error=${encodeURIComponent(REVIEW_NOT_FOUND_MESSAGE)}`);
+    redirect(`/shopping/reviews/${reviewId}/edit?error=${encodeURIComponent(updated.message)}`);
   }
   revalidateReviewSurfaces();
   redirect("/shopping?updated=1");
