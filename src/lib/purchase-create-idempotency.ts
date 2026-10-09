@@ -64,4 +64,20 @@ export function shouldCompensateDeleteExpense(expenseInsertedThisAttempt: boolea
   return expenseInsertedThisAttempt;
 }
 
+export type PurchaseInsertCollisionPlan =
+  | { action: "reuse" }
+  | { action: "reject_foreign"; compensateExpense: boolean };
+
+/**
+ * Purchase insert hit a unique violation. RLS hides foreign rows from the pre-insert plan, so a
+ * foreign purchase_id only surfaces here — possibly after this attempt already inserted the Expense.
+ */
+export function planPurchaseInsertCollision(
+  retry: HouseholdCreateOwnershipResult,
+  expenseInsertedThisAttempt: boolean,
+): PurchaseInsertCollisionPlan {
+  if (retry.ok && retry.status === "reuse") return { action: "reuse" };
+  return { action: "reject_foreign", compensateExpense: shouldCompensateDeleteExpense(expenseInsertedThisAttempt) };
+}
+
 export type { HouseholdCreateOwnershipResult };
