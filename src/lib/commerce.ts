@@ -30,7 +30,7 @@ async function attachExpensePurchaseIds(supabase: SupabaseClient, householdId: s
   return rows.map((row) => ({ ...row, purchase_id: map.get(row.id) ?? null }));
 }
 
-async function attachExpenseLinks(supabase: SupabaseClient, householdId: string, rows: Expense[]) {
+export async function attachExpenseLinks(supabase: SupabaseClient, householdId: string, rows: Expense[]) {
   const withPets = await attachExpensePetIds(supabase, householdId, rows);
   return attachExpensePurchaseIds(supabase, householdId, withPets);
 }
