@@ -51,13 +51,28 @@ export function MemoryPhotoInput({
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
-
-  useEffect(() => () => {
-    pending.forEach((item) => {
-      URL.revokeObjectURL(item.url);
-      unregisterPendingAttachmentFile(item.mediaId);
-    });
+  // Keep Object URL revoke for unmount only. A cleanup keyed on `pending` that
+  // also unregistered without re-registering caused the multi-photo
+  // "Seleção inconsistente" bug (and blanked still-visible previews).
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    for (const item of pending) {
+      registerPendingAttachmentFile(item.mediaId, item.file);
+    }
+    pendingRef.current = pending;
+    return () => {
+      for (const item of pending) {
+        unregisterPendingAttachmentFile(item.mediaId);
+      }
+    };
   }, [pending]);
+  useEffect(() => {
+    return () => {
+      for (const item of pendingRef.current) {
+        URL.revokeObjectURL(item.url);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     onIntentsChange?.(
