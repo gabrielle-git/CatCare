@@ -5,6 +5,7 @@ import { PetNameChips } from "@/components/pet-name-chips";
 import { isUuid } from "@/lib/attachments";
 import { listBenefitMemberships, membershipLabel } from "@/lib/benefit-memberships";
 import { interpretPurchasesOffline, listCommerce } from "@/lib/commerce";
+import { currentMonthKey, isInMonth } from "@/lib/expense-period";
 import { formatCurrency, formatShortDate, getPetLifeStage, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoPets, demoProductReviews, demoProducts, demoPurchases } from "@/lib/mock-data";
@@ -80,8 +81,8 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
   const productsWithHistory = new Set(productIdsWithHistory);
   const createdProductId = flags.productCreated && isUuid(flags.productCreated) ? flags.productCreated : null;
   const membershipNames = new Map(memberships.map((item) => [item.id, membershipLabel(item)]));
-  const now = new Date();
-  const monthPurchases = purchases.filter((item) => { const date = new Date(item.purchased_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
+  const thisMonth = currentMonthKey();
+  const monthPurchases = purchases.filter((item) => isInMonth(item.purchased_at, thisMonth));
   const monthTotal = monthPurchases.reduce((sum, item) => sum + item.amount_cents, 0);
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
   const insights = products.map((product) => {

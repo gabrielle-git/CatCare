@@ -1,7 +1,9 @@
 import { Bot, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
-import { interpretPurchasesOffline, listCommerce, listExpenses } from "@/lib/commerce";
+import { interpretPurchasesOffline, listCommerce } from "@/lib/commerce";
+import { loadExpenseMonthSummary } from "@/lib/expense-history";
+import { currentMonthKey, isInMonth, summarizeExpenses } from "@/lib/expense-period";
 import { formatCurrency, formatDateTime, formatWeight, getPetLifeStage, isNeonatalPet } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoExpenses, demoPets, demoProductReviews, demoProducts, demoPurchases, demoReminders, demoTimeline } from "@/lib/mock-data";
@@ -24,7 +26,7 @@ async function loadData() {
       pets: demoPets,
       timeline: demoTimeline,
       reminders: demoReminders,
-      expenses: demoExpenses,
+      monthExpenses: summarizeExpenses(demoExpenses.filter((item) => isInMonth(item.occurred_at, currentMonthKey()))),
       catalogProducts: activeProducts(demoProducts),
       purchases: interpretPurchasesOffline(demoPurchases, demoProducts),
       reviews: demoProductReviews,
@@ -33,21 +35,18 @@ async function loadData() {
   }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return { pets: [], timeline: [], reminders: [], expenses: [], catalogProducts: [], purchases: [], reviews: [], configured: true };
+  if (!data.user) return { pets: [], timeline: [], reminders: [], monthExpenses: summarizeExpenses([]), catalogProducts: [], purchases: [], reviews: [], configured: true };
   const household = await ensureHousehold(supabase, data.user.id);
-  const [pets, timeline, reminders, expenses, commerce] = await Promise.all([listPets(supabase, household.id), listHouseholdTimeline(supabase, household.id, 80), listUpcomingReminders(supabase, household.id, 30), listExpenses(supabase, household.id), listCommerce(supabase, household.id)]);
-  return { pets, timeline, reminders, expenses, ...commerce, configured: true };
+  const [pets, timeline, reminders, monthExpenses, commerce] = await Promise.all([listPets(supabase, household.id), listHouseholdTimeline(supabase, household.id, 80), listUpcomingReminders(supabase, household.id, 30), loadExpenseMonthSummary(supabase, household.id, currentMonthKey()), listCommerce(supabase, household.id)]);
+  return { pets, timeline, reminders, monthExpenses, ...commerce, configured: true };
 }
 
 export default async function AssistantPage() {
-  const { pets, timeline, reminders, expenses, catalogProducts, purchases, reviews, configured } = await loadData();
+  const { pets, timeline, reminders, monthExpenses, catalogProducts, purchases, reviews, configured } = await loadData();
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
   const latestVaccine = timeline.find((item) => item.kind === "vaccine");
   const latestWeight = timeline.find((item) => item.kind === "weight");
   const nextReminder = reminders[0];
-  const now = new Date();
-  const monthExpenses = expenses.filter((item) => { const date = new Date(item.occurred_at); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); });
-  const monthTotal = monthExpenses.reduce((sum, item) => sum + item.amount_cents, 0);
   // Same eligibility as Shopping: active + ≥1 review, average ≥ 4, ≥1 «compraria de novo».
   const qualified = qualifiedProductRecommendations(catalogProducts, purchases, reviews);
   const best = qualified[0] ?? null;
@@ -59,13 +58,13 @@ export default async function AssistantPage() {
   const currentWeights = pets.filter((pet) => pet.current_weight_grams != null).map((pet) => `${pet.name}: ${formatWeight(pet.current_weight_grams)}`).join("; ");
   const answers = {
     vaccine: latestVaccine ? `A vacina mais recente registrada foi “${latestVaccine.title}” para ${names.get(latestVaccine.pet_id) ?? "um dos pets"}, em ${formatDateTime(latestVaccine.occurred_at)}.` : "Ainda não encontrei nenhuma vacina registrada. Quando você lançar uma, ela aparecerá aqui com o pet e a data.",
-    expenses: `Neste mês há ${monthExpenses.length} lançamentos, somando ${formatCurrency(monthTotal)}. Você pode abrir Gastos para ver a divisão por categoria e por pet.`,
+    expenses: `Neste mês há ${monthExpenses.count} lançamentos, somando ${formatCurrency(monthExpenses.total)}. Você pode abrir Gastos para ver a divisão por categoria e por pet.`,
     weight: currentWeights ? `Os pesos atuais registrados são: ${currentWeights}.${latestWeight ? ` A pesagem mais recente foi de ${names.get(latestWeight.pet_id) ?? "um pet"} em ${formatDateTime(latestWeight.occurred_at)}.` : ""}` : "Ainda não há pesos cadastrados. Registre uma pesagem para começar a acompanhar a evolução.",
     reminder: nextReminder ? `O próximo cuidado é “${nextReminder.title}”, para ${names.get(nextReminder.pet_id ?? "") ?? "a família"}, em ${formatDateTime(nextReminder.due_at)}.` : "A agenda está livre: não encontrei lembretes pendentes.",
     food: food ? `Entre os alimentos avaliados pela família, “${food.product.name}” lidera: aceitação ${food.acceptance.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${food.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. O motivo principal é ${food.reason}.${food.latest && formatLineUnitPrice(food.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(food.latest.unit_price_cents)} por pacote em ${food.latest.store_name}.` : food.latest ? ` A última compra foi em ${food.latest.store_name}.` : ""}${foodAgeNote}` : "Ainda não há ração, sachê ou petisco qualificado: é preciso ao menos uma avaliação com nota média ≥ 4 e «compraria de novo». Registre aceitação e custo-benefício para eu comparar sem inventar.",
     litter: litter ? `A areia mais recomendada pelo histórico é “${litter.product.name}”: qualidade ${litter.quality.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5 e custo-benefício ${litter.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. Ela se destaca porque ${litter.reason}.${litter.latest && formatLineUnitPrice(litter.latest.unit_price_cents) ? ` O último preço foi ${formatLineUnitPrice(litter.latest.unit_price_cents)} por pacote em ${litter.latest.store_name}.` : litter.latest ? ` A última compra foi em ${litter.latest.store_name}.` : ""}` : "Ainda não há uma areia qualificada (nota média ≥ 4 e «compraria de novo»). Depois de registrar qualidade, controle de odor e custo-benefício, eu consigo comparar as opções.",
     shopping: best ? `Pelas avaliações da família, “${best.product.name}” é a compra mais equilibrada agora, com nota calculada de ${best.score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5. A indicação vem de ${best.reviewCount} ${best.reviewCount === 1 ? "avaliação" : "avaliações"} registradas, não de publicidade.` : "Ainda não há produto qualificado para indicar: é preciso ao menos uma avaliação com nota média ≥ 4 e «compraria de novo». Registre qualidade, aceitação e custo-benefício na próxima compra.",
-    summary: `A família tem ${pets.length} ${pets.length === 1 ? "pet" : "pets"}, ${reminders.length} lembretes pendentes e ${monthExpenses.length} gastos neste mês. Posso detalhar vacinas, pesos, agenda, gastos ou compras.`,
+    summary: `A família tem ${pets.length} ${pets.length === 1 ? "pet" : "pets"}, ${reminders.length} lembretes pendentes e ${monthExpenses.count} gastos neste mês. Posso detalhar vacinas, pesos, agenda, gastos ou compras.`,
   };
 
   return <div className="mx-auto w-full max-w-[900px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
