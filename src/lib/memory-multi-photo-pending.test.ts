@@ -27,7 +27,7 @@ function brokenPendingKeyedCleanup(previousIds: string[], nextIds: string[]) {
 
 /**
  * Correct unmount-only cleanup: survivors stay registered until explicit
- * clear/discard or component unmount.
+ * clear/discard or component unmount. No unregister/re-register window.
  */
 function unmountOnlyCleanup(ids: string[]) {
   for (const id of ids) unregisterPendingAttachmentFile(id);
@@ -82,35 +82,28 @@ describe("memory multi-photo pending registry", () => {
     clearPendingAttachmentFiles();
   });
 
-  it("memory-photo-input re-registers on pending change and revokes Object URLs only on unmount", () => {
+  it("memory-photo-input cleans registry only on unmount / explicit clear (no pending-keyed unregister)", () => {
     const source = readFileSync(join(root, "src/components/memory-photo-input.tsx"), "utf8");
-    assert.match(source, /registerPendingAttachmentFile\(item\.mediaId, item\.file\)/);
     assert.match(source, /pendingRef\.current = pending/);
     assert.match(source, /URL\.revokeObjectURL\(item\.url\)/);
+    assert.match(source, /unregisterPendingAttachmentFile\(item\.mediaId\)/);
     assert.doesNotMatch(source, /useEffect\(\(\) => \(\) => \{/);
-    // Must not revoke inside the pending-keyed effect (that blanked still-visible previews).
-    const pendingDep = source.indexOf("}, [pending]);");
-    assert.ok(pendingDep >= 0);
-    const pendingEffect = source.slice(Math.max(0, pendingDep - 450), pendingDep);
-    assert.match(pendingEffect, /registerPendingAttachmentFile\(item\.mediaId, item\.file\)/);
-    assert.match(pendingEffect, /unregisterPendingAttachmentFile\(item\.mediaId\)/);
-    assert.doesNotMatch(pendingEffect, /revokeObjectURL/);
-    assert.match(source, /Seleção inconsistente|multi-photo/);
+    // No pending-keyed effect that unregisters (eliminates the transient window).
+    assert.doesNotMatch(source, /\},\s*\[pending\]\s*\);/);
+    assert.match(source, /Seleção inconsistente|multi-photo|unmount/);
+    assert.match(source, /registerPendingAttachmentFile\(mediaId, file\)/);
     assert.match(source, /multiple/);
     assert.match(source, /MEMORY_MEDIA_MAX_PHOTOS/);
   });
 
-  it("re-register after pending-keyed cleanup keeps every prior photo", () => {
+  it("successive addFiles-style registers never drop prior ids without cleanup", () => {
     clearPendingAttachmentFiles();
-    const file1 = new File([new Uint8Array([1])], "a.jpg", { type: "image/jpeg" });
-    const file2 = new File([new Uint8Array([2])], "b.jpg", { type: "image/jpeg" });
-    registerPendingAttachmentFile("media-1", file1);
-    // Simulate React: cleanup previous [media-1], then effect re-registers [media-1, media-2].
-    unregisterPendingAttachmentFile("media-1");
-    registerPendingAttachmentFile("media-1", file1);
-    registerPendingAttachmentFile("media-2", file2);
+    registerPendingAttachmentFile("media-1", new File([new Uint8Array([1])], "a.jpg", { type: "image/jpeg" }));
+    registerPendingAttachmentFile("media-2", new File([new Uint8Array([2])], "b.jpg", { type: "image/jpeg" }));
+    // No intermediate unregister — the fixed component path.
     assert.ok(getPendingAttachmentFile("media-1"));
     assert.ok(getPendingAttachmentFile("media-2"));
+    assert.deepEqual(listPendingAttachmentIds().sort(), ["media-1", "media-2"]);
     clearPendingAttachmentFiles();
   });
 });
