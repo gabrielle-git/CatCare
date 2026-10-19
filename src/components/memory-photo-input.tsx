@@ -51,13 +51,21 @@ export function MemoryPhotoInput({
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
-
-  useEffect(() => () => {
-    pending.forEach((item) => {
-      URL.revokeObjectURL(item.url);
-      unregisterPendingAttachmentFile(item.mediaId);
-    });
-  }, [pending]);
+  // Register in addFiles; clean only on explicit clearPending or unmount.
+  // A cleanup keyed on `pending` (even with re-register) opened a transient
+  // unregister window and, without re-register, caused "Seleção inconsistente".
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  });
+  useEffect(() => {
+    return () => {
+      for (const item of pendingRef.current) {
+        URL.revokeObjectURL(item.url);
+        unregisterPendingAttachmentFile(item.mediaId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     onIntentsChange?.(
