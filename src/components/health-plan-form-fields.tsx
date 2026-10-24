@@ -23,11 +23,14 @@ type PlanFormProps = {
   initialMonthlyFee?: string;
   initialStartedAt?: string;
   initialActive?: boolean;
+  /** When set, the plan is already closed. Reopening is not an approved action. */
+  endedAt?: string | null;
   initialNotes?: string;
   existingPlans?: ExistingHealthPlanRef[];
   currentPetId?: string;
   showPetSelect?: boolean;
   mode?: "create" | "edit";
+  initialPlanId?: string;
 };
 
 function centsToFeeInput(cents: number) {
@@ -44,24 +47,19 @@ export function HealthPlanFormFields({
   initialMonthlyFee = "17.90",
   initialStartedAt = "",
   initialActive = true,
+  endedAt = null,
   initialNotes = "",
   existingPlans = [],
   currentPetId,
   showPetSelect = true,
   mode = "create",
+  initialPlanId = "",
 }: PlanFormProps) {
-  const petsWithPlan = useMemo(() => new Set(existingPlans.map((plan) => plan.pet_id)), [existingPlans]);
-  const selectablePets = useMemo(() => {
-    if (mode !== "create") return pets;
-    const withoutPlan = pets.filter((pet) => !petsWithPlan.has(pet.id));
-    return withoutPlan.length > 0 ? withoutPlan : pets;
-  }, [mode, pets, petsWithPlan]);
+  const [planId] = useState(() => initialPlanId || globalThis.crypto.randomUUID());
+  const selectablePets = pets;
 
   const initialPetId = (() => {
     const preferred = currentPetId ?? defaultPetId;
-    if (mode === "create" && preferred && petsWithPlan.has(preferred)) {
-      return selectablePets[0]?.id ?? preferred;
-    }
     if (preferred && selectablePets.some((pet) => pet.id === preferred)) return preferred;
     return selectablePets[0]?.id ?? preferred;
   })();
@@ -132,10 +130,11 @@ export function HealthPlanFormFields({
   const displayCoverage = formatCoverageForDisplay(coverage);
   const discountHint = mode === "create" ? petDiscountHint(position, provider, others, mode) : null;
   const suggestedFeeCents = mode === "create" && provider === "petlove" ? petloveFeeForPosition(position) : null;
-  const selectedAlreadyHasPlan = mode === "create" && petsWithPlan.has(petId);
+  const plansForPet = mode === "create" ? existingPlans.filter((plan) => plan.pet_id === petId).length : 0;
 
   return (
     <>
+      {mode === "create" ? <input type="hidden" name="plan_id" value={planId} /> : null}
       {showPetSelect && (
         <label className="block text-sm font-bold">
           Pet
@@ -147,9 +146,9 @@ export function HealthPlanFormFields({
         </label>
       )}
 
-      {selectedAlreadyHasPlan && (
-        <p className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-          Este pet já tem plano cadastrado. Edite o plano existente ou escolha outro pet.
+      {plansForPet > 0 && (
+        <p className="rounded-[14px] border border-[var(--border)] bg-[var(--cream)] px-3 py-2 text-xs font-semibold text-[var(--muted)]">
+          Este pet já tem {plansForPet} {plansForPet === 1 ? "plano" : "planos"}. Salvar adiciona outro, sem substituir os anteriores.
         </p>
       )}
 
@@ -233,8 +232,13 @@ export function HealthPlanFormFields({
       )}
 
       <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold">
-        <input type="checkbox" name="active" defaultChecked={initialActive} className="size-4 accent-[var(--lavender)]" /> Plano ativo
+        <input type="checkbox" name="active" defaultChecked={initialActive && !endedAt} disabled={Boolean(endedAt)} className="size-4 accent-[var(--lavender)]" /> Plano ativo
       </label>
+      {endedAt ? (
+        <p className="text-xs font-semibold text-[var(--muted)]">
+          Este plano foi encerrado em {endedAt}. Reabrir ainda não está definido, então a data permanece.
+        </p>
+      ) : null}
 
       <label className="block text-sm font-bold">
         Observações gerais (deste pet)

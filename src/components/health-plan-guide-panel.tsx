@@ -54,7 +54,8 @@ export function HealthPlanGuidePanel({
     zero_waiting_consultation: plan.zero_waiting_consultation,
     zero_waiting_vaccine: plan.zero_waiting_vaccine,
   }));
-  const exampleCounts = activePlans.length > 0 ? [activePlans.length] : [1, 2, 3, 4];
+  const activePetCount = new Set(activePlans.map((plan) => plan.pet_id)).size;
+  const exampleCounts = activePetCount > 0 ? [activePetCount] : [1, 2, 3, 4];
   const defaultPaymentNotes = guide.provider === "petlove" ? PETLOVE_COPAY_PAYMENT_NOTES.join("\n") : null;
   const defaultWaitingNotes = guide.provider === "petlove"
     ? PETLOVE_WAITING_PERIODS.map((item) => `${item.days} dias — ${item.group}${"note" in item && item.note ? ` (${item.note})` : ""}`).join("\n")
@@ -153,7 +154,7 @@ export function HealthPlanGuidePanel({
             {exampleCounts.map((count) => (
               <div key={count} className="rounded-[18px] border border-[var(--border)] bg-white p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
-                  {activePlans.length > 0 ? "Sua família" : "Estimativa"} — {count} {count === 1 ? "pet" : "pets"}
+                  {activePetCount > 0 ? "Sua família" : "Estimativa"} — {count} {count === 1 ? "pet" : "pets"}
                 </p>
                 <p className="mt-2 text-xl font-bold tracking-[-0.03em]">
                   {formatCurrency(estimatePetloveLeveMonthlyCents(count, baseMonthlyFeeCents))}

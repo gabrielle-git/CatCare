@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { safeReturnPath } from "@/lib/safe-return-path";
 import { createHealthPlan } from "../actions";
 
-export default async function NewHealthPlanPage({ searchParams }: { searchParams: Promise<{ pet?: string; error?: string; return_to?: string }> }) {
+export default async function NewHealthPlanPage({ searchParams }: { searchParams: Promise<{ pet?: string; error?: string; return_to?: string; plan_id?: string }> }) {
   const flags = await searchParams;
   if (!(await isLiveData())) return <div className="mx-auto max-w-[760px] px-5 py-10 text-sm">Modo demonstração.</div>;
 
@@ -25,12 +25,8 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
     listHealthPlanTemplates(supabase, household.id),
     listHealthPlans(supabase, household.id),
   ]);
-  const petsWithPlan = new Set(plans.map((plan) => plan.pet_id));
-  const petsWithoutPlan = pets.filter((pet) => !petsWithPlan.has(pet.id));
   const requestedPet = flags.pet && pets.some((pet) => pet.id === flags.pet) ? flags.pet : "";
-  const defaultPet = requestedPet && !petsWithPlan.has(requestedPet)
-    ? requestedPet
-    : petsWithoutPlan[0]?.id ?? pets[0]?.id ?? "";
+  const defaultPet = requestedPet || pets[0]?.id || "";
   const existingPlans = plans.map((plan) => ({
     provider: plan.provider,
     plan_name: plan.plan_name,
@@ -69,6 +65,7 @@ export default async function NewHealthPlanPage({ searchParams }: { searchParams
             defaultPetId={defaultPet}
             currentPetId={defaultPet}
             existingPlans={existingPlans}
+            initialPlanId={flags.plan_id}
             mode="create"
           />
         </section>

@@ -10,7 +10,7 @@ import { listPets } from "@/lib/pets";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { safeReturnPath } from "@/lib/safe-return-path";
-import { deleteHealthPlan, updateHealthPlan } from "../../actions";
+import { deleteHealthPlan, endHealthPlan, updateHealthPlan } from "../../actions";
 
 export default async function EditHealthPlanPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; return_to?: string }> }) {
   const { id } = await params;
@@ -32,6 +32,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
 
   const save = updateHealthPlan.bind(null, id);
   const remove = deleteHealthPlan.bind(null, id);
+  const end = endHealthPlan.bind(null, id);
   const monthlyFee = plan.monthly_fee_cents != null ? (plan.monthly_fee_cents / 100).toFixed(2) : "";
   const petName = pets.find((pet) => pet.id === plan.pet_id)?.name;
   const existingPlans = plans.map((item) => ({
@@ -79,6 +80,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
             initialMonthlyFee={monthlyFee}
             initialStartedAt={plan.started_at ?? ""}
             initialActive={plan.active}
+            endedAt={plan.ended_at}
             initialNotes={plan.notes ?? ""}
             showPetSelect={false}
           />
@@ -98,13 +100,27 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
         </button>
       </form>
 
+      {plan.active && (
+        <section className="mt-5 rounded-[22px] border border-[var(--border)] bg-white p-5">
+          <h2 className="font-bold">Encerrar plano</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">Use quando parar de pagar ou trocar de operadora. O histórico e as coparticipações deste plano permanecem. Os outros planos de {petName ?? "este pet"} não mudam.</p>
+          <form action={end} className="mt-4">
+            <input type="hidden" name="return_to" value={returnTo} />
+            <ConfirmButton title="Encerrar plano?" confirmLabel="Encerrar" message="Encerrar este plano e manter o histórico?" className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] px-4 py-3 text-xs font-bold">
+              Encerrar plano
+            </ConfirmButton>
+          </form>
+        </section>
+      )}
+
       <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
-        <h2 className="font-bold">Remover plano</h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">Use se parou de pagar ou trocou de operadora. Apaga o registro deste pet.</p>
+        <h2 className="font-bold">Excluir cadastro incorreto</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">Apaga este plano e as coparticipações dele. Não use para encerrar um plano que existiu de verdade.</p>
         <form action={remove} className="mt-4">
           <input type="hidden" name="return_to" value={returnTo} />
-          <ConfirmButton message="Remover este plano de saúde permanentemente?" className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]">
-            <Trash2 size={15} /> Remover plano
+          <input type="hidden" name="confirm_incorrect" value="yes" />
+          <ConfirmButton title="Excluir cadastro incorreto?" confirmLabel="Excluir cadastro" message="Excluir permanentemente este cadastro incorreto? O histórico deste plano será apagado." className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]">
+            <Trash2 size={15} /> Excluir cadastro
           </ConfirmButton>
         </form>
       </section>
