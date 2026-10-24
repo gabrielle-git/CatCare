@@ -209,6 +209,8 @@ export type HealthPlan = {
   plan_name: string;
   monthly_fee_cents: number | null;
   started_at: string | null;
+  /** Close date. NULL while open. A non-NULL value requires active = false. */
+  ended_at?: string | null;
   active: boolean;
   notes: string | null;
   coverage_summary: string | null;

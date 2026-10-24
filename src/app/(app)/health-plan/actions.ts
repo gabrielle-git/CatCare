@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { HEALTH_COPAY_SERVICES } from "@/lib/health-plan";
-import { syncTemplateCoverageToPlans, upsertHealthPlanTemplate } from "@/lib/health-plan-templates";
+import { HEALTH_COPAY_SERVICES, resolveHealthPlanCreateOwnership } from "@/lib/health-plan";
+import { upsertHealthPlanTemplate } from "@/lib/health-plan-templates";
+import { APP_TIMEZONE } from "@/lib/format";
+import { isUuid } from "@/lib/attachments";
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { redirectPathWithParam, resolveReturnTo, safeReturnPath } from "@/lib/safe-return-path";
@@ -39,6 +41,7 @@ function redirectFail(path: string, message: string, returnTo: string | null): n
   const params = new URLSearchParams({ error: message });
   if (returnTo) params.set("return_to", returnTo);
   redirect(`${path}?${params.toString()}`);
+  throw new Error(message);
 }
 
 function parseServiceRules(formData: FormData) {
@@ -68,6 +71,42 @@ function parseServiceRules(formData: FormData) {
   });
 }
 
+function todayInAppTimezone() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+type CopayRow = {
+  health_plan_id: string;
+  service_type: HealthCopayServiceType;
+  copay_cents: number | null;
+  notes: string | null;
+  coverage_status: HealthPlanCoverageStatus | null;
+  coverage_notes: string | null;
+  sort_order: number;
+};
+
+/** Upsert the submitted rules first. Remove leftovers only after that succeeds. */
+async function replaceCopayRules(
+  supabase: Awaited<ReturnType<typeof authContext>>["supabase"],
+  planId: string,
+  rows: CopayRow[],
+) {
+  if (rows.length) {
+    const { error } = await supabase.from("health_plan_copay_rules").upsert(rows, { onConflict: "health_plan_id,service_type" });
+    if (error) return error;
+  }
+  const keep = rows.map((row) => row.service_type);
+  let removal = supabase.from("health_plan_copay_rules").delete().eq("health_plan_id", planId);
+  if (keep.length) removal = removal.not("service_type", "in", `(${keep.join(",")})`);
+  const { error } = await removal;
+  return error;
+}
+
 function parsePromoFields(formData: FormData) {
   return {
     promo_coupon_code: value(formData, "promo_coupon_code") || null,
@@ -78,12 +117,20 @@ function parsePromoFields(formData: FormData) {
 }
 
 export async function createHealthPlan(formData: FormData) {
+  const planId = value(formData, "plan_id");
   const petId = value(formData, "pet_id");
   const provider = value(formData, "provider") as HealthPlanProvider;
   const planName = value(formData, "plan_name");
   const startedAt = value(formData, "started_at") || null;
   const returnTo = resolveReturnTo(value(formData, "return_to"));
-  const fail = (message: string): never => redirectFail("/health-plan/new", message, returnTo);
+  const fail = (message: string): never => {
+    const params = new URLSearchParams({ error: message });
+    if (returnTo) params.set("return_to", returnTo);
+    if (isUuid(planId)) params.set("plan_id", planId);
+    if (petId) params.set("pet", petId);
+    redirect(`/health-plan/new?${params.toString()}`);
+    throw new Error(message);
+  };
 
   if (!petId || !providers.has(provider) || !planName) fail("Preencha pet, operadora e nome do plano.");
 
@@ -95,20 +142,30 @@ export async function createHealthPlan(formData: FormData) {
   if (serviceRules.some((rule) => rule === null)) fail("Confira os valores de coparticipação.");
 
   const { supabase, household } = await authContext();
+  const { data: pet, error: petError } = await supabase
+    .from("pets")
+    .select("id")
+    .eq("id", petId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (petError || !pet) fail("Esse pet não está nesta família.");
 
-  const existing = await supabase.from("health_plans").select("id").eq("pet_id", petId).eq("household_id", household.id).maybeSingle();
-  if (existing.data) {
-    const params = new URLSearchParams({ error: "Este pet já tem plano. Edite o existente." });
-    if (returnTo) params.set("return_to", returnTo);
-    redirect(`/health-plan/${existing.data.id}/edit?${params.toString()}`);
+  const { data: existingRow } = await supabase
+    .from("health_plans")
+    .select("id, household_id, pet_id")
+    .eq("id", planId)
+    .maybeSingle();
+  const ownership = resolveHealthPlanCreateOwnership(planId, household.id, petId, existingRow);
+  if (!ownership.ok) {
+    fail(ownership.reason === "invalid_id" ? "Não foi possível identificar este cadastro. Recarregue a página." : "Este cadastro não pertence a esta família.");
   }
+  if (!ownership.ok) throw new Error("unreachable");
 
   const coverageSummary = value(formData, "coverage_summary") || null;
   const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
   const resolvedCoverage = coverageSummary ?? template.coverage_summary;
-  await syncTemplateCoverageToPlans(supabase, template.id, resolvedCoverage);
-
-  const { data: plan, error } = await supabase.from("health_plans").insert({
+  const active = formData.get("active") === "on";
+  const payload = {
     household_id: household.id,
     pet_id: petId,
     provider,
@@ -116,22 +173,27 @@ export async function createHealthPlan(formData: FormData) {
     template_id: template.id,
     monthly_fee_cents: monthlyFeeCents,
     started_at: startedAt,
-    active: formData.get("active") === "on",
+    ended_at: active ? null : todayInAppTimezone(),
+    active,
     notes: value(formData, "notes") || null,
     coverage_summary: resolvedCoverage,
     ...parsePromoFields(formData),
-  }).select("id").single();
-  const createdPlanId = plan?.id;
-  if (error || !createdPlanId) fail(error?.message ?? "Não foi possível criar o plano.");
+    updated_at: new Date().toISOString(),
+  };
 
-  const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: createdPlanId }));
-  if (rows.length) {
-    const { error: copayError } = await supabase.from("health_plan_copay_rules").insert(rows);
-    if (copayError) {
-      await supabase.from("health_plans").delete().eq("id", createdPlanId);
-      fail(copayError.message);
-    }
+  if (ownership.status === "create") {
+    const { error } = await supabase.from("health_plans").insert({ id: planId, ...payload });
+    if (error) fail(error.message);
+  } else {
+    const { error } = await supabase.from("health_plans").update(payload).eq("id", planId).eq("household_id", household.id);
+    if (error) fail(error.message);
   }
+
+  const rows = serviceRules
+    .filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule))
+    .map((rule) => ({ ...rule, health_plan_id: planId }));
+  const copayError = await replaceCopayRules(supabase, planId, rows);
+  if (copayError) fail(copayError.message);
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
@@ -155,11 +217,21 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
   if (serviceRules.some((rule) => rule === null)) fail("Confira os valores de coparticipação.");
 
   const { supabase, household } = await authContext();
+  const { data: current, error: currentError } = await supabase
+    .from("health_plans")
+    .select("id, ended_at, pet_id")
+    .eq("id", planId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (currentError || !current) fail("Plano não encontrado nesta família.");
+  if (!current) throw new Error("Plano não encontrado nesta família.");
+  const { data: pet } = await supabase.from("pets").select("id").eq("id", current.pet_id).eq("household_id", household.id).maybeSingle();
+  if (!pet) fail("Esse pet não está nesta família.");
 
   const coverageSummary = value(formData, "coverage_summary") || null;
   const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
   const resolvedCoverage = coverageSummary ?? template.coverage_summary;
-  await syncTemplateCoverageToPlans(supabase, template.id, resolvedCoverage);
+  const active = formData.get("active") === "on";
 
   const { error } = await supabase.from("health_plans").update({
     provider,
@@ -167,7 +239,8 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
     template_id: template.id,
     monthly_fee_cents: monthlyFeeCents,
     started_at: startedAt,
-    active: formData.get("active") === "on",
+    ended_at: active ? null : current.ended_at ?? todayInAppTimezone(),
+    active,
     notes: value(formData, "notes") || null,
     coverage_summary: resolvedCoverage,
     ...parsePromoFields(formData),
@@ -175,20 +248,46 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
   }).eq("id", planId).eq("household_id", household.id);
   if (error) fail(error.message);
 
-  await supabase.from("health_plan_copay_rules").delete().eq("health_plan_id", planId);
   const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: planId }));
-  if (rows.length) {
-    const { error: copayError } = await supabase.from("health_plan_copay_rules").insert(rows);
-    if (copayError) fail(copayError.message);
-  }
+  const copayError = await replaceCopayRules(supabase, planId, rows);
+  if (copayError) fail(copayError.message);
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
   redirect(redirectPathWithParam(safeReturnPath(returnTo, "/health-plan"), "saved", "1"));
 }
 
-export async function deleteHealthPlan(planId: string, formData?: FormData) {
+export async function endHealthPlan(planId: string, formData?: FormData) {
   const returnTo = formReturnTo(formData ?? new FormData(), "/health-plan");
+  const { supabase, household } = await authContext();
+  const { data: current, error: currentError } = await supabase
+    .from("health_plans")
+    .select("id, ended_at")
+    .eq("id", planId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (currentError || !current) redirect(redirectPathWithParam(returnTo, "error", "Plano não encontrado nesta família."));
+  const { error } = await supabase
+    .from("health_plans")
+    .update({
+      active: false,
+      ended_at: current.ended_at ?? todayInAppTimezone(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", planId)
+    .eq("household_id", household.id);
+  if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));
+  revalidatePath("/health-plan");
+  revalidatePath("/health-plan/guides");
+  redirect(redirectPathWithParam(returnTo, "ended", "1"));
+}
+
+export async function deleteHealthPlan(planId: string, formData?: FormData) {
+  const form = formData ?? new FormData();
+  const returnTo = formReturnTo(form, "/health-plan");
+  if (value(form, "confirm_incorrect") !== "yes") {
+    redirect(redirectPathWithParam(returnTo, "error", "A exclusão permanente precisa de confirmação de cadastro incorreto."));
+  }
   const { supabase, household } = await authContext();
   const { error } = await supabase.from("health_plans").delete().eq("id", planId).eq("household_id", household.id);
   if (error) redirect(redirectPathWithParam(returnTo, "error", error.message));

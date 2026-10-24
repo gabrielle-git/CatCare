@@ -150,7 +150,13 @@ function activeSamePlanGroup(
   planName: string,
   templateId?: string | null,
 ) {
-  return existingPlans.filter((plan) => plan.active && sameHealthPlan(provider, planName, plan, templateId));
+  const matching = existingPlans.filter((plan) => plan.active && sameHealthPlan(provider, planName, plan, templateId));
+  const byPet = new Map<string, ExistingHealthPlanRef>();
+  for (const plan of matching) {
+    const current = byPet.get(plan.pet_id);
+    if (!current || planSortTime(plan) < planSortTime(current)) byPet.set(plan.pet_id, plan);
+  }
+  return [...byPet.values()];
 }
 
 /**

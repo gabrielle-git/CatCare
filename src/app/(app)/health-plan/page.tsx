@@ -6,7 +6,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { HealthPlanPromoBadges } from "@/components/health-plan-promo-fields";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { listBenefitMemberships, splitMemberships } from "@/lib/benefit-memberships";
-import { HEALTH_PLAN_PROVIDER_LABELS, listHealthPlans } from "@/lib/health-plan";
+import { HEALTH_PLAN_PROVIDER_LABELS, countPetsWithActivePlan, groupHealthPlansByPet, listHealthPlans } from "@/lib/health-plan";
 import { formatCoverageForDisplay, mapPetlovePlanPositions, petlovePositionBadge, type ExistingHealthPlanRef } from "@/lib/health-plan-templates";
 import { ensureHousehold } from "@/lib/households";
 import { demoBenefitMemberships, demoHealthPlans, demoPets } from "@/lib/mock-data";
@@ -14,7 +14,7 @@ import { listPets } from "@/lib/pets";
 import { canEdit, getMyRole } from "@/lib/roles";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
-import { saveBenefitMembership, deleteBenefitMembership, deleteHealthPlan } from "./actions";
+import { saveBenefitMembership, deleteBenefitMembership, deleteHealthPlan, endHealthPlan } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +35,12 @@ async function loadPage() {
   return { pets, plans, memberships, configured: true, editable: canEdit(role) };
 }
 
-export default async function HealthPlanPage({ searchParams }: { searchParams: Promise<{ saved?: string; deleted?: string; membership?: string; error?: string }> }) {
+export default async function HealthPlanPage({ searchParams }: { searchParams: Promise<{ saved?: string; deleted?: string; ended?: string; membership?: string; error?: string }> }) {
   const flags = await searchParams;
   const { pets, plans, memberships, configured, editable } = await loadPage();
   const { petlove: petloveMembership, others: otherMemberships } = splitMemberships(memberships);
-  const planByPet = new Map(plans.map((plan) => [plan.pet_id, plan]));
-  const activePlans = plans.filter((plan) => plan.active);
+  const plansByPet = groupHealthPlansByPet(plans);
+  const petsWithActivePlan = countPetsWithActivePlan(plans);
   const existingPlanRefs: ExistingHealthPlanRef[] = plans.map((plan) => ({
     provider: plan.provider,
     plan_name: plan.plan_name,
@@ -79,14 +79,15 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
 
       {flags.saved && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano salvo.</div>}
       {flags.membership && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Assinatura salva.</div>}
-      {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano removido.</div>}
+      {flags.ended && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Plano encerrado. O histórico e as coparticipações foram mantidos.</div>}
+      {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Cadastro incorreto excluído.</div>}
       {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
 
       <section className="mt-6 grid gap-3 sm:grid-cols-3">
         <div className="cat-card p-5">
           <span className="grid size-9 place-items-center rounded-[14px] bg-[var(--lavender-soft)]"><HeartHandshake size={17} /></span>
           <p className="mt-4 text-xs font-semibold text-[var(--muted)]">Pets com plano</p>
-          <p className="mt-1 text-2xl font-bold tracking-[-0.04em]">{activePlans.length} de {pets.length}</p>
+          <p className="mt-1 text-2xl font-bold tracking-[-0.04em]">{petsWithActivePlan} de {pets.length}</p>
         </div>
         <div className="cat-card p-5 sm:col-span-2">
           <p className="text-xs font-semibold text-[var(--muted)]">Tabelas de referência</p>
@@ -125,8 +126,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
       ) : (
         <div className="mt-4 space-y-5">
           {pets.map((pet) => {
-            const plan = planByPet.get(pet.id);
-            const petloveRank = plan?.provider === "petlove" && plan.active ? petlovePositions.get(pet.id) : undefined;
+            const petPlans = plansByPet.get(pet.id) ?? [];
             return (
               <section key={pet.id} className="cat-card overflow-hidden">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] bg-[linear-gradient(135deg,var(--lavender-soft),#fff)] p-5 md:p-6">
@@ -134,80 +134,111 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
                     <PetAvatar name={pet.name} photoUrl={pet.photo_url} />
                     <div>
                       <h2 className="text-xl font-bold">{pet.name}</h2>
-                      {plan ? (
-                        <>
-                          <p className="mt-1 text-sm text-[var(--muted)]">
-                            {HEALTH_PLAN_PROVIDER_LABELS[plan.provider]} • {plan.plan_name}
-                            {!plan.active && <span className="ml-2 rounded-full bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold">Inativo</span>}
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
-                            {plan.monthly_fee_cents != null && (
-                              <span className="rounded-full bg-white/80 px-2.5 py-1">{formatCurrency(plan.monthly_fee_cents)}/mês</span>
-                            )}
-                            {petloveRank && (
-                              <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[var(--lavender-strong)]">
-                                {petlovePositionBadge(petloveRank.position)}
-                              </span>
-                            )}
-                            {plan.started_at && (
-                              <span className="rounded-full bg-white/80 px-2.5 py-1 text-[var(--muted)]">Desde {formatShortDate(plan.started_at)}</span>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {petPlans.length === 0 ? "Nenhum plano configurado." : `${petPlans.length} ${petPlans.length === 1 ? "plano" : "planos"}`}
+                      </p>
+                    </div>
+                  </div>
+                  {editable && (
+                    <Link
+                      href={`/health-plan/new?pet=${pet.id}`}
+                      className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-xs font-bold shadow-sm"
+                    >
+                      <Plus size={14} /> {petPlans.length ? "Adicionar outro plano" : "Configurar"}
+                    </Link>
+                  )}
+                </div>
+                {petPlans.length === 0 ? (
+                  <div className="p-5 text-sm text-[var(--muted)] md:p-6">
+                    Informe operadora, mensalidade e quanto você paga em cada tipo de procedimento.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[var(--border)]">
+                    {petPlans.map((plan) => {
+                      const petloveRank = plan.provider === "petlove" && plan.active ? petlovePositions.get(pet.id) : undefined;
+                      return (
+                        <div key={plan.id} className="p-5 md:p-6">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold">
+                                {HEALTH_PLAN_PROVIDER_LABELS[plan.provider]} • {plan.plan_name}
+                                {!plan.active && <span className="ml-2 rounded-full bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold">Inativo</span>}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
+                                {plan.monthly_fee_cents != null && (
+                                  <span className="rounded-full bg-[var(--cream)] px-2.5 py-1">{formatCurrency(plan.monthly_fee_cents)}/mês</span>
+                                )}
+                                {petloveRank && (
+                                  <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[var(--lavender-strong)]">
+                                    {petlovePositionBadge(petloveRank.position)}
+                                  </span>
+                                )}
+                                {plan.started_at && (
+                                  <span className="rounded-full bg-[var(--cream)] px-2.5 py-1 text-[var(--muted)]">Desde {formatShortDate(plan.started_at)}</span>
+                                )}
+                                {plan.ended_at && (
+                                  <span className="rounded-full bg-[var(--cream)] px-2.5 py-1 text-[var(--muted)]">Até {formatShortDate(plan.ended_at)}</span>
+                                )}
+                              </div>
+                            </div>
+                            {editable && (
+                              <Link href={`/health-plan/${plan.id}/edit`} className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold">
+                                <Pencil size={14} /> Editar
+                              </Link>
                             )}
                           </div>
                           <div className="mt-3">
                             <HealthPlanPromoBadges plan={plan} />
                           </div>
-                        </>
-                      ) : (
-                        <p className="mt-1 text-sm text-[var(--muted)]">Nenhum plano configurado.</p>
-                      )}
-                    </div>
-                  </div>
-                  {editable && (
-                    <Link
-                      href={plan ? `/health-plan/${plan.id}/edit` : `/health-plan/new?pet=${pet.id}`}
-                      className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-xs font-bold shadow-sm"
-                    >
-                      {plan ? <><Pencil size={14} /> Editar plano</> : <><Plus size={14} /> Configurar</>}
-                    </Link>
-                  )}
-                </div>
-                {plan ? (
-                  <div className="p-5 md:p-6">
-                    {plan.coverage_summary && (
-                      <div className="mb-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">Cobertura</p>
-                        <div className="mt-2 rounded-[14px] bg-[var(--cream)] px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap">
-                          {formatCoverageForDisplay(plan.coverage_summary)}
+                          {plan.coverage_summary && (
+                            <div className="mt-4 rounded-[14px] bg-[var(--cream)] px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+                              {formatCoverageForDisplay(plan.coverage_summary)}
+                            </div>
+                          )}
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-sm text-[var(--muted)]">
+                              {plan.provider === "petlove" ? (
+                                <>
+                                  Coparticipação na{" "}
+                                  <Link href="/health-plan/guides" className="font-bold text-[var(--lavender-strong)] underline">tabela de serviços</Link>.
+                                </>
+                              ) : (
+                                plan.notes || "Plano registrado."
+                              )}
+                            </p>
+                            {editable && (
+                              <div className="flex flex-wrap gap-2">
+                                {plan.active && (
+                                  <form action={endHealthPlan.bind(null, plan.id)}>
+                                    <input type="hidden" name="return_to" value="/health-plan" />
+                                    <ConfirmButton
+                                      title="Encerrar plano?"
+                                      confirmLabel="Encerrar"
+                                      message={`Encerrar o plano ${plan.plan_name} de ${pet.name}? O histórico e as coparticipações permanecem.`}
+                                      className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] px-3.5 py-2.5 text-xs font-bold"
+                                    >
+                                      Encerrar
+                                    </ConfirmButton>
+                                  </form>
+                                )}
+                                <form action={deleteHealthPlan.bind(null, plan.id)}>
+                                  <input type="hidden" name="return_to" value="/health-plan" />
+                                  <input type="hidden" name="confirm_incorrect" value="yes" />
+                                  <ConfirmButton
+                                    title="Excluir cadastro incorreto?"
+                                    confirmLabel="Excluir cadastro"
+                                    message={`Excluir permanentemente o plano ${plan.plan_name} de ${pet.name}? Use só se o cadastro estiver errado. O histórico deste plano será apagado.`}
+                                    className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-3.5 py-2.5 text-xs font-bold text-[var(--danger)]"
+                                  >
+                                    <Trash2 size={14} /> Excluir cadastro
+                                  </ConfirmButton>
+                                </form>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div className="text-sm text-[var(--muted)]">
-                        {plan.provider === "petlove" ? (
-                          <>
-                            Coparticipação e limites na{" "}
-                            <Link href="/health-plan/guides" className="font-bold text-[var(--lavender-strong)] underline">tabela de serviços</Link>.
-                          </>
-                        ) : (
-                          plan.notes || "Plano registrado."
-                        )}
-                      </div>
-                      {editable && (
-                        <form action={deleteHealthPlan.bind(null, plan.id)}>
-                          <input type="hidden" name="return_to" value="/health-plan" />
-                          <ConfirmButton
-                            message={`Remover o plano de ${pet.name}?`}
-                            className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-3.5 py-2.5 text-xs font-bold text-[var(--danger)]"
-                          >
-                            <Trash2 size={14} /> Remover
-                          </ConfirmButton>
-                        </form>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-5 text-sm text-[var(--muted)] md:p-6">
-                    Informe operadora, mensalidade e quanto você paga em cada tipo de procedimento.
+                      );
+                    })}
                   </div>
                 )}
               </section>

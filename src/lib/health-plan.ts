@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isUuid } from "@/lib/attachments";
 import type { HealthCopayServiceType, HealthPlan, HealthPlanCopayRule, HealthPlanWithCopays } from "@/types/database";
 
 export const HEALTH_COPAY_SERVICES: { type: HealthCopayServiceType; label: string; hint?: string }[] = [
@@ -72,16 +73,45 @@ export async function getHealthPlan(supabase: SupabaseClient, householdId: strin
   return { ...(data as HealthPlan), copay_rules: (rules ?? []) as HealthPlanCopayRule[] };
 }
 
-export async function getHealthPlanForPet(supabase: SupabaseClient, householdId: string, petId: string): Promise<HealthPlanWithCopays | null> {
-  const { data, error } = await supabase
-    .from("health_plans")
-    .select("*")
-    .eq("household_id", householdId)
-    .eq("pet_id", petId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return getHealthPlan(supabase, householdId, data.id);
+export async function listHealthPlansForPet(
+  supabase: SupabaseClient,
+  householdId: string,
+  petId: string,
+): Promise<HealthPlanWithCopays[]> {
+  const plans = await listHealthPlans(supabase, householdId);
+  return plans.filter((plan) => plan.pet_id === petId);
+}
+
+export type HealthPlanCreateOwnershipResult =
+  | { ok: true; status: "create" | "reuse" }
+  | { ok: false; reason: "invalid_id" | "foreign_household" | "pet_mismatch" };
+
+/** Same plan id retries reuse the row. A second plan for the pet uses a different id. */
+export function resolveHealthPlanCreateOwnership(
+  planId: string,
+  expectedHouseholdId: string,
+  expectedPetId: string,
+  existing: { id: string; household_id: string; pet_id: string } | null,
+): HealthPlanCreateOwnershipResult {
+  if (!isUuid(planId)) return { ok: false, reason: "invalid_id" };
+  if (!existing) return { ok: true, status: "create" };
+  if (existing.household_id !== expectedHouseholdId) return { ok: false, reason: "foreign_household" };
+  if (existing.pet_id !== expectedPetId) return { ok: false, reason: "pet_mismatch" };
+  return { ok: true, status: "reuse" };
+}
+
+export function groupHealthPlansByPet<T extends { pet_id: string }>(plans: T[]) {
+  const grouped = new Map<string, T[]>();
+  for (const plan of plans) {
+    const list = grouped.get(plan.pet_id) ?? [];
+    list.push(plan);
+    grouped.set(plan.pet_id, list);
+  }
+  return grouped;
+}
+
+export function countPetsWithActivePlan(plans: Array<{ pet_id: string; active: boolean }>) {
+  return new Set(plans.filter((plan) => plan.active).map((plan) => plan.pet_id)).size;
 }
 
 export function defaultCopayRules(): Pick<HealthPlanCopayRule, "service_type" | "copay_cents" | "notes" | "coverage_status" | "coverage_notes" | "sort_order">[] {
