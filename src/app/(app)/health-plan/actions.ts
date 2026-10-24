@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { HEALTH_COPAY_SERVICES, resolveHealthPlanCreateOwnership } from "@/lib/health-plan";
+import {
+  HEALTH_COPAY_SERVICES,
+  healthPlanCreateSnapshotsMatch,
+  resolveCopayCreateRetry,
+  resolveHealthPlanCreateOwnership,
+  type CopayCreateRule,
+  type HealthPlanCreateSnapshot,
+} from "@/lib/health-plan";
 import { upsertHealthPlanTemplate } from "@/lib/health-plan-templates";
 import { APP_TIMEZONE } from "@/lib/format";
 import { isUuid } from "@/lib/attachments";
@@ -90,7 +97,12 @@ type CopayRow = {
   sort_order: number;
 };
 
-/** Upsert the submitted rules first. Remove leftovers only after that succeeds. */
+/**
+ * Not one transaction. Upsert can land and the following delete can fail, leaving
+ * extra rules. Deleting first could drop every rule if the insert then failed.
+ * A single database function would make the replace atomic; that needs a new
+ * migration and is not part of 0039.
+ */
 async function replaceCopayRules(
   supabase: Awaited<ReturnType<typeof authContext>>["supabase"],
   planId: string,
@@ -150,50 +162,126 @@ export async function createHealthPlan(formData: FormData) {
     .maybeSingle();
   if (petError || !pet) fail("Esse pet não está nesta família.");
 
-  const { data: existingRow } = await supabase
-    .from("health_plans")
-    .select("id, household_id, pet_id")
-    .eq("id", planId)
-    .maybeSingle();
+  const coverageSummary = value(formData, "coverage_summary") || null;
+  const active = formData.get("active") === "on";
+  const promo = parsePromoFields(formData);
+  const submittedCopays: CopayCreateRule[] = serviceRules
+    .filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule))
+    .map((rule) => ({
+      service_type: rule.service_type,
+      copay_cents: rule.copay_cents,
+      notes: rule.notes,
+      coverage_status: rule.coverage_status,
+      coverage_notes: rule.coverage_notes,
+      sort_order: rule.sort_order,
+    }));
+
+  const loadExisting = async () => {
+    const { data, error } = await supabase
+      .from("health_plans")
+      .select("id, household_id, pet_id, provider, plan_name, monthly_fee_cents, started_at, active, ended_at, notes, coverage_summary, promo_coupon_code, zero_waiting_consultation, zero_waiting_vaccine, promo_notes")
+      .eq("id", planId)
+      .maybeSingle();
+    if (error) fail(error.message);
+    return data;
+  };
+
+  let existingRow = await loadExisting();
   const ownership = resolveHealthPlanCreateOwnership(planId, household.id, petId, existingRow);
   if (!ownership.ok) {
-    fail(ownership.reason === "invalid_id" ? "Não foi possível identificar este cadastro. Recarregue a página." : "Este cadastro não pertence a esta família.");
+    fail(ownership.reason === "invalid_id"
+      ? "Não foi possível identificar este cadastro. Recarregue a página."
+      : ownership.reason === "pet_mismatch"
+        ? "Este cadastro pertence a outro pet."
+        : "Este cadastro não pertence a esta família.");
   }
   if (!ownership.ok) throw new Error("unreachable");
 
-  const coverageSummary = value(formData, "coverage_summary") || null;
-  const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
-  const resolvedCoverage = coverageSummary ?? template.coverage_summary;
-  const active = formData.get("active") === "on";
-  const payload = {
-    household_id: household.id,
-    pet_id: petId,
-    provider,
-    plan_name: planName,
-    template_id: template.id,
-    monthly_fee_cents: monthlyFeeCents,
-    started_at: startedAt,
-    ended_at: active ? null : todayInAppTimezone(),
-    active,
-    notes: value(formData, "notes") || null,
-    coverage_summary: resolvedCoverage,
-    ...parsePromoFields(formData),
-    updated_at: new Date().toISOString(),
+  const refuseChanged = (): never => fail("Este cadastro já foi salvo e depois alterado. Abra o plano para editar. O reenvio não mudou os dados.");
+
+  const finishInterruptedCopays = async () => {
+    const { data: storedRules, error: rulesError } = await supabase
+      .from("health_plan_copay_rules")
+      .select("service_type, copay_cents, notes, coverage_status, coverage_notes")
+      .eq("health_plan_id", planId);
+    if (rulesError) fail(rulesError.message);
+    const decision = resolveCopayCreateRetry((storedRules ?? []) as CopayCreateRule[], submittedCopays);
+    if (decision.action === "conflict") refuseChanged();
+    if (decision.action !== "insert-missing") return;
+    const { error: insertError } = await supabase.from("health_plan_copay_rules").insert(
+      decision.missing.map((rule, index) => ({ ...rule, health_plan_id: planId, sort_order: rule.sort_order ?? index })),
+    );
+    if (!insertError) return;
+    if (insertError.code !== "23505") fail(insertError.message);
+    const { data: again, error: againError } = await supabase
+      .from("health_plan_copay_rules")
+      .select("service_type, copay_cents, notes, coverage_status, coverage_notes")
+      .eq("health_plan_id", planId);
+    if (againError) fail(againError.message);
+    const second = resolveCopayCreateRetry((again ?? []) as CopayCreateRule[], submittedCopays);
+    if (second.action === "conflict") refuseChanged();
+    if (second.action === "insert-missing") {
+      const { error } = await supabase.from("health_plan_copay_rules").insert(
+        second.missing.map((rule, index) => ({ ...rule, health_plan_id: planId, sort_order: rule.sort_order ?? index })),
+      );
+      if (error) fail(error.message);
+    }
   };
 
-  if (ownership.status === "create") {
-    const { error } = await supabase.from("health_plans").insert({ id: planId, ...payload });
-    if (error) fail(error.message);
-  } else {
-    const { error } = await supabase.from("health_plans").update(payload).eq("id", planId).eq("household_id", household.id);
-    if (error) fail(error.message);
-  }
+  const submittedSnapshot = (resolvedCoverage: string | null): HealthPlanCreateSnapshot => ({
+    provider,
+    plan_name: planName,
+    monthly_fee_cents: monthlyFeeCents,
+    started_at: startedAt,
+    active,
+    ended_at: null,
+    notes: value(formData, "notes") || null,
+    coverage_summary: resolvedCoverage,
+    ...promo,
+  });
 
-  const rows = serviceRules
-    .filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule))
-    .map((rule) => ({ ...rule, health_plan_id: planId }));
-  const copayError = await replaceCopayRules(supabase, planId, rows);
-  if (copayError) fail(copayError.message);
+  // Plan insert and copay inserts are separate requests. A retry may fill copays
+  // that never landed. It does not update a plan row that already exists.
+  if (ownership.status === "reuse") {
+    const snapshot = existingRow as HealthPlanCreateSnapshot;
+    if (!healthPlanCreateSnapshotsMatch(snapshot, submittedSnapshot(coverageSummary ?? snapshot.coverage_summary))) refuseChanged();
+    await finishInterruptedCopays();
+  } else {
+    const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, null);
+    const resolvedCoverage = coverageSummary ?? template.coverage_summary;
+    const { error } = await supabase.from("health_plans").insert({
+      id: planId,
+      household_id: household.id,
+      pet_id: petId,
+      provider,
+      plan_name: planName,
+      template_id: template.id,
+      monthly_fee_cents: monthlyFeeCents,
+      started_at: startedAt,
+      ended_at: null,
+      active,
+      notes: value(formData, "notes") || null,
+      coverage_summary: resolvedCoverage,
+      ...promo,
+    });
+    if (!error && coverageSummary) {
+      await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
+    }
+    if (error?.code === "23505") {
+      existingRow = await loadExisting();
+      const raced = resolveHealthPlanCreateOwnership(planId, household.id, petId, existingRow);
+      if (!existingRow || !raced.ok) {
+        fail(!raced.ok && raced.reason === "pet_mismatch"
+          ? "Este cadastro pertence a outro pet."
+          : "Este cadastro não pertence a esta família.");
+      }
+      const storedCoverage = (existingRow as HealthPlanCreateSnapshot).coverage_summary;
+      if (!healthPlanCreateSnapshotsMatch(existingRow as HealthPlanCreateSnapshot, submittedSnapshot(coverageSummary ?? storedCoverage))) refuseChanged();
+    } else if (error) {
+      fail(error.message);
+    }
+    await finishInterruptedCopays();
+  }
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");
@@ -228,10 +316,14 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
   const { data: pet } = await supabase.from("pets").select("id").eq("id", current.pet_id).eq("household_id", household.id).maybeSingle();
   if (!pet) fail("Esse pet não está nesta família.");
 
+  const active = formData.get("active") === "on";
+  if (current.ended_at && active) {
+    fail("Reabrir um plano encerrado ainda não está definido. A data de encerramento foi preservada.");
+  }
+
   const coverageSummary = value(formData, "coverage_summary") || null;
   const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, coverageSummary);
   const resolvedCoverage = coverageSummary ?? template.coverage_summary;
-  const active = formData.get("active") === "on";
 
   const { error } = await supabase.from("health_plans").update({
     provider,
@@ -239,7 +331,6 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
     template_id: template.id,
     monthly_fee_cents: monthlyFeeCents,
     started_at: startedAt,
-    ended_at: active ? null : current.ended_at ?? todayInAppTimezone(),
     active,
     notes: value(formData, "notes") || null,
     coverage_summary: resolvedCoverage,

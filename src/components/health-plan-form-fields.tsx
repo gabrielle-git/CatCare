@@ -23,6 +23,8 @@ type PlanFormProps = {
   initialMonthlyFee?: string;
   initialStartedAt?: string;
   initialActive?: boolean;
+  /** When set, the plan is already closed. Reopening is not an approved action. */
+  endedAt?: string | null;
   initialNotes?: string;
   existingPlans?: ExistingHealthPlanRef[];
   currentPetId?: string;
@@ -45,6 +47,7 @@ export function HealthPlanFormFields({
   initialMonthlyFee = "17.90",
   initialStartedAt = "",
   initialActive = true,
+  endedAt = null,
   initialNotes = "",
   existingPlans = [],
   currentPetId,
@@ -229,8 +232,13 @@ export function HealthPlanFormFields({
       )}
 
       <label className="flex items-center gap-3 rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold">
-        <input type="checkbox" name="active" defaultChecked={initialActive} className="size-4 accent-[var(--lavender)]" /> Plano ativo
+        <input type="checkbox" name="active" defaultChecked={initialActive && !endedAt} disabled={Boolean(endedAt)} className="size-4 accent-[var(--lavender)]" /> Plano ativo
       </label>
+      {endedAt ? (
+        <p className="text-xs font-semibold text-[var(--muted)]">
+          Este plano foi encerrado em {endedAt}. Reabrir ainda não está definido, então a data permanece.
+        </p>
+      ) : null}
 
       <label className="block text-sm font-bold">
         Observações gerais (deste pet)

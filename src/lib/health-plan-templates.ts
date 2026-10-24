@@ -99,6 +99,7 @@ export async function syncTemplateCoverageToPlans(supabase: SupabaseClient, temp
 }
 
 export type ExistingHealthPlanRef = {
+  id?: string;
   pet_id: string;
   pet_name?: string;
   provider: HealthPlanProvider;
@@ -221,25 +222,30 @@ export function petlovePositionBadge(position: number) {
   return `${position}º pet · ${discount}% off`;
 }
 
-/** Posição de cada pet ativo no mesmo plano Petlove (por id do pet). */
+export type PetlovePlanPosition = { position: number; discountPercent: number; suggestedFeeCents: number };
+
+/** Position of this plan's pet inside its own Petlove product group. Inactive plans have none. */
+export function petlovePositionForPlan(existingPlans: ExistingHealthPlanRef[], plan: ExistingHealthPlanRef): PetlovePlanPosition | null {
+  if (!plan.active || plan.provider !== "petlove") return null;
+  const group = activeSamePlanGroup(existingPlans, plan.provider, plan.plan_name, plan.template_id);
+  const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
+  const index = ordered.findIndex((item) => item.pet_id === plan.pet_id);
+  if (index < 0) return null;
+  const position = index + 1;
+  return {
+    position,
+    discountPercent: petloveDiscountPercent(position),
+    suggestedFeeCents: petloveFeeForPosition(position),
+  };
+}
+
+/** Keyed by plan id so two Petlove products on the same pet keep their own labels. */
 export function mapPetlovePlanPositions(existingPlans: ExistingHealthPlanRef[]) {
-  const result = new Map<string, { position: number; discountPercent: number; suggestedFeeCents: number }>();
-
+  const result = new Map<string, PetlovePlanPosition>();
   for (const plan of existingPlans) {
-    if (!plan.active || plan.provider !== "petlove") continue;
-    if (result.has(plan.pet_id)) continue;
-
-    const group = activeSamePlanGroup(existingPlans, plan.provider, plan.plan_name, plan.template_id);
-    const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
-    ordered.forEach((item, index) => {
-      const position = index + 1;
-      result.set(item.pet_id, {
-        position,
-        discountPercent: petloveDiscountPercent(position),
-        suggestedFeeCents: petloveFeeForPosition(position),
-      });
-    });
+    if (!plan.id) continue;
+    const position = petlovePositionForPlan(existingPlans, plan);
+    if (position) result.set(plan.id, position);
   }
-
   return result;
 }

@@ -42,6 +42,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
   const plansByPet = groupHealthPlansByPet(plans);
   const petsWithActivePlan = countPetsWithActivePlan(plans);
   const existingPlanRefs: ExistingHealthPlanRef[] = plans.map((plan) => ({
+    id: plan.id,
     provider: plan.provider,
     plan_name: plan.plan_name,
     active: plan.active,
@@ -155,7 +156,7 @@ export default async function HealthPlanPage({ searchParams }: { searchParams: P
                 ) : (
                   <div className="divide-y divide-[var(--border)]">
                     {petPlans.map((plan) => {
-                      const petloveRank = plan.provider === "petlove" && plan.active ? petlovePositions.get(pet.id) : undefined;
+                      const petloveRank = plan.provider === "petlove" && plan.active ? petlovePositions.get(plan.id) : undefined;
                       return (
                         <div key={plan.id} className="p-5 md:p-6">
                           <div className="flex flex-wrap items-start justify-between gap-3">

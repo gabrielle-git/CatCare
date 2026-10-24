@@ -80,6 +80,7 @@ export default async function EditHealthPlanPage({ params, searchParams }: { par
             initialMonthlyFee={monthlyFee}
             initialStartedAt={plan.started_at ?? ""}
             initialActive={plan.active}
+            endedAt={plan.ended_at}
             initialNotes={plan.notes ?? ""}
             showPetSelect={false}
           />
