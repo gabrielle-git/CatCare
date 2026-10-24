@@ -150,7 +150,6 @@ export type CopayCreateRule = {
 
 export type CopayCreateRetry =
   | { action: "noop" }
-  | { action: "insert-missing"; missing: CopayCreateRule[] }
   | { action: "conflict" };
 
 function sameCopayCreateRule(existing: CopayCreateRule, submitted: CopayCreateRule) {
@@ -162,19 +161,19 @@ function sameCopayCreateRule(existing: CopayCreateRule, submitted: CopayCreateRu
 }
 
 /**
- * A retry may insert copay rows that never landed. It must not update or delete
- * rules already stored: those may belong to a later edit.
+ * A retry may succeed only when the stored rules are exactly the submitted set.
+ * A missing rule is ambiguous: the insert may have failed, or a later edit may
+ * have removed it. There is no completion flag and the plan insert is not in the
+ * same transaction as the rules, so the retry refuses instead of restoring rows.
  */
 export function resolveCopayCreateRetry(existing: CopayCreateRule[], submitted: CopayCreateRule[]): CopayCreateRetry {
   const submittedByType = new Map(submitted.map((rule) => [rule.service_type, rule]));
+  if (existing.length !== submittedByType.size) return { action: "conflict" };
   for (const rule of existing) {
     const next = submittedByType.get(rule.service_type);
     if (!next || !sameCopayCreateRule(rule, next)) return { action: "conflict" };
   }
-  const existingTypes = new Set(existing.map((rule) => rule.service_type));
-  const missing = submitted.filter((rule) => !existingTypes.has(rule.service_type));
-  if (missing.length === 0) return { action: "noop" };
-  return { action: "insert-missing", missing };
+  return { action: "noop" };
 }
 
 export function groupHealthPlansByPet<T extends { pet_id: string }>(plans: T[]) {

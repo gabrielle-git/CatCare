@@ -69,14 +69,17 @@ describe("multi-plan health application", () => {
     assert.equal(healthPlanCreateSnapshotsMatch(stored, snapshot({ monthly_fee_cents: 100 })), false);
     assert.equal(healthPlanCreateSnapshotsMatch(stored, snapshot({ active: false, ended_at: "2026-10-01" })), false);
     assert.equal(healthPlanCreateSnapshotsMatch({ ...stored, ended_at: "2026-10-01", active: false }, snapshot()), false);
-    assert.deepEqual(resolveCopayCreateRetry([], [copay("consulta")]), { action: "insert-missing", missing: [copay("consulta")] });
     assert.deepEqual(resolveCopayCreateRetry([copay("consulta")], [copay("consulta")]), { action: "noop" });
-    assert.deepEqual(
-      resolveCopayCreateRetry([copay("consulta")], [copay("consulta"), copay("vacina")]),
-      { action: "insert-missing", missing: [copay("vacina")] },
-    );
     assert.equal(resolveCopayCreateRetry([copay("consulta", 500)], [copay("consulta")]).action, "conflict");
     assert.equal(resolveCopayCreateRetry([copay("consulta"), copay("extra")], [copay("consulta")]).action, "conflict");
+  });
+
+  it("refuses a retry that would restore a copay removed after creation", () => {
+    const created = [copay("consulta"), copay("vacina")];
+    assert.equal(resolveCopayCreateRetry(created, created).action, "noop");
+    const afterRemoval = [copay("consulta")];
+    assert.equal(resolveCopayCreateRetry(afterRemoval, created).action, "conflict");
+    assert.equal(resolveCopayCreateRetry([], created).action, "conflict");
   });
 
   it("counts distinct active pets for Petlove discount, not duplicate plans", () => {
@@ -140,6 +143,7 @@ describe("multi-plan health application", () => {
     assert.doesNotMatch(source.slice(endStart, endEnd), /health_plan_copay_rules/);
     const create = source.slice(source.indexOf("export async function createHealthPlan"), source.indexOf("export async function updateHealthPlan"));
     assert.doesNotMatch(create, /\.from\("health_plans"\)\s*\.update\(/);
+    assert.doesNotMatch(create, /insert-missing/);
     assert.match(create, /ended_at: null/);
     const update = source.slice(source.indexOf("export async function updateHealthPlan"), endStart);
     assert.match(update, /Reabrir um plano encerrado ainda não está definido/);

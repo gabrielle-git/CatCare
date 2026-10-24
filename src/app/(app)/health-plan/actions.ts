@@ -198,34 +198,25 @@ export async function createHealthPlan(formData: FormData) {
   if (!ownership.ok) throw new Error("unreachable");
 
   const refuseChanged = (): never => fail("Este cadastro já foi salvo e depois alterado. Abra o plano para editar. O reenvio não mudou os dados.");
+  const refuseCopays = (): never => fail("Este cadastro já existe e as coparticipações não conferem com este envio. Abra o plano para editar. O reenvio não alterou os dados.");
 
-  const finishInterruptedCopays = async () => {
+  const confirmStoredCopays = async () => {
     const { data: storedRules, error: rulesError } = await supabase
       .from("health_plan_copay_rules")
       .select("service_type, copay_cents, notes, coverage_status, coverage_notes")
       .eq("health_plan_id", planId);
     if (rulesError) fail(rulesError.message);
-    const decision = resolveCopayCreateRetry((storedRules ?? []) as CopayCreateRule[], submittedCopays);
-    if (decision.action === "conflict") refuseChanged();
-    if (decision.action !== "insert-missing") return;
+    if (resolveCopayCreateRetry((storedRules ?? []) as CopayCreateRule[], submittedCopays).action === "conflict") refuseCopays();
+  };
+
+  const writeCopaysForNewPlan = async () => {
+    if (submittedCopays.length === 0) return;
     const { error: insertError } = await supabase.from("health_plan_copay_rules").insert(
-      decision.missing.map((rule, index) => ({ ...rule, health_plan_id: planId, sort_order: rule.sort_order ?? index })),
+      submittedCopays.map((rule, index) => ({ ...rule, health_plan_id: planId, sort_order: rule.sort_order ?? index })),
     );
     if (!insertError) return;
     if (insertError.code !== "23505") fail(insertError.message);
-    const { data: again, error: againError } = await supabase
-      .from("health_plan_copay_rules")
-      .select("service_type, copay_cents, notes, coverage_status, coverage_notes")
-      .eq("health_plan_id", planId);
-    if (againError) fail(againError.message);
-    const second = resolveCopayCreateRetry((again ?? []) as CopayCreateRule[], submittedCopays);
-    if (second.action === "conflict") refuseChanged();
-    if (second.action === "insert-missing") {
-      const { error } = await supabase.from("health_plan_copay_rules").insert(
-        second.missing.map((rule, index) => ({ ...rule, health_plan_id: planId, sort_order: rule.sort_order ?? index })),
-      );
-      if (error) fail(error.message);
-    }
+    await confirmStoredCopays();
   };
 
   const submittedSnapshot = (resolvedCoverage: string | null): HealthPlanCreateSnapshot => ({
@@ -240,12 +231,12 @@ export async function createHealthPlan(formData: FormData) {
     ...promo,
   });
 
-  // Plan insert and copay inserts are separate requests. A retry may fill copays
-  // that never landed. It does not update a plan row that already exists.
+  // The plan row and its copay rows are separate requests. A later retry does not
+  // insert missing rules: that set is indistinguishable from rules removed by an edit.
   if (ownership.status === "reuse") {
     const snapshot = existingRow as HealthPlanCreateSnapshot;
     if (!healthPlanCreateSnapshotsMatch(snapshot, submittedSnapshot(coverageSummary ?? snapshot.coverage_summary))) refuseChanged();
-    await finishInterruptedCopays();
+    await confirmStoredCopays();
   } else {
     const template = await upsertHealthPlanTemplate(supabase, household.id, provider, planName, null);
     const resolvedCoverage = coverageSummary ?? template.coverage_summary;
@@ -277,10 +268,12 @@ export async function createHealthPlan(formData: FormData) {
       }
       const storedCoverage = (existingRow as HealthPlanCreateSnapshot).coverage_summary;
       if (!healthPlanCreateSnapshotsMatch(existingRow as HealthPlanCreateSnapshot, submittedSnapshot(coverageSummary ?? storedCoverage))) refuseChanged();
+      await confirmStoredCopays();
     } else if (error) {
       fail(error.message);
+    } else {
+      await writeCopaysForNewPlan();
     }
-    await finishInterruptedCopays();
   }
 
   revalidatePath("/health-plan");
