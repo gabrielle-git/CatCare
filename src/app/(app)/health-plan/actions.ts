@@ -6,6 +6,7 @@ import {
   HEALTH_COPAY_SERVICES,
   healthPlanCreateSnapshotsMatch,
   resolveCopayCreateRetry,
+  resolveCopayUpdate,
   resolveHealthPlanCreateOwnership,
   type CopayCreateRule,
   type HealthPlanCreateSnapshot,
@@ -294,8 +295,11 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
   const monthlyFeeCents = monthlyRaw ? moneyToCents(monthlyRaw) : null;
   if (monthlyRaw && !Number.isFinite(monthlyFeeCents)) fail("Mensalidade inválida.");
 
-  const serviceRules = parseServiceRules(formData);
-  if (serviceRules.some((rule) => rule === null)) fail("Confira os valores de coparticipação.");
+  const copayDecision = resolveCopayUpdate<Exclude<ReturnType<typeof parseServiceRules>[number], null | { skip: true }>>({
+    submitted: formData.get("copay_rules_submitted") === "1",
+    rules: parseServiceRules(formData),
+  });
+  if (copayDecision.action === "invalid") fail("Confira os valores de coparticipação.");
 
   const { supabase, household } = await authContext();
   const { data: current, error: currentError } = await supabase
@@ -332,9 +336,13 @@ export async function updateHealthPlan(planId: string, formData: FormData) {
   }).eq("id", planId).eq("household_id", household.id);
   if (error) fail(error.message);
 
-  const rows = serviceRules.filter((rule): rule is Exclude<typeof rule, null | { skip: true }> => rule != null && !("skip" in rule)).map((rule) => ({ ...rule, health_plan_id: planId }));
-  const copayError = await replaceCopayRules(supabase, planId, rows);
-  if (copayError) fail(copayError.message);
+  // Absent copay fields mean "not edited". Only an explicit editor may replace rules.
+  // That replacement is still not one transaction: the upsert can land and the delete can fail.
+  if (copayDecision.action === "replace") {
+    const rows = copayDecision.rules.map((rule) => ({ ...rule, health_plan_id: planId }));
+    const copayError = await replaceCopayRules(supabase, planId, rows);
+    if (copayError) fail(copayError.message);
+  }
 
   revalidatePath("/health-plan");
   revalidatePath("/health-plan/guides");

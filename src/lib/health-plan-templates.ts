@@ -212,14 +212,38 @@ export function petDiscountHint(
       : "Nenhum outro pet neste plano ainda.";
   const ordinal = `${position}º`;
   const verb = mode === "edit" ? "é" : "será";
-  if (discount === 0) return `${already} Este ${verb} o ${ordinal} pet — mensalidade cheia.`;
-  return `${already} Este ${verb} o ${ordinal} pet — ${discount}% de desconto na mensalidade (Petlove).`;
+  if (discount === 0) {
+    return `${already} Referência de tabela: este ${verb} o ${ordinal} pet, sem desconto. O valor do campo é o que será salvo.`;
+  }
+  return `${already} Referência de tabela: este ${verb} o ${ordinal} pet, ${discount}% sobre o preço cheio. O valor do campo é o que será salvo; a operadora pode cobrar outro.`;
 }
 
 export function petlovePositionBadge(position: number) {
   const discount = petloveDiscountPercent(position);
-  if (discount === 0) return `${position}º pet · mensalidade cheia`;
-  return `${position}º pet · ${discount}% off`;
+  if (discount === 0) return `${position}º pet · tabela cheia`;
+  return `${position}º pet · referência ${discount}%`;
+}
+
+/** Input text for the reference fee. This is a table suggestion, not a charge from the insurer. */
+export function suggestedMonthlyFeeInput(position: number, baseFeeCents = PETLOVE_LEVE_REFERENCE.baseMonthlyFeeCents) {
+  return (petloveFeeForPosition(position, baseFeeCents) / 100).toFixed(2);
+}
+
+/**
+ * The field shows the table suggestion on create until the person types.
+ * Edit mode and a typed value keep the contractual amount already chosen.
+ */
+export function resolveMonthlyFeeField(input: {
+  mode: "create" | "edit";
+  provider: string;
+  position: number;
+  touched: boolean;
+  manualFee: string;
+}) {
+  if (input.mode === "create" && input.provider === "petlove" && !input.touched) {
+    return suggestedMonthlyFeeInput(input.position);
+  }
+  return input.manualFee;
 }
 
 export type PetlovePlanPosition = { position: number; discountPercent: number; suggestedFeeCents: number };

@@ -6,6 +6,7 @@ import {
   formatCoverageForDisplay,
   petDiscountHint,
   petloveFeeForPosition,
+  resolveMonthlyFeeField,
   resolvePetlovePlanPosition,
   type ExistingHealthPlanRef,
 } from "@/lib/health-plan-templates";
@@ -32,10 +33,6 @@ type PlanFormProps = {
   mode?: "create" | "edit";
   initialPlanId?: string;
 };
-
-function centsToFeeInput(cents: number) {
-  return (cents / 100).toFixed(2);
-}
 
 export function HealthPlanFormFields({
   templates,
@@ -122,14 +119,16 @@ export function HealthPlanFormFields({
     [existingPlans, provider, planName, petId, mode, matchedTemplate?.id],
   );
 
-  useEffect(() => {
-    if (monthlyFeeTouched || provider !== "petlove" || mode === "edit") return;
-    setMonthlyFee(centsToFeeInput(petloveFeeForPosition(position)));
-  }, [mode, monthlyFeeTouched, position, provider]);
-
   const displayCoverage = formatCoverageForDisplay(coverage);
   const discountHint = mode === "create" ? petDiscountHint(position, provider, others, mode) : null;
   const suggestedFeeCents = mode === "create" && provider === "petlove" ? petloveFeeForPosition(position) : null;
+  const monthlyFeeValue = resolveMonthlyFeeField({
+    mode,
+    provider,
+    position,
+    touched: monthlyFeeTouched,
+    manualFee: monthlyFee,
+  });
   const plansForPet = mode === "create" ? existingPlans.filter((plan) => plan.pet_id === petId).length : 0;
 
   return (
@@ -204,10 +203,14 @@ export function HealthPlanFormFields({
             min="0"
             step="0.01"
             inputMode="decimal"
-            value={monthlyFee}
+            value={monthlyFeeValue}
             onChange={(event) => {
-              setMonthlyFee(event.target.value);
-              setMonthlyFeeTouched(true);
+              const next = event.target.value;
+              setMonthlyFee(next);
+              const automatic = mode === "create" && provider === "petlove"
+                ? resolveMonthlyFeeField({ mode, provider, position, touched: false, manualFee: next })
+                : null;
+              setMonthlyFeeTouched(automatic == null || next !== automatic);
             }}
             className="field mt-2"
             placeholder="Opcional"
@@ -224,8 +227,8 @@ export function HealthPlanFormFields({
           <p>{discountHint}</p>
           {suggestedFeeCents != null && (
             <p className="mt-1 font-medium">
-              Mensalidade deste pet: {formatCurrency(suggestedFeeCents)}
-              {position > 1 ? ` (a partir de ${formatCurrency(petloveFeeForPosition(1))})` : ""}.
+              Sugestão de tabela para o campo: {formatCurrency(suggestedFeeCents)}
+              {position > 1 ? `, a partir de ${formatCurrency(petloveFeeForPosition(1))}` : ""}. Não é o valor cobrado pela operadora.
             </p>
           )}
         </div>

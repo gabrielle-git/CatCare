@@ -7,10 +7,11 @@ import {
   groupHealthPlansByPet,
   healthPlanCreateSnapshotsMatch,
   resolveCopayCreateRetry,
+  resolveCopayUpdate,
   resolveHealthPlanCreateOwnership,
   type HealthPlanCreateSnapshot,
 } from "@/lib/health-plan";
-import { mapPetlovePlanPositions, resolvePetlovePlanPosition, type ExistingHealthPlanRef } from "@/lib/health-plan-templates";
+import { mapPetlovePlanPositions, resolveMonthlyFeeField, resolvePetlovePlanPosition, type ExistingHealthPlanRef } from "@/lib/health-plan-templates";
 
 const root = process.cwd();
 const planA = "11111111-1111-4111-8111-111111111111";
@@ -115,6 +116,51 @@ describe("multi-plan health application", () => {
 
     const inactive = plan({ id: planA, pet_id: pet1, active: false });
     assert.equal(mapPetlovePlanPositions([inactive]).has(planA), false);
+  });
+
+  it("a plan edit without copay fields preserves rules, and an explicit editor can clear them", () => {
+    const stored = { service_type: "exam", copay_cents: 1200, notes: "legado exame", coverage_status: "covered", coverage_notes: null, sort_order: 0 };
+    const absent = resolveCopayUpdate({ submitted: false, rules: [{ skip: true }] });
+    assert.deepEqual(absent, { action: "preserve" });
+    assert.equal("rules" in absent, false);
+
+    const invalid = resolveCopayUpdate({ submitted: true, rules: [null] });
+    assert.deepEqual(invalid, { action: "invalid" });
+
+    const cleared = resolveCopayUpdate({ submitted: true, rules: [{ skip: true }] });
+    assert.deepEqual(cleared, { action: "replace", rules: [] });
+
+    const kept = resolveCopayUpdate({ submitted: true, rules: [stored, { skip: true }] });
+    assert.deepEqual(kept, { action: "replace", rules: [stored] });
+
+    const source = readFileSync(join(root, "src/app/(app)/health-plan/actions.ts"), "utf8");
+    const update = source.slice(source.indexOf("export async function updateHealthPlan"), source.indexOf("export async function endHealthPlan"));
+    assert.match(update, /copay_rules_submitted/);
+    assert.match(update, /copayDecision\.action === "replace"/);
+    assert.match(update, /not one transaction/);
+    const editor = readFileSync(join(root, "src/components/health-plan-copay.tsx"), "utf8");
+    assert.match(editor, /name="copay_rules_submitted"/);
+  });
+
+  it("shows the Petlove table suggestion in the fee field before the person types", () => {
+    const third = resolveMonthlyFeeField({ mode: "create", provider: "petlove", position: 3, touched: false, manualFee: "17.90" });
+    assert.equal(third, "14.32");
+    const second = resolveMonthlyFeeField({ mode: "create", provider: "petlove", position: 2, touched: false, manualFee: "17.90" });
+    assert.equal(second, "16.11");
+    const first = resolveMonthlyFeeField({ mode: "create", provider: "petlove", position: 1, touched: false, manualFee: "17.90" });
+    assert.equal(first, "17.90");
+    assert.equal(
+      resolveMonthlyFeeField({ mode: "create", provider: "petlove", position: 3, touched: true, manualFee: "20.00" }),
+      "20.00",
+    );
+    assert.equal(
+      resolveMonthlyFeeField({ mode: "edit", provider: "petlove", position: 3, touched: false, manualFee: "17.90" }),
+      "17.90",
+    );
+    assert.equal(
+      resolveMonthlyFeeField({ mode: "create", provider: "other", position: 3, touched: false, manualFee: "25.00" }),
+      "25.00",
+    );
   });
 
   it("an inactive plan does not inflate the Petlove pet count", () => {

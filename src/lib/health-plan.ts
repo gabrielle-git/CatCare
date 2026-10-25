@@ -160,6 +160,28 @@ function sameCopayCreateRule(existing: CopayCreateRule, submitted: CopayCreateRu
     && sameOptionalText(existing.coverage_notes, submitted.coverage_notes);
 }
 
+export type CopayUpdateDecision<T> =
+  | { action: "preserve" }
+  | { action: "invalid" }
+  | { action: "replace"; rules: T[] };
+
+/**
+ * A plan edit that does not include the copay editor must not delete stored rules.
+ * `submitted` is true only when the form explicitly posts the copay editor.
+ * An explicit empty editor replaces the set, including clearing every rule.
+ */
+export function resolveCopayUpdate<T extends { service_type: string }>(input: {
+  submitted: boolean;
+  rules: Array<T | null | { skip: true }>;
+}): CopayUpdateDecision<T> {
+  if (!input.submitted) return { action: "preserve" };
+  if (input.rules.some((rule) => rule == null)) return { action: "invalid" };
+  return {
+    action: "replace",
+    rules: input.rules.filter((rule): rule is T => rule != null && !("skip" in rule)),
+  };
+}
+
 /**
  * A retry may succeed only when the stored rules are exactly the submitted set.
  * A missing rule is ambiguous: the insert may have failed, or a later edit may
