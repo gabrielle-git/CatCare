@@ -77,6 +77,8 @@ export function TimelineList({
   fullHistoryHref,
   showTypeFilters = true,
   showResultCount = true,
+  variant = "cards",
+  initialFilter = "all",
 }: {
   items: TimelineItem[];
   emptyText?: string;
@@ -95,10 +97,14 @@ export function TimelineList({
   showTypeFilters?: boolean;
   /** When false, parent shows the only result count. */
   showResultCount?: boolean;
+  /** `rows` = editorial timeline (Pets); `cards` = legacy CatCare surfaces elsewhere. */
+  variant?: "cards" | "rows";
+  /** Seed type filter (e.g. Saúde → Histórico ?type=vaccine). */
+  initialFilter?: string;
 }) {
   const totalCount = items.length;
   const visibleItems = limit ? items.slice(0, limit) : items;
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<string>(initialFilter);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const filters = filterMode === "neonatal" ? neonatalFilters : filterMode === "adult" ? adultFilters : fullFilters;
@@ -148,20 +154,32 @@ export function TimelineList({
     });
   }
 
+  const flat = variant === "rows";
+
   if (totalCount === 0) {
-    return <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">{emptyText}</div>;
+    return (
+      <div
+        className={
+          flat
+            ? "border-y border-dashed border-[var(--border)] py-8 text-center text-sm text-[var(--muted)]"
+            : "rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]"
+        }
+      >
+        {emptyText}
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
+    <div className={flat ? "cd-tl space-y-3" : "space-y-4"} data-variant={variant}>
       {showTypeFilters && (
-        <div className="flex flex-wrap gap-2">
+        <div className="cd-tl-filters hide-scrollbar">
           {filters.map(({ value, label }) => (
             <button
               key={value}
               type="button"
               onClick={() => setFilter(value)}
-              className={`focus-ring rounded-full px-3 py-1.5 text-[11px] font-bold transition ${filter === value ? "bg-[var(--graphite)] text-white" : "border border-[var(--border)] bg-white text-[var(--muted)]"}`}
+              className={`cd-tl-filter focus-ring ${filter === value ? "is-active" : ""}`}
             >
               {label}
             </button>
@@ -183,7 +201,14 @@ export function TimelineList({
         )}
         <div className="flex flex-wrap items-center gap-2">
           {editable && showNewRecord && !selectionMode && (
-            <Link href={newRecordHref} className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white">
+            <Link
+              href={newRecordHref}
+              className={
+                flat
+                  ? "focus-ring inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--lavender-strong)]"
+                  : "focus-ring inline-flex items-center gap-1.5 rounded-full bg-[var(--graphite)] px-3 py-1.5 text-[11px] font-bold text-white"
+              }
+            >
               <Plus size={13} /> Novo registro
             </Link>
           )}
@@ -191,7 +216,11 @@ export function TimelineList({
             <button
               type="button"
               onClick={() => setSelectionMode(true)}
-              className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+              className={
+                flat
+                  ? "focus-ring text-[11px] font-bold text-[var(--muted)]"
+                  : "focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--muted)]"
+              }
             >
               Selecionar
             </button>
@@ -200,7 +229,13 @@ export function TimelineList({
       </div>
 
       {editable && selectionMode && filtered.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/50 px-3.5 py-2.5">
+        <div
+          className={
+            flat
+              ? "flex flex-wrap items-center gap-3 border-y border-[var(--border)] py-2.5"
+              : "flex flex-wrap items-center gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/50 px-3.5 py-2.5"
+          }
+        >
           <label className="flex cursor-pointer items-center gap-2 text-xs font-bold">
             <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="size-4 accent-[var(--lavender)]" />
             Selecionar tudo ({filtered.length})
@@ -234,9 +269,17 @@ export function TimelineList({
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">Nenhum registro neste filtro.</div>
+        <div
+          className={
+            flat
+              ? "border-y border-dashed border-[var(--border)] py-8 text-center text-sm text-[var(--muted)]"
+              : "rounded-[20px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]"
+          }
+        >
+          Nenhum registro neste filtro.
+        </div>
       ) : (
-        <ol className="space-y-3">
+        <ol className={flat ? "cd-tl-list" : "space-y-3"}>
           {filtered.map((item) => {
             const Icon = iconFor(item.kind);
             const editHref = `/records/${item.id}/edit?source=${item.source}&kind=${encodeURIComponent(item.kind)}&return_to=${encodeURIComponent(fallbackReturn)}`;
@@ -245,30 +288,59 @@ export function TimelineList({
             const petLabel = petNames?.[item.pet_id];
             const heading = petLabel ? `${item.title} · ${petLabel}` : item.title;
             return (
-              <li key={`${item.source}-${item.kind}-${item.id}`} className={`flex gap-3 rounded-[20px] border bg-white p-3.5 ${checked ? "border-[var(--lavender)] ring-1 ring-[var(--lavender-soft)]" : "border-[var(--border)]"}`}>
+              <li
+                key={`${item.source}-${item.kind}-${item.id}`}
+                className={
+                  flat
+                    ? `cd-tl-row ${checked ? "cd-tl-row-selected" : ""}`
+                    : `flex gap-3 rounded-[20px] border bg-white p-3.5 ${checked ? "border-[var(--lavender)] ring-1 ring-[var(--lavender-soft)]" : "border-[var(--border)]"}`
+                }
+              >
                 {editable && selectionMode && (
-                  <label className="flex shrink-0 items-start pt-2">
+                  <label className={flat ? "flex shrink-0 items-center" : "flex shrink-0 items-start pt-2"}>
                     <input type="checkbox" checked={checked} onChange={() => toggle(item.id)} className="size-4 accent-[var(--lavender)]" aria-label={`Selecionar ${item.title}`} />
                   </label>
                 )}
-                <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${toneClasses[item.tone]}`}><Icon size={18} /></span>
+                <span className={flat ? `cd-tl-icon ${toneClasses[item.tone]}` : `grid size-10 shrink-0 place-items-center rounded-2xl ${toneClasses[item.tone]}`}>
+                  <Icon size={flat ? 15 : 18} />
+                </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-bold">{heading}</p>
-                    <time className="shrink-0 text-[11px] text-[var(--muted)]" dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time>
+                  <div className={flat ? "cd-tl-main" : "flex items-start justify-between gap-3"}>
+                    <p className={flat ? "text-sm font-semibold" : "font-bold"}>{heading}</p>
+                    <time className="shrink-0 text-[11px] text-[var(--muted)]" dateTime={item.occurred_at}>
+                      {formatDateTime(item.occurred_at)}
+                    </time>
                   </div>
                   {item.source === "health" && formatTimelineAttachmentCount(item.attachment_count ?? 0) ? (
-                    <p className="mt-1 text-[11px] font-semibold text-[var(--muted)]">
+                    <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted)]">
                       {formatTimelineAttachmentCount(item.attachment_count ?? 0)}
                     </p>
                   ) : null}
-                  {item.detail && <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</p>}
+                  {item.detail && <p className={flat ? "mt-0.5 text-xs text-[var(--muted)]" : "mt-1 text-xs leading-relaxed text-[var(--muted)]"}>{item.detail}</p>}
                   {editable && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={editHref} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]"><Pencil size={13} /> Editar</Link>
+                    <div className={flat ? "mt-1.5 flex flex-wrap gap-3" : "mt-3 flex flex-wrap gap-2"}>
+                      <Link
+                        href={editHref}
+                        className={
+                          flat
+                            ? "focus-ring inline-flex items-center gap-1 text-[11px] font-bold text-[var(--lavender-strong)]"
+                            : "focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]"
+                        }
+                      >
+                        <Pencil size={13} /> Editar
+                      </Link>
                       <form action={remove}>
                         <input type="hidden" name="return_to" value={fallbackReturn} />
-                        <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-bold text-[var(--danger)]"><Trash2 size={13} /> Apagar</ConfirmButton>
+                        <ConfirmButton
+                          message="Apagar este registro permanentemente? Esta ação não pode ser desfeita."
+                          className={
+                            flat
+                              ? "focus-ring inline-flex items-center gap-1 text-[11px] font-bold text-[var(--danger)]"
+                              : "focus-ring inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-[11px] font-bold text-[var(--danger)]"
+                          }
+                        >
+                          <Trash2 size={13} /> Apagar
+                        </ConfirmButton>
                       </form>
                     </div>
                   )}
@@ -280,8 +352,15 @@ export function TimelineList({
       )}
 
       {fullHistoryHref && totalCount > visibleItems.length && (
-        <div className="pt-1 text-center">
-          <Link href={fullHistoryHref} className="focus-ring inline-flex rounded-full border border-[var(--border)] bg-white px-4 py-2 text-[11px] font-bold text-[var(--lavender-strong)]">
+        <div className={flat ? "pt-1" : "pt-1 text-center"}>
+          <Link
+            href={fullHistoryHref}
+            className={
+              flat
+                ? "focus-ring text-[11px] font-bold text-[var(--lavender-strong)]"
+                : "focus-ring inline-flex rounded-full border border-[var(--border)] bg-white px-4 py-2 text-[11px] font-bold text-[var(--lavender-strong)]"
+            }
+          >
             Ver histórico completo ({totalCount} registros)
           </Link>
         </div>

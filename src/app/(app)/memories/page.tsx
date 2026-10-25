@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Archive, Camera, Heart, ImageIcon, Pencil, Plus, RotateCcw, Sparkles, Trash2, Users } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { MemoryGallery } from "@/components/memory-gallery";
+import { PetsDomainTabs } from "@/components/pets-domain-tabs";
 import { formatFullDate } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { listMemories } from "@/lib/memories";
@@ -42,11 +43,14 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
   const sharedCount = memories.filter((memory) => memory.pet_ids.length > 1).length;
   const milestoneCount = memories.filter((memory) => memory.type === "milestone").length;
 
-  return <div className="mx-auto w-full max-w-[1120px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
+  return <div data-brand="cuidadim" data-theme="light" className="cd-pet-page cd-pet-page-list">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Álbum da família</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Memórias</h1><p className="mt-2 max-w-[680px] text-sm text-[var(--muted)]">Primeiras vezes, marcos e cenas comuns que um dia viram as melhores histórias.</p></div>
-      <Link href="/memories/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Guardar memória</Link>
+      <div><p className="cd-page-kicker">Álbum da família</p><h1 className="cd-page-title">Memórias</h1><p className="cd-page-lede">Primeiras vezes, marcos e cenas comuns que um dia viram as melhores histórias.</p></div>
+      <Link href="/memories/new" className="focus-ring inline-flex w-fit items-center gap-1.5 rounded-2xl bg-[var(--graphite)] px-3 py-2 text-[0.8125rem] font-semibold leading-5 text-white"><Plus size={15} aria-hidden /> Guardar memória</Link>
     </header>
+    <div className="mt-5">
+      <PetsDomainTabs active="memorias" />
+    </div>
     {configured && !editable && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">Entre na sua conta para ver e guardar as memórias privadas da família. <Link href="/login" className="font-bold underline">Entrar</Link></div>}
     {(flags.saved || flags.updated) && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Memória guardada com carinho.</div>}
     {flags.archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm">Memória excluída do álbum e guardada em Arquivadas. As fotos continuam protegidas e ela pode ser restaurada.</div>}
@@ -54,9 +58,9 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
     {flags.deleted && <div className="mt-6 rounded-[20px] bg-[var(--peach)] px-4 py-3 text-sm">Memória e foto apagadas permanentemente.</div>}
 
     <section className="mt-6 grid gap-3 sm:grid-cols-3">
-      <div className="cat-card p-4"><ImageIcon size={18} className="text-[var(--lavender-strong)]" /><p className="mt-3 text-2xl font-bold">{memories.length}</p><p className="text-xs text-[var(--muted)]">lembranças nesta visão</p></div>
-      <div className="cat-card p-4"><Sparkles size={18} className="text-[#9a536c]" /><p className="mt-3 text-2xl font-bold">{milestoneCount}</p><p className="text-xs text-[var(--muted)]">primeiras vezes e marcos</p></div>
-      <div className="cat-card p-4"><Users size={18} className="text-[var(--success)]" /><p className="mt-3 text-2xl font-bold">{sharedCount}</p><p className="text-xs text-[var(--muted)]">momentos com mais de um pet</p></div>
+      <div className="cat-card p-4"><ImageIcon size={18} className="text-[var(--lavender-strong)]" /><p className="cd-body mt-3 font-bold">{memories.length}</p><p className="text-xs text-[var(--muted)]">lembranças nesta visão</p></div>
+      <div className="cat-card p-4"><Sparkles size={18} className="text-[#9a536c]" /><p className="cd-body mt-3 font-bold">{milestoneCount}</p><p className="text-xs text-[var(--muted)]">primeiras vezes e marcos</p></div>
+      <div className="cat-card p-4"><Users size={18} className="text-[var(--success)]" /><p className="cd-body mt-3 font-bold">{sharedCount}</p><p className="text-xs text-[var(--muted)]">momentos com mais de um pet</p></div>
     </section>
 
     <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -75,7 +79,7 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
       const archive = archiveMemory.bind(null, memory.id);
       const restore = restoreMemory.bind(null, memory.id);
       const remove = deleteMemoryPermanently.bind(null, memory.id);
-      return <article key={memory.id} className={`cat-card min-w-0 overflow-hidden ${archivedView ? "opacity-80" : ""}`}>
+      return <article key={memory.id} className={`cat-card cd-memory-card min-w-0 overflow-hidden ${archivedView ? "opacity-80" : ""}`}>
         <div className="relative">
           <MemoryGallery title={memory.title} media={memory.media} />
           <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold shadow-sm ${meta.tone}`}><Icon size={12} /> {meta.label}</span>

@@ -1,0 +1,3176 @@
+/* ============================================================
+   Brand Lab · 07 · Architecture V2 (prototype only)
+   Imported by architecture-v2-lab.tsx. All rules are scoped to
+   [data-brand="cuidadim"] and the cd-arch-* prefix; nothing here
+   is used by the authenticated app.
+   ============================================================ */
+
+/* —— Frames —— */
+
+[data-brand="cuidadim"] .cd-arch-frame-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  padding: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-frame-desktop {
+  min-width: 1000px;
+  height: 760px;
+  background: var(--background);
+  color: var(--text-primary);
+  border-radius: var(--cd-radius-md);
+  overflow: hidden;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--cuidadim-purple-900) 22%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-med {
+  height: 100%;
+}
+
+[data-brand="cuidadim"] .cd-arch-main {
+  grid-row: 1 / -1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-brand="cuidadim"] .cd-arch-frame-mobile {
+  height: 800px;
+  margin-inline: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-rail-logo,
+[data-brand="cuidadim"] .cd-arch-mob-logo {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--cd-radius-sm);
+}
+
+[data-brand="cuidadim"] .cd-arch-rail-logo {
+  align-self: center;
+  margin-block: 0.15rem 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-rail-logo-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+}
+
+/* —— Page scaffolding —— */
+
+[data-brand="cuidadim"] .cd-arch-page {
+  padding: 1.5rem 2rem 2.5rem;
+  max-width: 62rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-page {
+  padding: 1rem 1rem 1.5rem;
+  max-width: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-page-head {
+  margin-bottom: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-title {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 520;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin-top: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-title {
+  font-size: 1.45rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-lede {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+  max-width: 32rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-back:hover {
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-chevron {
+  flex-shrink: 0;
+  opacity: 0.45;
+}
+
+[data-brand="cuidadim"] .cd-arch-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--cd-radius-lg);
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 70%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cuidadim-rosa) 30%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-avatar[data-size="sm"] {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: var(--cd-radius-md);
+}
+
+[data-brand="cuidadim"] .cd-arch-avatar[data-size="lg"] {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+/* —— Chips / tabs —— */
+
+[data-brand="cuidadim"] .cd-arch-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-chip-scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-chip-btn {
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-chip-btn:hover:not([data-active="true"]) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-chip-muted {
+  opacity: 0.55;
+}
+
+[data-brand="cuidadim"] .cd-arch-subnav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.6rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-subnav {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-subnav-primary,
+[data-brand="cuidadim"] .cd-arch-subnav-secondary {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-subnav-divider {
+  width: 1px;
+  height: 1.1rem;
+  flex-shrink: 0;
+  background: var(--border);
+  margin-inline: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--cd-radius-lg);
+  background: transparent;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-tab:hover {
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-tab[data-active="true"] {
+  color: var(--cuidadim-purple);
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 45%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--cuidadim-gold) 60%, transparent);
+}
+
+/* —— Segmented control (lab controls) —— */
+
+[data-brand="cuidadim"] .cd-arch-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+[data-brand="cuidadim"] .cd-arch-seg button {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-seg button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+
+/* —— Map + tree (lab) —— */
+
+[data-brand="cuidadim"] .cd-arch-map {
+  display: grid;
+  gap: 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-map-group {
+  display: grid;
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-map-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-tree,
+[data-brand="cuidadim"] .cd-arch-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-tree > li {
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-tree ul {
+  margin-top: 0.3rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-tree ul li {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  padding: 0.12rem 0;
+}
+
+/* —— Cuidados · overview —— */
+
+[data-brand="cuidadim"] .cd-arch-context-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 55%, var(--surface));
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0.35rem;
+  margin-inline: -0.35rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-summary li:last-child .cd-arch-pet-summary-row {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-summary-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-domain-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-brand="cuidadim"] .cd-arch-domain-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.8rem 0.85rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-domain-tile:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-domain-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.3rem;
+  border-radius: var(--cd-radius-md);
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 55%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-secondary-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-secondary-rows {
+  grid-template-columns: 1fr;
+}
+
+[data-brand="cuidadim"] .cd-arch-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 18%, var(--border));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* —— Category index / detail —— */
+
+[data-brand="cuidadim"] .cd-arch-cat-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-cat-groups {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-list li:last-child .cd-arch-cat-row {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-icon {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex-shrink: 0;
+  border-radius: var(--cd-radius-md);
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 45%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-attention-star {
+  flex-shrink: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-detail-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-tag {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-attention {
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--cd-radius-lg);
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 40%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 35%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-attention-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-attention-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-today-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-today-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-brand="cuidadim"] .cd-arch-today-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* —— Agenda —— */
+
+[data-brand="cuidadim"] .cd-arch-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.2rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-week-day[data-today="true"] {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 55%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-week-date {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 520;
+}
+
+[data-brand="cuidadim"] .cd-arch-week-dots {
+  display: flex;
+  gap: 3px;
+  min-height: 5px;
+}
+
+[data-brand="cuidadim"] .cd-arch-week-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--cuidadim-rosa);
+}
+
+[data-brand="cuidadim"] .cd-arch-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-two-col {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-agenda-group {
+  margin-bottom: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-time {
+  width: 2.6rem;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* —— Histórico —— */
+
+[data-brand="cuidadim"] .cd-arch-filters {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-filter {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-filter {
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-filters .cd-arch-chip-scroll {
+  margin-inline: -0.85rem;
+  padding-inline: 0.85rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-timeline-day {
+  margin-bottom: 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-timeline-day > ul {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0 0 0 0.85rem;
+  border-left: 1px solid color-mix(in srgb, var(--cuidadim-gold) 35%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-timeline-icon {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex-shrink: 0;
+  border-radius: var(--cd-radius-md);
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 45%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1.5rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed var(--border);
+  text-align: center;
+}
+
+[data-brand="cuidadim"] .cd-arch-empty-wide {
+  padding: 2.25rem 1.25rem;
+  gap: 0.5rem;
+}
+
+/* —— Neonatal —— */
+
+[data-brand="cuidadim"] .cd-arch-kitten-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-kitten-grid {
+  grid-template-columns: 1fr;
+}
+
+[data-brand="cuidadim"] .cd-arch-kitten {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-bars span {
+  flex: 1;
+  border-radius: 4px 4px 2px 2px;
+  background: color-mix(in srgb, var(--cuidadim-rosa) 55%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-bars span:last-child {
+  background: var(--cuidadim-gold);
+}
+
+[data-brand="cuidadim"] .cd-arch-bars-sm {
+  height: 2rem;
+  margin-block: 0.35rem;
+}
+
+/* —— Plano de saúde —— */
+
+[data-brand="cuidadim"] .cd-arch-plan-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-name {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 520;
+  margin-top: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plain-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plain-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-yes {
+  color: var(--cuidadim-gold-700);
+}
+
+[data-brand="cuidadim"] .cd-arch-no {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+[data-brand="cuidadim"] .cd-arch-dl {
+  margin: 0.4rem 0 0;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-dl > div:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-dl dt {
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-dl dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+}
+
+/* —— Pets context —— */
+
+[data-brand="cuidadim"] .cd-arch-pet-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0.5rem 0 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet-grid {
+  grid-template-columns: 1fr;
+}
+
+[data-brand="cuidadim"] .cd-arch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-card-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 520;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-list li {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-brand="cuidadim"] .cd-arch-memory-deferred {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 3.5rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px dashed var(--border);
+  background: var(--surface-muted);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-history-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+
+/* —— Registrar —— */
+
+[data-brand="cuidadim"] .cd-arch-type-groups {
+  display: grid;
+  gap: 1.1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-type-grid,
+[data-brand="cuidadim"] .cd-arch-explore .cd-arch-type-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  min-height: 4.6rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-tile:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 30%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-type-tile:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-type-tile,
+[data-brand="cuidadim"] .cd-arch-explore .cd-arch-type-tile {
+  min-height: 4rem;
+  padding: 0.55rem 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-icon {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: var(--cd-radius-md);
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 55%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-type-label {
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-note {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-context-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.75rem 0 0.3rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-picker[data-compact="true"] .cd-arch-pet-chip {
+  height: 1.9rem;
+  font-size: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-chip[data-active="true"] {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 50%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-chip-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 70%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-flow {
+  max-width: 40rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1.1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex-shrink: 0;
+  margin-top: 0.3rem;
+  border-radius: var(--cd-radius-lg);
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 60%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cuidadim-rosa) 30%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-form {
+  display: grid;
+  gap: 0.95rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-field-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 0.75rem;
+  align-items: end;
+}
+
+[data-brand="cuidadim"] .cd-arch-input-wrap {
+  position: relative;
+  display: block;
+}
+
+[data-brand="cuidadim"] .cd-arch-input-suffix {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-textarea {
+  height: auto;
+  min-height: 4.5rem;
+  padding-block: 0.55rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+[data-brand="cuidadim"] .cd-arch-dropzone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 3rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 22%, var(--border));
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-toggle {
+  position: relative;
+  width: 2rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.15s ease;
+}
+
+[data-brand="cuidadim"] .cd-arch-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.15rem - 4px);
+  height: calc(1.15rem - 4px);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: transform 0.15s ease;
+}
+
+[data-brand="cuidadim"] .cd-arch-toggle[data-on="true"] {
+  background: var(--cuidadim-gold);
+}
+
+[data-brand="cuidadim"] .cd-arch-toggle[data-on="true"]::after {
+  transform: translateX(0.85rem);
+}
+
+[data-brand="cuidadim"] .cd-arch-planned {
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-planned-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-planned-list li {
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--cd-radius-md);
+  background: var(--surface-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-saved {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 2rem 0;
+}
+
+/* —— Multi-pet explorations —— */
+
+[data-brand="cuidadim"] .cd-arch-explore {
+  display: flex;
+  flex-direction: column;
+  max-width: 390px;
+  height: 560px;
+  border-radius: 24px;
+  border: 3px solid var(--border);
+  background: var(--background);
+  color: var(--text-primary);
+  overflow: hidden;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--cuidadim-purple-900) 18%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-explore-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-steps {
+  display: flex;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-steps li {
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--cd-radius-md);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+}
+
+[data-brand="cuidadim"] .cd-arch-steps li[data-state="current"] {
+  color: var(--cuidadim-purple);
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 70%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-steps li[data-state="done"] {
+  opacity: 0.6;
+}
+
+[data-brand="cuidadim"] .cd-arch-explore-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 520;
+}
+
+/* —— Logo exploration —— */
+
+[data-brand="cuidadim"] .cd-arch-logo-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-logo-case {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+[data-brand="cuidadim"] .cd-arch-logo-case figcaption {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 11rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-logo-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  width: 84px;
+  padding: 0.75rem 0 0.85rem;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+
+[data-brand="cuidadim"] .cd-arch-logo-slot {
+  display: block;
+  align-self: center;
+}
+
+[data-brand="cuidadim"] .cd-arch-logo-case[data-chosen="true"] {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cuidadim-gold-100) 70%, transparent);
+}
+
+/* ============================================================
+   M0.1 · reconciliation candidate
+   ============================================================ */
+
+/* —— Status + contract + validate markers —— */
+
+[data-brand="cuidadim"] .cd-arch-status-banner {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  padding: 0.9rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-rosa) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-rosa-light) 45%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-validate {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 35%, var(--surface));
+  color: var(--cuidadim-purple);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: help;
+}
+
+[data-brand="cuidadim"] .cd-arch-validate-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-contract {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-contract li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-contract-kind {
+  display: inline-block;
+  align-self: start;
+  justify-self: start;
+  margin-right: 0.45rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 70%, var(--surface));
+  color: var(--cuidadim-purple);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-brand="cuidadim"] .cd-arch-contract-line {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* —— Registrar · steps, blocks —— */
+
+[data-brand="cuidadim"] .cd-arch-flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0 0 1.1rem;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.6rem 0.22rem 0.25rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+[data-brand="cuidadim"] .cd-arch-step-num {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.62rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-steps li[data-state="current"] {
+  color: var(--cuidadim-purple);
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 70%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-steps li[data-state="done"] {
+  opacity: 0.6;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-block {
+  display: grid;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-flow-block[data-dim="true"] {
+  opacity: 0.55;
+}
+
+[data-brand="cuidadim"] .cd-arch-shared {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 35%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 30%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet-blocks,
+[data-brand="cuidadim"] .cd-arch-explore .cd-arch-pet-blocks {
+  grid-template-columns: 1fr;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-block {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  padding: 0.8rem 0.85rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+[data-brand="cuidadim"] .cd-arch-field-pair-even {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-field-pair-even {
+  grid-template-columns: 1fr;
+}
+
+/* —— Records (open / highlighted) —— */
+
+[data-brand="cuidadim"] .cd-arch-record {
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--cd-radius-md);
+}
+
+[data-brand="cuidadim"] .cd-arch-record:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-record-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-record-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-record[data-open="true"] {
+  margin-block: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 60%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 40%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cuidadim-gold-100) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-record[data-open="true"] .cd-arch-record-row {
+  padding-inline: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-open-wrap {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0 0.6rem 0.7rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-open-record {
+  background: var(--surface);
+}
+
+[data-brand="cuidadim"] .cd-arch-next-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 20%, var(--border));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* —— Saúde · plano contextual —— */
+
+[data-brand="cuidadim"] .cd-arch-plan-ctx {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-plan-ctx {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-ctx-list {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-ctx-list li {
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-ctx-list .cd-meta {
+  width: 6.5rem;
+  flex-shrink: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-ctx-cta {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: end;
+  flex-shrink: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-plan-ctx-cta {
+  justify-items: start;
+}
+
+/* —— Rotinas · today cells —— */
+
+[data-brand="cuidadim"] .cd-arch-today-cell[data-static="true"] {
+  cursor: default;
+}
+
+[data-brand="cuidadim"] .cd-arch-routine {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-routine:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-cat-row[data-static="true"] {
+  cursor: default;
+}
+
+/* —— Calendar + range + search —— */
+
+[data-brand="cuidadim"] .cd-arch-cal-wrap {
+  max-width: 20rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-cal {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 20rem;
+  padding: 0.6rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-wd {
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  padding-block: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 2rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-day:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-day[data-today="true"] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cuidadim-gold) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-day[data-in-range="true"] {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 70%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-day[data-edge="true"] {
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+
+[data-brand="cuidadim"] .cd-arch-cal-dot {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--cuidadim-rosa);
+}
+
+[data-brand="cuidadim"] .cd-arch-range {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 10rem));
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-range-value {
+  display: flex;
+  align-items: center;
+}
+
+[data-brand="cuidadim"] .cd-arch-range-value[data-empty="true"] {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+[data-brand="cuidadim"] .cd-arch-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-self: start;
+  width: min(100%, 16rem);
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-search button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* —— Neonatal · quiet link —— */
+
+[data-brand="cuidadim"] .cd-arch-link-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--text-secondary) 40%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-link-quiet:hover {
+  color: var(--text-primary);
+}
+
+/* —— Pet context —— */
+
+[data-brand="cuidadim"] .cd-arch-card-wide {
+  grid-column: 1 / -1;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-links {
+  width: 100%;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.4rem;
+  margin-inline: -0.4rem;
+  border: 0;
+  border-radius: var(--cd-radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-link:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-mini-link-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-memory-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  width: 100%;
+}
+
+[data-brand="cuidadim"] .cd-arch-memory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-memory-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-brand="cuidadim"] .cd-arch-memory-grid .cd-arch-memory-deferred {
+  height: 6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-memory-grid .cd-arch-memory-deferred[data-tall="true"] {
+  height: 8rem;
+}
+
+/* —— Top-level shells —— */
+
+[data-brand="cuidadim"] .cd-arch-nav-action {
+  display: grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 65%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 60%, var(--surface));
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-med-mais[data-active="true"],
+[data-brand="cuidadim"] .cd-mob-mais-link[data-active="true"] {
+  color: var(--text-primary);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+[data-brand="cuidadim"] .cd-arch-shell-tag {
+  display: inline-flex;
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-shell-tag[data-shell="B"] {
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 40%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-mobile-compare {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-compare {
+  display: grid;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+[data-brand="cuidadim"] .cd-arch-compare-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-compare-row:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-compare-head {
+  background: var(--surface-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* —— M0.1R · lab markers —— */
+
+[data-brand="cuidadim"] .cd-arch-flag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 35%, var(--surface));
+  color: var(--cuidadim-purple);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+[data-brand="cuidadim"] .cd-arch-flag[data-kind="future"] {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 60%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 45%, var(--surface));
+  color: color-mix(in srgb, var(--cuidadim-gold) 55%, var(--text-primary));
+}
+
+[data-brand="cuidadim"] .cd-arch-flag[data-kind="naming"] {
+  border-style: solid;
+}
+
+[data-brand="cuidadim"] .cd-arch-flag[data-kind="insight"] {
+  border-style: solid;
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-flag[data-kind="issue"] {
+  border-color: color-mix(in srgb, var(--danger, #b4473c) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger, #b4473c) 8%, var(--surface));
+  color: var(--danger, #b4473c);
+  white-space: normal;
+}
+
+[data-brand="cuidadim"] .cd-arch-flag-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-tab-flag {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 0.3rem;
+  border-radius: 999px;
+  border: 1px dashed var(--cuidadim-purple);
+  vertical-align: super;
+}
+
+[data-brand="cuidadim"] .cd-arch-marker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-marker-list li {
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-future {
+  display: grid;
+  justify-items: start;
+  gap: 0.45rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 18%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-future-list {
+  margin: 0;
+  padding-left: 1rem;
+  list-style: disc;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 0.15rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-tech {
+  padding: 0.9rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed var(--border);
+  background: var(--surface-muted);
+}
+
+[data-brand="cuidadim"] .cd-arch-tech summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-issues {
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: decimal;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 0.2rem;
+}
+
+/* —— M0.1R · Registrar multi-cuidado —— */
+
+[data-brand="cuidadim"] .cd-arch-care-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-care-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-purple) 35%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 45%, var(--surface));
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+[data-brand="cuidadim"] .cd-arch-care-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-care-chip button:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-add-care {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--cuidadim-purple) 40%, var(--border));
+  color: var(--cuidadim-purple);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+[data-brand="cuidadim"] .cd-arch-add-care[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 40%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-add-panel {
+  margin-top: 0.4rem;
+  padding: 0.8rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-notice {
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--cd-radius-md, 10px);
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 45%, var(--surface));
+  font-size: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-type-block {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-type-block-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+[data-brand="cuidadim"] .cd-arch-qty-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 5.5rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+/* —— M0.1R · Saúde, rotinas, neonatal, planos —— */
+
+[data-brand="cuidadim"] .cd-arch-insight {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+[data-brand="cuidadim"] .cd-arch-insight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+[data-brand="cuidadim"] .cd-arch-naming {
+  display: grid;
+  gap: 0.15rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-routine[data-paused="true"] {
+  opacity: 0.6;
+}
+
+[data-brand="cuidadim"] .cd-arch-kitten-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-kitten-actions .cd-chip-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-card[data-focus="true"] {
+  border-color: color-mix(in srgb, var(--cuidadim-purple) 45%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-plan-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-next-row[data-static="true"],
+[data-brand="cuidadim"] .cd-arch-secondary-row[data-static="true"] {
+  cursor: default;
+}
+
+/* -- M0.1V -- */
+
+[data-brand="cuidadim"] .cd-arch-decision {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: start;
+  padding: 0.9rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 45%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-decision-tag {
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+/* Registro · Rotina · Agenda */
+
+[data-brand="cuidadim"] .cd-arch-kind,
+[data-brand="cuidadim"] .cd-arch-contract-kind[data-kind] {
+  --kind-ink: var(--cuidadim-purple);
+  --kind-bg: var(--cuidadim-purple-50);
+  --kind-line: var(--cuidadim-purple-100);
+}
+
+[data-brand="cuidadim"] .cd-arch-kind[data-kind="registro"],
+[data-brand="cuidadim"] .cd-arch-kind-head[data-kind="registro"],
+[data-brand="cuidadim"] .cd-arch-contract-kind[data-kind="registro"] {
+  --kind-ink: color-mix(in srgb, var(--success) 78%, var(--cuidadim-grafite));
+  --kind-bg: color-mix(in srgb, var(--success) 12%, var(--surface));
+  --kind-line: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-kind[data-kind="rotina"],
+[data-brand="cuidadim"] .cd-arch-kind-head[data-kind="rotina"],
+[data-brand="cuidadim"] .cd-arch-contract-kind[data-kind="rotina"] {
+  --kind-ink: var(--cuidadim-purple);
+  --kind-bg: color-mix(in srgb, var(--cuidadim-purple-100) 55%, var(--surface));
+  --kind-line: color-mix(in srgb, var(--cuidadim-purple-300) 55%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-kind[data-kind="agenda"],
+[data-brand="cuidadim"] .cd-arch-kind-head[data-kind="agenda"],
+[data-brand="cuidadim"] .cd-arch-contract-kind[data-kind="agenda"] {
+  --kind-ink: var(--cuidadim-gold-700);
+  --kind-bg: color-mix(in srgb, var(--cuidadim-gold-100) 75%, var(--surface));
+  --kind-line: color-mix(in srgb, var(--cuidadim-gold) 50%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-contract-kind[data-kind] {
+  background: var(--kind-bg);
+  color: var(--kind-ink);
+  box-shadow: inset 0 0 0 1px var(--kind-line);
+}
+
+[data-brand="cuidadim"] .cd-arch-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid var(--kind-line);
+  background: var(--kind-bg);
+  color: var(--kind-ink);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+[data-brand="cuidadim"] .cd-arch-kind-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--cd-radius-md);
+  border-left: 3px solid var(--kind-line);
+  background: color-mix(in srgb, var(--kind-bg) 55%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-attention-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Alimentação e higiene */
+
+[data-brand="cuidadim"] .cd-arch-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-log-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-log-list > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-brand="cuidadim"] .cd-arch-log-list > li:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-log-check {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  color: color-mix(in srgb, var(--success) 78%, var(--cuidadim-grafite));
+}
+
+/* Registrar · resumo */
+
+[data-brand="cuidadim"] .cd-arch-save-summary {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 40%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-save-summary-math {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--cuidadim-purple);
+}
+
+/* Pets · perfil */
+
+[data-brand="cuidadim"] .cd-arch-pet-photo {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 45%, var(--border));
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--cuidadim-creme) 85%, transparent), transparent 60%),
+    color-mix(in srgb, var(--cuidadim-purple-100) 55%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-photo[data-size="md"] {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-photo[data-size="lg"] {
+  width: 4.6rem;
+  height: 4.6rem;
+  box-shadow: 0 8px 22px -14px color-mix(in srgb, var(--cuidadim-purple) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-row-rich {
+  align-items: flex-start;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-row-rich > .cd-status-chip,
+[data-brand="cuidadim"] .cd-arch-pet-row-rich > .cd-arch-chevron {
+  align-self: center;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-row-weight {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-brand="cuidadim"] .cd-arch-fact[data-tone="positive"] {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  color: color-mix(in srgb, var(--success) 75%, var(--cuidadim-grafite));
+}
+
+[data-brand="cuidadim"] .cd-arch-fact[data-tone="stage"] {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 45%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 60%, var(--surface));
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-fact[data-tone="strong"] {
+  border-color: color-mix(in srgb, var(--cuidadim-purple-300) 45%, var(--border));
+  color: var(--text-primary);
+  font-weight: 750;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin: 0.4rem 0 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-edit {
+  flex-shrink: 0;
+  gap: 0.3rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet-hero {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet-photo[data-size="lg"] {
+  width: 3.6rem;
+  height: 3.6rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet-edit {
+  order: 3;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-quick {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.3rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  color: var(--cuidadim-purple);
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-quick-btn:hover {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 55%, var(--border));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-prevention {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-quiet-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cuidadim-purple);
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+[data-brand="cuidadim"] .cd-arch-docs {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-docs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-docs-grid {
+  grid-template-columns: 1fr;
+}
+
+[data-brand="cuidadim"] .cd-arch-docs-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+[data-brand="cuidadim"] .cd-arch-docs-slot[data-empty="true"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet-shortcuts > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Shell B · mobile dock (5 destinos, Registrar ao centro) */
+
+[data-brand="cuidadim"] .cd-arch-dock-b {
+  align-items: end;
+  padding-top: 0.25rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-dock-b .cd-mob-dock-item {
+  font-size: 0.58rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-mob-dock-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-top: -1.05rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-arch-nav-action {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 2px solid var(--cuidadim-gold);
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--cuidadim-purple) 75%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-dock-b .cd-mob-dock-item[data-nav="registrar"][data-active="true"] {
+  box-shadow: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-nav-star {
+  top: -4px;
+  right: -6px;
+}
+
+[data-brand="cuidadim"] .cd-arch-med[data-shell="B"] .cd-med-item[data-nav="registrar"] .cd-arch-nav-action {
+  border-color: var(--cuidadim-gold);
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+}
+
+[data-brand="cuidadim"] .cd-arch-mobile-single {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-mobile-notes {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 20rem;
+  padding-top: 0.5rem;
+}
+
+/* Previous exploration */
+
+[data-brand="cuidadim"] .cd-arch-previous {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-previous-item {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+[data-brand="cuidadim"] .cd-arch-previous-frame {
+  zoom: 0.6;
+  opacity: 0.92;
+}
+
+/* Functional preservation contract */
+
+[data-brand="cuidadim"] .cd-arch-preservation {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--cuidadim-purple-300) 50%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-purple-50) 60%, var(--surface));
+}
+
+[data-brand="cuidadim"] .cd-arch-preservation ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
+
+/* -- M0.1V.1 · pagina do pet (hierarquia leve) -- */
+
+[data-brand="cuidadim"] .cd-arch-inline-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cuidadim-purple);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-list li:last-child .cd-arch-pet2-list-row {
+  border-bottom: 0;
+}
+
+/* Header */
+
+[data-brand="cuidadim"] .cd-arch-pet2-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.35rem 0 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-head .cd-arch-pet-photo[data-size="lg"] {
+  width: 4rem;
+  height: 4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-line {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-neutered {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.74rem;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--success) 75%, var(--cuidadim-grafite));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  flex-shrink: 0;
+  padding: 0.3rem 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cuidadim-purple);
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-edit:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet2-head .cd-arch-pet-photo[data-size="lg"] {
+  width: 3.4rem;
+  height: 3.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet2-name {
+  font-size: 1.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet2-edit span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Abas do pet: sublinhado, sem caixas */
+
+[data-brand="cuidadim"] .cd-arch-pet2-tabs {
+  display: flex;
+  gap: 1.1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-tab {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0.5rem 0 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-tab[data-active="true"] {
+  color: var(--text-primary);
+  font-weight: 750;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-tab[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--cuidadim-gold);
+}
+
+/* Corpo */
+
+[data-brand="cuidadim"] .cd-arch-pet2-body {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-grid,
+[data-brand="cuidadim"] .cd-arch-pet2-col {
+  display: grid;
+  gap: 1.5rem;
+  align-content: start;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="desktop"] .cd-arch-pet2-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 2.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="desktop"] .cd-arch-pet2-col[data-aside="true"] {
+  padding-left: 1.5rem;
+  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-section {
+  display: grid;
+  gap: 0.35rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-section-title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-section-action {
+  margin-left: auto;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: transparent;
+  color: inherit;
+}
+
+[data-brand="cuidadim"] button.cd-arch-pet2-row {
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] button.cd-arch-pet2-row:hover .cd-arch-pet2-row-cta {
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-rows li:last-child .cd-arch-pet2-row {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row-icon[data-tone="agenda"] {
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 75%, var(--surface));
+  color: var(--cuidadim-gold-700);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row-icon[data-tone="rotina"] {
+  background: color-mix(in srgb, var(--cuidadim-purple-100) 55%, var(--surface));
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row-icon[data-tone="saude"],
+[data-brand="cuidadim"] .cd-arch-pet2-row-icon[data-tone="registro"] {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: color-mix(in srgb, var(--success) 78%, var(--cuidadim-grafite));
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-row-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  color: var(--cuidadim-purple);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet2-row-cta {
+  font-size: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-main[data-variant="mobile"] .cd-arch-pet2-row-cta svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-empty {
+  padding: 0.35rem 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Acoes rapidas: pills em linha */
+
+[data-brand="cuidadim"] .cd-arch-pet2-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-actions-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  margin-right: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  min-height: 2.25rem;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-action svg {
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-action:hover {
+  border-color: color-mix(in srgb, var(--cuidadim-gold) 60%, var(--border));
+}
+
+/* Peso / memorias */
+
+[data-brand="cuidadim"] .cd-arch-pet2-weight {
+  font-size: 0.85rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-weight strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-memories {
+  display: grid;
+  grid-template-columns: repeat(3, 3.25rem);
+  gap: 0.4rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-memories span {
+  aspect-ratio: 1;
+  border-radius: var(--cd-radius-md);
+  background:
+    radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--cuidadim-creme) 80%, transparent), transparent 65%),
+    color-mix(in srgb, var(--cuidadim-rosa-light) 55%, var(--surface));
+}
+
+/* Perfil */
+
+[data-brand="cuidadim"] .cd-arch-pet2-age {
+  display: grid;
+  gap: 0.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-age-main {
+  margin-top: 0.2rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-age-human {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-dl {
+  margin: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-dl-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-dl-row:last-child {
+  border-bottom: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-dl-row dt {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-dl-row dd {
+  margin: 0;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-chip {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--cd-radius-md);
+  background: color-mix(in srgb, var(--surface-muted) 75%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-chip-number {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-arch-pet2-reserved {
+  margin-top: 0.25rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--cd-radius-md);
+  border: 1px dashed var(--border);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Comparacao before / after */
+
+[data-brand="cuidadim"] .cd-arch-petcmp {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1rem;
+  border-radius: var(--cd-radius-lg);
+  border: 1px dashed var(--border);
+  background: var(--surface-muted);
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-col {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  min-width: 0;
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-tag {
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: color-mix(in srgb, var(--text-secondary) 14%, var(--surface));
+  color: var(--text-secondary);
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-tag[data-version="after"] {
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-frame {
+  max-width: 100%;
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-frame[data-device="mobile"] {
+  zoom: 0.8;
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-frame[data-device="desktop"] {
+  zoom: 0.5;
+  width: 1030px;
+}
+
+[data-brand="cuidadim"] .cd-arch-petcmp-frame[data-device="desktop"] .cd-arch-frame-scroll {
+  overflow: hidden;
+}

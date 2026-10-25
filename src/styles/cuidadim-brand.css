@@ -3188,8 +3188,63 @@
   border-radius: var(--cd-radius-sm);
 }
 
-[data-brand="cuidadim"] .cd-app-rail-brand .cd-final-logo {
+[data-brand="cuidadim"] .cd-app-rail-brand .cd-final-logo,
+[data-brand="cuidadim"] .cd-app-rail-brand .cd-app-rail-logo-img {
+  display: block;
   width: 100%;
+  height: auto;
+}
+
+/* Shell B — Registrar action glyph (rail + dock center) */
+[data-brand="cuidadim"] .cd-shell-nav-action {
+  display: grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-gold) 65%, var(--border));
+  background: color-mix(in srgb, var(--cuidadim-gold-100) 60%, var(--surface));
+  color: var(--cuidadim-purple);
+}
+
+[data-brand="cuidadim"] .cd-med-item[data-nav="registrar"] .cd-shell-nav-action {
+  border-color: var(--cuidadim-gold);
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+}
+
+/* Shell B — mobile dock (5 destinations, Registrar raised in center) */
+[data-brand="cuidadim"] .cd-app-dock-b {
+  align-items: end;
+  padding-top: 0.25rem;
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item {
+  font-size: 0.58rem;
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-mob-dock-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-top: -1.05rem;
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-shell-nav-action {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 2px solid var(--cuidadim-gold);
+  background: var(--cuidadim-purple);
+  color: var(--cuidadim-creme);
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--cuidadim-purple) 75%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item[data-nav="registrar"][data-active="true"] {
+  box-shadow: none;
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item[data-nav="registrar"] .cd-nav-star {
+  top: -4px;
+  right: -6px;
 }
 
 [data-brand="cuidadim"] .cd-app-mobile-brand {
@@ -3238,4 +3293,874 @@
 /* Demo notice — local Cuidadim surface instead of legacy --peach */
 [data-brand="cuidadim"].cd-app-demo-notice {
   background: var(--cuidadim-gold-100);
+}
+
+/* CANVAS COLOR — VISUAL CANDIDATE (not a frozen brand color).
+   Cream #FCFAF5 stays --cuidadim-creme / brand surface.
+   Candidate #F4F2EF is cooler and less yellow, so small gold reads on the real app chrome. */
+[data-brand="cuidadim"].cd-app-canvas {
+  --cd-canvas-candidate: #f4f2ef;
+  background: var(--cd-canvas-candidate);
+}
+
+body:has(.cd-app-canvas) {
+  background: #f4f2ef;
+}
+
+aside[data-brand="cuidadim"]:has(.cd-app-rail),
+header[data-brand="cuidadim"]:has(.cd-mob-header),
+[data-brand="cuidadim"].cd-app-mobile-bar {
+  background: var(--cd-canvas-candidate, #f4f2ef);
+}
+
+/* Small gold on light chrome → Gold 700. Larger Registrar disc keeps Gold 500. */
+[data-brand="cuidadim"] .cd-app-rail .cd-rail-indicator {
+  background: var(--cuidadim-gold-700);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--cuidadim-gold-700) 40%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-app-rail .cd-med-item[data-nav="registrar"] .cd-shell-nav-action {
+  border-color: var(--cuidadim-gold-700);
+}
+
+[data-brand="cuidadim"] .cd-app-dock-b .cd-mob-dock-item[data-active="true"] {
+  box-shadow: inset 0 -2px 0 var(--cuidadim-gold-700);
+}
+
+/* —— M1B.2 Pets content stage (transparent layout, not a card) —— */
+
+[data-brand="cuidadim"] .cd-pet-page {
+  width: 100%;
+  margin: 0;
+  padding: 1.25rem 1.125rem 2.5rem;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (min-width: 1024px) {
+  [data-brand="cuidadim"] .cd-pet-page {
+    width: min(calc(100% - 6rem), 1320px);
+    margin-inline: auto;
+    padding: 2rem 0 3rem;
+  }
+
+  [data-brand="cuidadim"] .cd-pet-page-list {
+    width: min(calc(100% - 6rem), 760px);
+  }
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cat-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-memory-card {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 22px;
+  background: var(--cuidadim-creme, #fcfaf5);
+  padding: 0;
+  overflow: hidden;
+}
+
+[data-brand="cuidadim"] .cd-pet-domain-tabs,
+[data-brand="cuidadim"].cd-pet-domain-tabs {
+  display: flex;
+  gap: 0.15rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-domain-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: -1px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-domain-tab[data-active="true"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--cuidadim-purple, var(--lavender-strong));
+}
+
+[data-brand="cuidadim"] .cd-pet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-pet-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0.1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  text-decoration: none;
+  color: inherit;
+}
+
+[data-brand="cuidadim"] .cd-pet-list-row:hover {
+  background: color-mix(in srgb, var(--cuidadim-purple, var(--lavender)) 4%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-pet-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding-bottom: 0.15rem;
+}
+
+[data-brand="cuidadim"] .cd-page-kicker {
+  margin: 0;
+  font-family: var(--font-ui, inherit);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-page-title {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: clamp(1.5rem, 2vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+[data-brand="cuidadim"] .cd-page-lede,
+[data-brand="cuidadim"] .cd-body {
+  margin: 0.4rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-page-lede {
+  max-width: 40rem;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-name {
+  margin: 0;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: clamp(1.45rem, 2.2vw, 1.75rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+[data-brand="cuidadim"] .cd-pet-line {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+[data-brand="cuidadim"] .cd-pet-context-muted {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-neutered {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  color: var(--success);
+}
+
+[data-brand="cuidadim"] .cd-pet-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.35rem 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+[data-brand="cuidadim"] .cd-pet-tabs {
+  display: flex;
+  gap: 0.05rem;
+  margin-top: 1.1rem;
+  overflow-x: auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-tab {
+  flex: 0 0 auto;
+  padding: 0.7rem 0.65rem;
+  margin-bottom: -1px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+[data-brand="cuidadim"] .cd-pet-tab[data-active="true"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--cuidadim-purple, var(--lavender-strong));
+}
+
+[data-brand="cuidadim"] .cd-pet-body {
+  margin-top: 1.35rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-body > .cd-pet-section + .cd-pet-section {
+  margin-top: 1.75rem;
+}
+
+/* Overview reading column — transparent, not a sheet. Other pet tabs keep the stage width. */
+[data-brand="cuidadim"] .cd-pet-read {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 2.75rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-read .cd-pet-section-title {
+  margin-bottom: 0.875rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-read .cd-pet-section-head {
+  margin-bottom: 0.875rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-read .cd-pet-section-head .cd-pet-section-title {
+  margin-bottom: 0;
+}
+
+
+@media (min-width: 1024px) {
+  [data-brand="cuidadim"] .cd-pet-read {
+    width: min(100%, 900px);
+  }
+}
+
+[data-brand="cuidadim"] .cd-pet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 1rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-actions-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.35rem 0.1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-docs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.55rem 0.1rem 0.75rem;
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+[data-brand="cuidadim"] .cd-pet-neonatal-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.15rem;
+  border-radius: 0.85rem;
+  background: var(--rose);
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: white;
+  text-decoration: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-grid,
+[data-brand="cuidadim"] .cd-pet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  min-width: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-section {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+[data-brand="cuidadim"] .cd-pet-section-title {
+  margin: 0 0 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-pet-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-lede {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.05rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  text-decoration: none;
+  color: inherit;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-row {
+  border-bottom: none;
+  padding: 0.4rem 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-row-icon {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--lavender-soft) 80%, transparent);
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-pet-row-icon[data-tone="neonatal"] {
+  background: var(--rose-soft);
+  color: #9a536c;
+}
+
+[data-brand="cuidadim"] .cd-pet-row-icon[data-tone="memoria"] {
+  background: color-mix(in srgb, var(--cream) 70%, transparent);
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-pet-row-cta {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-top: 0.65rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-text-link,
+[data-brand="cuidadim"] .cd-pet-row-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--lavender-strong);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-pet-row-cta {
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-empty {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-weight {
+  margin: 0.45rem 0 0;
+  font-size: 1.1rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-weight strong {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+[data-brand="cuidadim"] .cd-meta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-neonatal-archive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 1rem 0.1rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+[data-brand="cuidadim"] .cd-pet-perfil {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin-top: 0.85rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-cluster .cd-meta,
+[data-brand="cuidadim"] .cd-pet-microchip .cd-meta {
+  display: block;
+}
+
+[data-brand="cuidadim"] .cd-pet-docs-compact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-docs-compact > span:first-child {
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+[data-brand="cuidadim"] .cd-pet-perfil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.5rem 2rem;
+  align-items: start;
+}
+
+[data-brand="cuidadim"] .cd-pet-perfil-grid > [data-span="full"] {
+  grid-column: 1 / -1;
+}
+
+[data-brand="cuidadim"] .cd-pet-fields-wide {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  column-gap: 1.5rem;
+}
+
+[data-brand="cuidadim"] .cd-weight-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+[data-brand="cuidadim"] .cd-weight-actions {
+  margin-top: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-weight-chart {
+  display: block;
+  width: min(100%, 28rem);
+  height: 148px;
+  margin-top: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  [data-brand="cuidadim"] .cd-pet-page .cd-weight-chart {
+    width: 100%;
+    height: 132px;
+  }
+}
+
+[data-brand="cuidadim"] .cd-pet-fields {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.65rem 0 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-field {
+  padding: 0;
+  border-bottom: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-field dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-field dt {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-field dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+[data-brand="cuidadim"] .cd-pet-age-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-age-human {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-pet-suggest {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 0.85rem;
+  padding: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-suggest summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-pet-suggest summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-microchip {
+  border: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-microchip-more {
+  margin-top: 0.65rem;
+}
+
+[data-brand="cuidadim"] .cd-tl-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  margin: 0 0 0.2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+[data-brand="cuidadim"] .cd-tl-filters::-webkit-scrollbar {
+  display: none;
+}
+
+[data-brand="cuidadim"] .cd-tl-filter {
+  flex: 0 0 auto;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.4rem 0.35rem 0.28rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-tl-filter.is-active {
+  border-bottom-color: color-mix(in srgb, var(--lavender-strong) 65%, transparent);
+  font-weight: 600;
+  color: var(--lavender-strong);
+}
+
+[data-brand="cuidadim"] .cd-tl-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border-top: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-read .cd-pet-rows {
+  gap: 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-read .cd-tl-list {
+  gap: 1rem;
+  margin-top: 0.9rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cd-pet-read .cd-tl > .cd-tl-filters + * {
+  margin-top: 0.85rem;
+}
+
+[data-brand="cuidadim"] .cd-tl-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-tl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.1rem 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+@media (max-width: 720px) {
+  [data-brand="cuidadim"] .cd-tl-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
+}
+
+[data-brand="cuidadim"] .cd-tl-row-selected {
+  background: color-mix(in srgb, var(--lavender-soft) 35%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-tl-icon {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 0.55rem;
+  margin-top: 0.1rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive {
+  border-top: none;
+  padding-top: 0;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0 0.65rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-alert-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-pet-alert-link[data-tone="danger"] {
+  color: var(--danger);
+}
+
+[data-brand="cuidadim"] .cd-pet-alert-link[data-tone="warn"] {
+  color: #b45309;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-top: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-block {
+  border-bottom: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-block + .cd-pet-preventive-block {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-detail {
+  padding: 0.15rem 0 0.35rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-detail > div {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+[data-brand="cuidadim"] .cd-pet-preventive-detail > div button {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+[data-brand="cuidadim"] .cd-pet-page .cat-card h2 {
+  font-size: 1.05rem;
 }

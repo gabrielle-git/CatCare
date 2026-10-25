@@ -1,14 +1,14 @@
 import { MORE_MENU_ACCOUNT, isMoreMenuPath } from "./more-menu";
 
 /**
- * Cuidadim app shell navigation contract — single source of truth for the
- * desktop rail, the mobile dock/action strip and the mobile header.
- * Paths are the existing routes; nothing here creates or renames a route.
+ * Cuidadim app shell navigation — Exploration B (M1A).
+ * Single source of truth for the desktop rail, the mobile dock and header utilities.
+ * Paths reuse existing routes; `/cuidados` and `/financas` are transitional hubs only.
  */
 
-export type PrimaryNavId = "agora" | "pets" | "cuidados" | "memorias";
+export type PrimaryNavId = "inicio" | "pets" | "registrar" | "cuidados" | "financas";
 
-export type ShellTarget = PrimaryNavId | "register" | "assistant" | "account" | "more";
+export type ShellTarget = PrimaryNavId | "assistant" | "account" | "more";
 
 export type PrimaryNavDestination = {
   id: PrimaryNavId;
@@ -16,22 +16,39 @@ export type PrimaryNavDestination = {
   href: string;
   /** Route prefixes owned by this destination (segment-aware). */
   matches: readonly string[];
+  /** Primary action treatment inside the five-destination architecture. */
+  action?: boolean;
 };
 
-/** Exactly four primary destinations. Registrar, Mais and Assistente are not tabs. */
+/**
+ * Five primary destinations (Exploration B).
+ * Registrar is part of the architecture — center action on mobile, action glyph on desktop.
+ */
 export const PRIMARY_NAV: readonly PrimaryNavDestination[] = [
-  { id: "agora", label: "Agora", href: "/", matches: [] },
-  { id: "pets", label: "Pets", href: "/pets", matches: ["/pets"] },
+  { id: "inicio", label: "Início", href: "/", matches: [] },
+  { id: "pets", label: "Pets", href: "/pets", matches: ["/pets", "/memories"] },
+  {
+    id: "registrar",
+    label: "Registrar",
+    href: "/records/new",
+    matches: ["/records/new"],
+    action: true,
+  },
   {
     id: "cuidados",
     label: "Cuidados",
-    href: "/historico",
-    matches: ["/historico", "/agenda", "/routines", "/neonatal", "/health-plan"],
+    href: "/cuidados",
+    matches: ["/cuidados", "/historico", "/agenda", "/routines", "/neonatal"],
   },
-  { id: "memorias", label: "Memórias", href: "/memories", matches: ["/memories"] },
+  {
+    id: "financas",
+    label: "Finanças",
+    href: "/financas",
+    matches: ["/financas", "/expenses", "/shopping", "/health-plan"],
+  },
 ];
 
-/** Primary action, separate from the primary destinations. */
+/** Same destination as PRIMARY_NAV registrar — kept for callers that need the label/href pair. */
 export const REGISTER_ACTION = {
   label: "Registrar cuidado",
   shortLabel: "Registrar",
@@ -44,14 +61,17 @@ export const ASSISTANT_UTILITY = {
   href: "/assistant",
 } as const;
 
-/** Support link at the bottom of the desktop rail; lives inside Mais on mobile. */
+/** Account utility — rail footer on desktop, header on mobile. */
 export const ACCOUNT_LINK = {
   label: MORE_MENU_ACCOUNT.label,
   shortLabel: "Conta",
   href: MORE_MENU_ACCOUNT.href,
 } as const;
 
-/** Secondary overflow: mobile sheet, desktop rail popover, /more page. */
+/**
+ * Secondary overflow for destinations that left the primary dock
+ * (today: Memórias, until Pets migration wires Pets → Memórias).
+ */
 export const MORE_ACTION = {
   label: "Mais",
   href: "/more",
@@ -62,23 +82,28 @@ export function pathMatches(pathname: string, prefix: string): boolean {
 }
 
 /**
- * Which shell element owns the current route. Primary destinations win over
- * Mais, so /agenda lights Cuidados even though Agenda is also listed in Mais.
- * /pets/[id]/historico stays in Pets; /records/[id]/edit lights nothing.
+ * Which shell element owns the current route.
+ *
+ * Active matrix (M1A):
+ * - `/` → Início
+ * - `/pets…` → Pets (incl. pet historico / neonatal-history)
+ * - `/records/new` → Registrar (`/records/[id]/edit` → none)
+ * - `/cuidados`, `/historico`, `/agenda`, `/routines`, `/neonatal…` → Cuidados
+ * - `/financas`, `/expenses`, `/shopping`, `/health-plan…` → Finanças
+ * - `/memories…` → Pets (Memórias da família)
+ * - `/more` → legacy overflow route, no shell control
+ * - `/assistant` → Assistente utility
+ * - `/settings…` → Conta utility
  */
 export function resolveShellTarget(pathname: string): ShellTarget | null {
-  if (pathname === "/") return "agora";
-  if (pathMatches(pathname, REGISTER_ACTION.href)) return "register";
+  if (pathname === "/") return "inicio";
+  if (pathMatches(pathname, REGISTER_ACTION.href)) return "registrar";
   for (const destination of PRIMARY_NAV) {
+    if (destination.id === "inicio" || destination.id === "registrar") continue;
     if (destination.matches.some((prefix) => pathMatches(pathname, prefix))) return destination.id;
   }
   if (pathMatches(pathname, ASSISTANT_UTILITY.href)) return "assistant";
   if (pathMatches(pathname, ACCOUNT_LINK.href)) return "account";
   if (isMoreMenuPath(pathname)) return "more";
   return null;
-}
-
-/** On mobile, Conta lives inside Mais, so Mais carries both states. */
-export function isMobileMoreActive(target: ShellTarget | null): boolean {
-  return target === "more" || target === "account";
 }

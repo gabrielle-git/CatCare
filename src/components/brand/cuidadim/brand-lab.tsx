@@ -7,6 +7,7 @@ import { HomeV2Lab } from "@/components/brand/cuidadim/home-v2-lab";
 import { IconSystemLab } from "@/components/brand/cuidadim/icon-system-lab";
 import { AssetProductionGuide } from "@/components/brand/cuidadim/asset-production-guide";
 import { VisualFreezeLab } from "@/components/brand/cuidadim/visual-freeze-lab";
+import { ArchitectureV2Lab } from "@/components/brand/cuidadim/architecture-v2-lab";
 import { CUIDADIM_PICTOGRAMS } from "@/components/brand/cuidadim/pictogram-assets";
 import { CUIDADIM_STATIC_ICONS } from "@/components/brand/cuidadim/icon-assets";
 import {
@@ -146,6 +147,9 @@ export function BrandLab() {
             <p className="cd-meta max-w-[14rem] text-right">
               Toggle afeta 01–02. Home V2 tem frames Light e Dark próprios.
             </p>
+            <a href="#architecture-v2" className="cd-btn-v2-secondary">
+              Ir para 07 · Architecture V2
+            </a>
           </div>
         </header>
 
@@ -384,10 +388,20 @@ export function BrandLab() {
             </div>
           </Section>
 
+          {/* 7. Architecture V2 — working baseline prototype */}
+          <Section
+            id="architecture-v2"
+            kicker="07 · Architecture V2"
+            title="M0.1V · final visual candidate"
+            lead="Arquitetura visual consolidada após auditoria funcional e revisão humana. Exploration B selecionada. Ainda não implementada no produto real. Desktop + Mobile clicáveis."
+          >
+            <ArchitectureV2Lab />
+          </Section>
+
           {/* Typography */}
           <Section
             id="type"
-            kicker="07 · Tipografia"
+            kicker="08 · Tipografia"
             title="Fraunces + DM Sans"
             lead="Display editorial (Fraunces) · UI funcional (DM Sans). Logo nunca é texto."
           >
@@ -425,7 +439,7 @@ export function BrandLab() {
           {/* 3. Shape language */}
           <Section
             id="shapes"
-            kicker="08 · Shape language"
+            kicker="09 · Shape language"
             title="Curvas, radius e containers"
             lead="Derivado de wordmark/ícones/pictogramas — não de .cat-card."
           >
@@ -456,7 +470,7 @@ export function BrandLab() {
           {/* 4. Components — superseded presentation (código histórico; não vigente) */}
           <Section
             id="components"
-            kicker="09 · Arquivo (não vigente)"
+            kicker="10 · Arquivo (não vigente)"
             title="Primitives legados do lab"
             lead="Superseded. A direção vigente está em 02 · UI Primitives. Esta seção não compete."
           >
@@ -476,7 +490,7 @@ export function BrandLab() {
           {/* 5. Iconography */}
           <Section
             id="icons"
-            kicker="10 · Iconografia (legado lab)"
+            kicker="11 · Iconografia (legado lab)"
             title="cuidadim-icons-v2 · referência técnica"
             lead="Comparação técnica mínima. Inventário = 04 · Guide = 05. Não tratar esta grade como família aprovada."
           >

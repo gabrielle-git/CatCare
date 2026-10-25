@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { BadgeCheck, HeartPulse, Plus, Scale } from "lucide-react";
+import { ChevronRight, HeartPulse, Plus } from "lucide-react";
 import { PetAvatar } from "@/components/pet-avatar";
+import { PetsDomainTabs } from "@/components/pets-domain-tabs";
 import { getAuthenticatedContext } from "@/lib/auth-context";
-import { formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
+import { formatPetAge, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
+import { petSpeciesLabel } from "@/lib/pet-display";
 import { demoPets } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
 import { isLiveData } from "@/lib/demo-mode";
@@ -20,56 +22,82 @@ async function loadPets() {
 }
 
 export default async function PetsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
-  const { pets, configured, editable } = await loadPets();
+  const { pets, editable } = await loadPets();
   const { archived } = await searchParams;
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-5 pb-8 pt-7 md:px-8 lg:px-10 lg:py-10">
+    <div data-brand="cuidadim" data-theme="light" className="cd-pet-page cd-pet-page-list">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Nossa família</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Meus pets</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Cada pet com sua história, rotina e cuidados.</p>
+          <p className="cd-page-kicker">Pets</p>
+          <h1 className="cd-page-title">Pets</h1>
         </div>
-        {editable && <Link href="/pets/new" className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15">
-          <Plus size={18} /> <span className="hidden sm:inline">Adicionar pet</span><span className="sm:hidden">Adicionar</span>
-        </Link>}
+        {editable ? (
+          <Link
+            href="/pets/new"
+            className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15"
+          >
+            <Plus size={18} aria-hidden />
+            <span className="hidden sm:inline">Adicionar pet</span>
+            <span className="sm:hidden">Adicionar</span>
+          </Link>
+        ) : null}
       </header>
 
-      <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">A fase de vida é identificada automaticamente pela data de nascimento. A equivalência humana é aproximada e serve apenas como referência carinhosa.</p>
-      {archived && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Pet arquivado. O histórico continua guardado.</div>}
+      <div className="mt-5">
+        <PetsDomainTabs active="pets" />
+      </div>
+
+      {archived ? (
+        <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">
+          Pet arquivado. O histórico continua guardado.
+        </div>
+      ) : null}
 
       {pets.length === 0 ? (
-        <section className="cat-card mt-7 p-8 text-center">
-          <div className="mx-auto grid size-14 place-items-center rounded-[22px] bg-[var(--lavender-soft)]"><Plus size={22} /></div>
+        <section className="mt-7 rounded-[22px] border border-dashed border-[var(--border)] px-6 py-10 text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-[22px] bg-[var(--lavender-soft)]">
+            <Plus size={22} aria-hidden />
+          </div>
           <h2 className="mt-4 text-lg font-bold">Vamos cadastrar o primeiro pet?</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">A partir do perfil, você poderá registrar peso, vacinas, medicamentos e cuidados diários.</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">
+            A partir do perfil, você poderá registrar peso, vacinas, medicamentos e cuidados diários.
+          </p>
+          {editable ? (
+            <Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white">
+              <Plus size={18} aria-hidden /> Adicionar pet
+            </Link>
+          ) : null}
         </section>
       ) : (
-        <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="cd-pet-list mt-2">
           {pets.map((pet) => {
             const neonatal = isNeonatalPet(pet);
             const lifeStage = getPetLifeStage(pet.birth_date);
             const age = formatPetAge(pet.birth_date, pet.birth_date_estimated);
-            const humanAge = formatHumanEquivalentAge(pet.birth_date);
+            const meta = [petSpeciesLabel(pet.species), petLifeStageLabels[lifeStage], age].filter(Boolean).join(" · ");
             return (
-              <Link key={pet.id} href={`/pets/${pet.id}`} className="cat-card focus-ring group block p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
-                <div className="flex items-start gap-4">
-                  <PetAvatar name={pet.name} photoUrl={pet.photo_url} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <h2 className="truncate text-lg font-bold">{pet.name}</h2>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${neonatal ? "bg-[var(--rose-soft)] text-[#9a536c]" : "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"}`}>{neonatal && <HeartPulse size={11} />} {petLifeStageLabels[lifeStage]}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-[var(--muted)]">{[pet.breed, age ? `${age} de vida` : null].filter(Boolean).join(" • ") || "Complete o perfil"}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">{humanAge && <p className="text-[11px] font-semibold text-[var(--muted)]">{humanAge}</p>}{pet.neutered && <span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2 py-1 text-[9px] font-bold text-[var(--success)]"><BadgeCheck size={11} /> Castrado</span>}</div>
-                    <p className="mt-3 flex items-center gap-1.5 text-sm font-bold text-[var(--lavender-strong)]"><Scale size={15} /> {formatWeight(pet.current_weight_grams)}</p>
-                  </div>
-                </div>
-              </Link>
+              <li key={pet.id}>
+                <Link href={`/pets/${pet.id}`} className="cd-pet-list-row focus-ring">
+                  <PetAvatar name={pet.name} photoUrl={pet.photo_url} size="md" />
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="block truncate text-sm font-semibold text-[var(--text-primary)]">{pet.name}</span>
+                      {neonatal ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--rose-soft)] px-2 py-0.5 text-[10px] font-bold text-[#9a536c]">
+                          <HeartPulse size={11} aria-hidden />
+                          Neonatal
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{meta}</span>
+                  </span>
+                  <ChevronRight size={16} className="shrink-0 text-[var(--muted)]" aria-hidden />
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );

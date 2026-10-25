@@ -9,11 +9,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const showDemoBanner = hasSupabaseEnv() && (await isDemoMode());
 
   return (
-    <div className="min-h-svh lg:flex">
+    <div data-brand="cuidadim" data-theme="light" className="cd-app-canvas min-h-svh lg:flex">
       <DesktopSidebar />
       <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         <MobileHeader />
-        <main className="min-w-0 flex-1 pb-[calc(9.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main className="min-w-0 flex-1 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0">
           {showDemoBanner && (
             <div data-brand="cuidadim" data-theme="light" className="cd-app-demo-notice border-b border-[var(--border)] px-4 py-3 text-sm sm:px-5 md:px-8">
               <strong>Modo demonstração.</strong>{" "}

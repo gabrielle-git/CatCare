@@ -1,48 +1,54 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { Plus, Wallet } from "lucide-react";
 import { FinalLogoImg, FinalNavImg } from "@/components/brand/cuidadim/final-asset-img";
 import { FourPointStar } from "@/components/brand/cuidadim/icons/FourPointStar";
 import { IconFamilia } from "@/components/brand/cuidadim/icons/icons";
-import { MoreMenuPopover } from "@/components/more-menu-sheet";
 import { ShellNavLink } from "@/components/shell-nav-link";
 import {
   ACCOUNT_LINK,
   ASSISTANT_UTILITY,
-  MORE_ACTION,
   PRIMARY_NAV,
-  REGISTER_ACTION,
+  type PrimaryNavId,
   resolveShellTarget,
 } from "@/lib/app-navigation";
 import { isRecordEditPath } from "@/lib/record-edit-nav";
 
-/** Desktop rail (lg+) — Visual Freeze V1 "Desktop A · rail compacto". */
+const LOGO_WIDTH = 70;
+
+function PrimaryNavIcon({ id }: { id: PrimaryNavId }) {
+  if (id === "registrar") {
+    return (
+      <span className="cd-shell-nav-action" aria-hidden="true">
+        <Plus size={14} strokeWidth={2} />
+      </span>
+    );
+  }
+  if (id === "financas") return <Wallet size={18} strokeWidth={1.6} aria-hidden="true" />;
+  if (id === "inicio") return <FinalNavImg id="agora" theme="light" size={18} />;
+  return <FinalNavImg id={id} theme="light" size={18} />;
+}
+
+/** Desktop rail (lg+) — Exploration B: Início · Pets · Registrar · Cuidados · Finanças. */
 export function DesktopSidebar() {
   const pathname = usePathname();
   const forceDocumentNav = isRecordEditPath(pathname);
   const target = resolveShellTarget(pathname);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [moreBottom, setMoreBottom] = useState(0);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
-
-  const registerActive = target === "register";
   const assistantActive = target === "assistant";
   const accountActive = target === "account";
-  const moreActive = moreOpen || target === "more";
-
-  function openMore() {
-    const rect = moreButtonRef.current?.getBoundingClientRect();
-    setMoreBottom(rect ? Math.max(8, window.innerHeight - rect.bottom) : 8);
-    setMoreOpen(true);
-  }
 
   return (
     <aside data-brand="cuidadim" data-theme="light" className="sticky top-0 hidden h-svh w-[84px] shrink-0 lg:block">
       <div className="cd-med-rail cd-app-rail">
-        <ShellNavLink href="/" forceDocumentNav={forceDocumentNav} className="cd-app-rail-brand focus-ring">
-          <FinalLogoImg theme="light" compact />
+        <ShellNavLink
+          href="/"
+          forceDocumentNav={forceDocumentNav}
+          className="cd-app-rail-brand focus-ring"
+          style={{ width: LOGO_WIDTH }}
+          aria-label="Cuidadim"
+        >
+          <FinalLogoImg theme="light" className="cd-app-rail-logo-img" />
         </ShellNavLink>
 
         <ShellNavLink
@@ -65,15 +71,16 @@ export function DesktopSidebar() {
                 href={item.href}
                 forceDocumentNav={forceDocumentNav}
                 className="cd-med-item focus-ring"
+                data-nav={item.id}
                 data-active={active ? "true" : undefined}
                 aria-current={active ? "page" : undefined}
               >
-                <FinalNavImg id={item.id} theme="light" size={18} />
+                <PrimaryNavIcon id={item.id} />
                 <span>{item.label}</span>
                 {active ? (
                   <>
                     <span className="cd-rail-indicator" aria-hidden="true" />
-                    <FourPointStar size={6} className="cd-nav-star cd-rail-star" />
+                    <FourPointStar size={6} color="#A8834A" className="cd-nav-star cd-rail-star" />
                   </>
                 ) : null}
               </ShellNavLink>
@@ -82,32 +89,6 @@ export function DesktopSidebar() {
         </nav>
 
         <div className="cd-med-rail-footer">
-          <ShellNavLink
-            href={REGISTER_ACTION.href}
-            forceDocumentNav={forceDocumentNav}
-            className="cd-reg-soft cd-reg-rail focus-ring"
-            data-active={registerActive ? "true" : undefined}
-            aria-current={registerActive ? "page" : undefined}
-            aria-label={REGISTER_ACTION.label}
-          >
-            <span>{REGISTER_ACTION.shortLabel}</span>
-            {registerActive ? <FourPointStar size={9} /> : null}
-          </ShellNavLink>
-
-          <button
-            ref={moreButtonRef}
-            type="button"
-            onClick={openMore}
-            className="cd-med-mais focus-ring"
-            data-active={moreActive ? "true" : undefined}
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            aria-label="Abrir menu Mais"
-          >
-            <span>{MORE_ACTION.label}</span>
-            <ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" className={moreOpen ? "cd-home-pets-chevron-open" : undefined} />
-          </button>
-
           <ShellNavLink
             href={ACCOUNT_LINK.href}
             forceDocumentNav={forceDocumentNav}
@@ -121,8 +102,6 @@ export function DesktopSidebar() {
           </ShellNavLink>
         </div>
       </div>
-
-      <MoreMenuPopover open={moreOpen} onClose={() => setMoreOpen(false)} bottomOffset={moreBottom} />
     </aside>
   );
 }

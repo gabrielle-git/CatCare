@@ -19,7 +19,6 @@ import {
   MORE_ACTION,
   PRIMARY_NAV,
   REGISTER_ACTION,
-  isMobileMoreActive,
   resolveShellTarget,
 } from "./app-navigation";
 import { MORE_MENU_ACCOUNT, MORE_MENU_GROUPS, isMoreMenuPath } from "./more-menu";
@@ -233,124 +232,111 @@ describe("family history + more navigation contracts", () => {
     assert.equal(panel.includes("absolute left-"), false);
   });
 
-  it("N. shell contract: exactly four primary destinations; Registrar, Mais and Assistente are not tabs", () => {
+  it("N. shell contract B: five primary destinations including Registrar; Início not Agora", () => {
     assert.deepEqual(
       PRIMARY_NAV.map(({ id, label, href }) => ({ id, label, href })),
       [
-        { id: "agora", label: "Agora", href: "/" },
+        { id: "inicio", label: "Início", href: "/" },
         { id: "pets", label: "Pets", href: "/pets" },
-        { id: "cuidados", label: "Cuidados", href: "/historico" },
-        { id: "memorias", label: "Memórias", href: "/memories" },
+        { id: "registrar", label: "Registrar", href: "/records/new" },
+        { id: "cuidados", label: "Cuidados", href: "/cuidados" },
+        { id: "financas", label: "Finanças", href: "/financas" },
       ],
     );
-    const primaryHrefs = PRIMARY_NAV.map((item) => item.href);
+    assert.equal(PRIMARY_NAV.find((item) => item.id === "registrar")?.action, true);
     assert.equal(REGISTER_ACTION.href, "/records/new");
     assert.equal(REGISTER_ACTION.label, "Registrar cuidado");
     assert.equal(MORE_ACTION.href, "/more");
     assert.equal(ASSISTANT_UTILITY.href, "/assistant");
-    for (const href of [REGISTER_ACTION.href, MORE_ACTION.href, ASSISTANT_UTILITY.href, ACCOUNT_LINK.href, "/agenda"]) {
+    assert.equal(ACCOUNT_LINK.href, MORE_MENU_ACCOUNT.href);
+    const primaryHrefs = PRIMARY_NAV.map((item) => item.href);
+    for (const href of [MORE_ACTION.href, ASSISTANT_UTILITY.href, ACCOUNT_LINK.href, "/memories", "/agenda"]) {
       assert.equal(primaryHrefs.includes(href), false, `${href} must not be a primary destination`);
     }
-    assert.equal(ACCOUNT_LINK.href, MORE_MENU_ACCOUNT.href);
   });
 
-  it("O. mobile: dock renders the four destinations; Registrar cuidado and Mais sit outside the dock", () => {
+  it("O. mobile B: five-destination dock with Registrar inside; Assistente/Conta in header", () => {
     const bottom = readSrc("components/bottom-nav.tsx");
     assert.ok(bottom.includes("lg:hidden"));
-    assert.ok(bottom.includes("cd-mob-dock-4"));
-    assert.ok(bottom.includes("cd-mob-action-strip"));
-    assert.ok(bottom.includes("MoreMenuSheet"));
-    assert.ok(bottom.includes("Abrir menu Mais"));
-    assert.equal(bottom.includes("grid-cols-5"), false);
-    assert.equal(bottom.includes('label: "Agenda"'), false);
+    assert.ok(bottom.includes("cd-app-dock-b"));
+    assert.equal(bottom.includes("cd-mob-dock-4"), false);
+    assert.equal(bottom.includes("cd-mob-action-strip"), false);
+    assert.equal(bottom.includes("MoreMenuSheet"), false);
 
     const dock = bottom.slice(bottom.indexOf("<nav"), bottom.indexOf("</nav>"));
     assert.ok(dock.includes("PRIMARY_NAV.map"));
-    assert.equal(dock.includes("REGISTER_ACTION"), false, "Registrar must not be a dock tab");
-    assert.equal(dock.includes("MORE_ACTION"), false, "Mais must not be a dock tab");
-
-    const strip = bottom.slice(bottom.indexOf("cd-mob-action-strip"), bottom.indexOf("<nav"));
-    assert.ok(strip.includes("REGISTER_ACTION.href"));
-    assert.ok(strip.includes("MORE_ACTION.label"));
+    assert.ok(dock.includes('data-nav={item.id}'));
 
     const header = readSrc("components/mobile-header.tsx");
     assert.ok(header.includes("lg:hidden"));
     assert.ok(header.includes("ASSISTANT_UTILITY.href"));
+    assert.ok(header.includes("ACCOUNT_LINK.href"));
+    assert.equal(header.includes("MoreMenuSheet"), false);
+    assert.equal(header.includes("Abrir menu Mais"), false);
   });
 
-  it("P–Y. Mais groups secondary resources: Cuidados areas, Casa e finanças, Conta", () => {
+  it("P–Y. M1B.3: Mais trigger gone; Memórias lives in Pets; /more still routable", () => {
     const sheet = readSrc("components/more-menu-sheet.tsx");
     assert.ok(sheet.includes("Mais recursos"));
     assert.ok(sheet.includes('aria-label="Fechar menu Mais"'));
     assert.ok(sheet.includes("showModal"));
 
-    assert.deepEqual(
-      MORE_MENU_GROUPS.map((group) => ({ label: group.label, items: group.items.map((item) => [item.label, item.href]) })),
-      [
-        {
-          label: "Cuidados",
-          items: [["Agenda", "/agenda"], ["Rotinas", "/routines"], ["Neonatal", "/neonatal"], ["Plano de saúde", "/health-plan"]],
-        },
-        { label: "Casa e finanças", items: [["Gastos", "/expenses"], ["Compras", "/shopping"]] },
-      ],
-    );
-    const labels = MORE_MENU_GROUPS.flatMap((group) => group.items.map((item) => item.label));
-    for (const label of ["Memórias", "Assistente", "Histórico"]) {
-      assert.equal(labels.includes(label), false, `${label} belongs to the shell, not Mais`);
-    }
+    assert.deepEqual(MORE_MENU_GROUPS, []);
     assert.equal(MORE_MENU_ACCOUNT.label, "Conta e família");
     assert.equal(MORE_MENU_ACCOUNT.href, "/settings");
-    assert.ok(isMoreMenuPath("/agenda"));
-    assert.ok(isMoreMenuPath("/neonatal/historico"));
-    assert.ok(isMoreMenuPath("/expenses"));
-    assert.ok(isMoreMenuPath("/settings/members"));
-    assert.equal(isMoreMenuPath("/historico"), false);
     assert.equal(isMoreMenuPath("/memories"), false);
+    assert.ok(isMoreMenuPath("/more"));
+    assert.equal(isMoreMenuPath("/agenda"), false);
+    assert.equal(isMoreMenuPath("/expenses"), false);
+    assert.equal(isMoreMenuPath("/settings"), false);
+    assert.equal(isMoreMenuPath("/historico"), false);
   });
 
-  it("Z. desktop rail: brand, Assistente, four destinations, Registrar, Mais popover, Conta; record-edit safety kept", () => {
+  it("Z. desktop rail B: brand, Assistente, five destinations, Conta; Mais trigger removed", () => {
     const sidebar = readSrc("components/desktop-sidebar.tsx");
     assert.ok(sidebar.includes("hidden") && sidebar.includes("lg:block"));
-    for (const token of ["FinalLogoImg", "ASSISTANT_UTILITY.href", "PRIMARY_NAV.map", "REGISTER_ACTION.href", "MoreMenuPopover", "ACCOUNT_LINK.href", "isRecordEditPath"]) {
+    for (const token of ["FinalLogoImg", "ASSISTANT_UTILITY.href", "PRIMARY_NAV.map", "ACCOUNT_LINK.href", "isRecordEditPath", "LOGO_WIDTH"]) {
       assert.ok(sidebar.includes(token), `missing ${token}`);
     }
+    assert.equal(sidebar.includes("MoreMenuPopover"), false);
+    assert.equal(sidebar.includes("Abrir menu Mais"), false);
     assert.equal(sidebar.includes("MoreMenuSheet"), false);
-    assert.equal(sidebar.includes('label: "Início"'), false);
+    assert.ok(sidebar.includes("data-nav={item.id}"));
+    assert.equal(PRIMARY_NAV[0].label, "Início");
     const link = readSrc("components/shell-nav-link.tsx");
     assert.ok(link.includes("prefetch={false}"));
     assert.ok(link.includes("<a href={href}"));
   });
 
-  it("active route contract", () => {
+  it("active route contract B", () => {
     const cases: [string, ReturnType<typeof resolveShellTarget>][] = [
-      ["/", "agora"],
+      ["/", "inicio"],
       ["/pets", "pets"],
       ["/pets/new", "pets"],
       ["/pets/abc", "pets"],
       ["/pets/abc/historico", "pets"],
       ["/pets/abc/neonatal-history", "pets"],
+      ["/cuidados", "cuidados"],
       ["/historico", "cuidados"],
       ["/agenda", "cuidados"],
       ["/agenda/abc/edit", "cuidados"],
       ["/routines/abc", "cuidados"],
       ["/neonatal/historico", "cuidados"],
-      ["/health-plan/guides/abc", "cuidados"],
-      ["/memories/new", "memorias"],
-      ["/records/new", "register"],
+      ["/financas", "financas"],
+      ["/expenses", "financas"],
+      ["/shopping/products/abc/edit", "financas"],
+      ["/health-plan/guides/abc", "financas"],
+      ["/memories/new", "pets"],
+      ["/records/new", "registrar"],
       ["/records/abc/edit", null],
       ["/assistant", "assistant"],
       ["/settings/members", "account"],
-      ["/expenses", "more"],
-      ["/shopping/products/abc/edit", "more"],
       ["/more", "more"],
       ["/petsitter", null],
     ];
     for (const [pathname, expected] of cases) {
       assert.equal(resolveShellTarget(pathname), expected, pathname);
     }
-    assert.ok(isMobileMoreActive("account"));
-    assert.ok(isMobileMoreActive("more"));
-    assert.equal(isMobileMoreActive("cuidados"), false);
   });
 
   it("home composition still simplified", () => {

@@ -18,10 +18,14 @@ export function WeightChart({
   data,
   petId,
   petName,
+  historyHref,
+  registerHref,
 }: {
   data: WeightChartPoint[];
   petId: string;
   petName: string;
+  historyHref?: string;
+  registerHref?: string;
 }) {
   if (data.length === 0) {
     return (
@@ -58,19 +62,30 @@ export function WeightChart({
   const deltaLabel = delta === 0 ? "estável" : `${delta > 0 ? "+" : "−"}${formatWeight(Math.abs(delta)).replace(" kg", "")} kg`;
 
   return (
-    <section className="cat-card p-5 md:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <section className="cd-weight-block">
+      <div className="cd-weight-head">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Acompanhamento</p>
-          <h2 className="mt-1 text-xl font-bold">Evolução do peso</h2>
+          <p className="cd-pet-section-title">Peso</p>
+          <h2 className="cd-body mt-1 font-semibold">Último: {formatWeight(last.grams)} · {formatShortDate(last.date)}</h2>
+          <p className="cd-meta mt-1">{data.length} {data.length === 1 ? "pesagem" : "pesagens"} · {deltaLabel}</p>
         </div>
-        <div className="text-right">
-          <p className="text-lg font-bold">{formatWeight(last.grams)}</p>
-          <p className="text-[11px] font-semibold text-[var(--muted)]">{data.length} {data.length === 1 ? "pesagem" : "pesagens"} · {deltaLabel}</p>
-        </div>
+        {historyHref || registerHref ? (
+          <div className="cd-pet-links cd-weight-actions">
+            {historyHref ? (
+              <Link href={historyHref} className="cd-pet-text-link focus-ring">
+                Ver histórico
+              </Link>
+            ) : null}
+            {registerHref ? (
+              <Link href={registerHref} className="cd-pet-text-link focus-ring">
+                Registrar peso
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="mt-4 h-auto w-full" role="img" aria-label={`Gráfico de peso de ${petName}`}>
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" className="cd-weight-chart" role="img" aria-label={`Gráfico de peso de ${petName}`}>
         <defs>
           <linearGradient id="weightFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#8e7dbe" stopOpacity="0.28" />
