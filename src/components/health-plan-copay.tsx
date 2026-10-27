@@ -125,6 +125,7 @@ export function HealthPlanServiceFields({
 
   return (
     <div className="space-y-3">
+      <input type="hidden" name="copay_rules_submitted" value="1" />
       {HEALTH_COPAY_SERVICES.map((service) => {
         const rule = map.get(service.type);
         const defaultCopay = rule?.copay_cents != null ? (rule.copay_cents / 100).toFixed(2) : "";

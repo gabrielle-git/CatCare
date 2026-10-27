@@ -99,6 +99,7 @@ export async function syncTemplateCoverageToPlans(supabase: SupabaseClient, temp
 }
 
 export type ExistingHealthPlanRef = {
+  id?: string;
   pet_id: string;
   pet_name?: string;
   provider: HealthPlanProvider;
@@ -150,7 +151,13 @@ function activeSamePlanGroup(
   planName: string,
   templateId?: string | null,
 ) {
-  return existingPlans.filter((plan) => plan.active && sameHealthPlan(provider, planName, plan, templateId));
+  const matching = existingPlans.filter((plan) => plan.active && sameHealthPlan(provider, planName, plan, templateId));
+  const byPet = new Map<string, ExistingHealthPlanRef>();
+  for (const plan of matching) {
+    const current = byPet.get(plan.pet_id);
+    if (!current || planSortTime(plan) < planSortTime(current)) byPet.set(plan.pet_id, plan);
+  }
+  return [...byPet.values()];
 }
 
 /**
@@ -205,35 +212,64 @@ export function petDiscountHint(
       : "Nenhum outro pet neste plano ainda.";
   const ordinal = `${position}º`;
   const verb = mode === "edit" ? "é" : "será";
-  if (discount === 0) return `${already} Este ${verb} o ${ordinal} pet — mensalidade cheia.`;
-  return `${already} Este ${verb} o ${ordinal} pet — ${discount}% de desconto na mensalidade (Petlove).`;
+  if (discount === 0) {
+    return `${already} Referência de tabela: este ${verb} o ${ordinal} pet, sem desconto. O valor do campo é o que será salvo.`;
+  }
+  return `${already} Referência de tabela: este ${verb} o ${ordinal} pet, ${discount}% sobre o preço cheio. O valor do campo é o que será salvo; a operadora pode cobrar outro.`;
 }
 
 export function petlovePositionBadge(position: number) {
   const discount = petloveDiscountPercent(position);
-  if (discount === 0) return `${position}º pet · mensalidade cheia`;
-  return `${position}º pet · ${discount}% off`;
+  if (discount === 0) return `${position}º pet · tabela cheia`;
+  return `${position}º pet · referência ${discount}%`;
 }
 
-/** Posição de cada pet ativo no mesmo plano Petlove (por id do pet). */
-export function mapPetlovePlanPositions(existingPlans: ExistingHealthPlanRef[]) {
-  const result = new Map<string, { position: number; discountPercent: number; suggestedFeeCents: number }>();
+/** Input text for the reference fee. This is a table suggestion, not a charge from the insurer. */
+export function suggestedMonthlyFeeInput(position: number, baseFeeCents = PETLOVE_LEVE_REFERENCE.baseMonthlyFeeCents) {
+  return (petloveFeeForPosition(position, baseFeeCents) / 100).toFixed(2);
+}
 
-  for (const plan of existingPlans) {
-    if (!plan.active || plan.provider !== "petlove") continue;
-    if (result.has(plan.pet_id)) continue;
-
-    const group = activeSamePlanGroup(existingPlans, plan.provider, plan.plan_name, plan.template_id);
-    const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
-    ordered.forEach((item, index) => {
-      const position = index + 1;
-      result.set(item.pet_id, {
-        position,
-        discountPercent: petloveDiscountPercent(position),
-        suggestedFeeCents: petloveFeeForPosition(position),
-      });
-    });
+/**
+ * The field shows the table suggestion on create until the person types.
+ * Edit mode and a typed value keep the contractual amount already chosen.
+ */
+export function resolveMonthlyFeeField(input: {
+  mode: "create" | "edit";
+  provider: string;
+  position: number;
+  touched: boolean;
+  manualFee: string;
+}) {
+  if (input.mode === "create" && input.provider === "petlove" && !input.touched) {
+    return suggestedMonthlyFeeInput(input.position);
   }
+  return input.manualFee;
+}
 
+export type PetlovePlanPosition = { position: number; discountPercent: number; suggestedFeeCents: number };
+
+/** Position of this plan's pet inside its own Petlove product group. Inactive plans have none. */
+export function petlovePositionForPlan(existingPlans: ExistingHealthPlanRef[], plan: ExistingHealthPlanRef): PetlovePlanPosition | null {
+  if (!plan.active || plan.provider !== "petlove") return null;
+  const group = activeSamePlanGroup(existingPlans, plan.provider, plan.plan_name, plan.template_id);
+  const ordered = [...group].sort((a, b) => planSortTime(a) - planSortTime(b) || a.pet_id.localeCompare(b.pet_id));
+  const index = ordered.findIndex((item) => item.pet_id === plan.pet_id);
+  if (index < 0) return null;
+  const position = index + 1;
+  return {
+    position,
+    discountPercent: petloveDiscountPercent(position),
+    suggestedFeeCents: petloveFeeForPosition(position),
+  };
+}
+
+/** Keyed by plan id so two Petlove products on the same pet keep their own labels. */
+export function mapPetlovePlanPositions(existingPlans: ExistingHealthPlanRef[]) {
+  const result = new Map<string, PetlovePlanPosition>();
+  for (const plan of existingPlans) {
+    if (!plan.id) continue;
+    const position = petlovePositionForPlan(existingPlans, plan);
+    if (position) result.set(plan.id, position);
+  }
   return result;
 }
