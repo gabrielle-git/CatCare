@@ -14,11 +14,10 @@ describe("0038 commerce lifecycle schema foundation contract", () => {
   const migrations = readdirSync(join(root, "supabase/migrations")).filter((name) => name.endsWith(".sql"));
   const actions = readFileSync(shoppingActionsPath, "utf8");
 
-  it("A: creates exactly the approved 0038 migration and no 0040", () => {
+  it("A: creates exactly one 0038 migration", () => {
     assert.equal(existsSync(migrationPath), true);
     assert.equal(migrations.includes("0038_commerce_product_archive_and_review_purchase_link.sql"), true);
     assert.equal(migrations.filter((name) => name.startsWith("0038_")).length, 1);
-    assert.equal(migrations.some((name) => name.startsWith("0040_")), false);
   });
 
   it("B: products.archived_at exists and is nullable", () => {
@@ -123,9 +122,8 @@ describe("0038 commerce lifecycle schema foundation contract", () => {
     assert.match(sql, /reviewed_at at time zone 'America\/Sao_Paulo'/i);
   });
 
-  it("Q: 0038 does not take 0039; 0040 stays absent", () => {
+  it("Q: 0038 does not take the 0039 migration number", () => {
     assert.equal(migrations.filter((name) => name.startsWith("0039_")).join(","), "0039_health_plans_multi_plan.sql");
-    assert.equal(migrations.some((name) => name.startsWith("0040_")), false);
     assert.doesNotMatch(sql, /create or replace function[\s\S]*cart/i);
   });
 

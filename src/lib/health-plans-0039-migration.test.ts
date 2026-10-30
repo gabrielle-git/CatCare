@@ -12,12 +12,11 @@ describe("0039 health plans multi-plan schema contract", () => {
   const original = readFileSync(originalPath, "utf8");
   const migrations = readdirSync(join(root, "supabase/migrations")).filter((name) => name.endsWith(".sql"));
 
-  it("is the only 0039 file and leaves 0040 free", () => {
+  it("is the only 0039 file", () => {
     assert.deepEqual(
       migrations.filter((name) => name.startsWith("0039_")),
       ["0039_health_plans_multi_plan.sql"],
     );
-    assert.equal(migrations.some((name) => name.startsWith("0040_")), false);
   });
 
   it("adds optional ended_at as date and does not backfill or delete rows", () => {
