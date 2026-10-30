@@ -39,7 +39,7 @@ function ReminderRows({ items, names, editable, late = false }: { items: Reminde
   })}</div>;
 }
 
-export default async function AgendaPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
+export default async function AgendaPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
   const [{ pets, reminders, configured, editable, now }, flags] = await Promise.all([loadAgenda(), searchParams]);
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
   const today = new Date(now); today.setHours(0, 0, 0, 0);
@@ -53,6 +53,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   return <div className="mx-auto w-full max-w-[980px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Rotina organizada</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Agenda</h1><p className="mt-2 max-w-[620px] text-sm text-[var(--muted)]">Hoje, amanhã e tudo que não pode ficar só na memória.</p></div>{editable && <Link href="/agenda/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Novo lembrete</Link>}</header>
     {flags.saved && <div className="mt-6 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Lembrete salvo. A família já pode se organizar.</div>}
+    {flags.error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-[var(--danger)]">{flags.error}</div>}
     <section className="mt-7 cat-card overflow-hidden"><div className="flex items-center justify-between bg-[linear-gradient(135deg,var(--lavender-soft),var(--rose-soft))] p-5 md:p-6"><div><p className="text-xs font-semibold text-[var(--muted)]">Próxima ação</p><p className="mt-1 text-lg font-bold">{[...late, ...todayItems, ...tomorrowItems, ...later][0]?.title || "Tudo em dia"}</p>{[...late, ...todayItems, ...tomorrowItems, ...later][0] && <p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime([...late, ...todayItems, ...tomorrowItems, ...later][0].due_at)}</p>}</div><span className="grid size-12 place-items-center rounded-[19px] bg-white/75"><CalendarDays size={22} /></span></div></section>
     <div className="mt-7 space-y-7">
       {late.length > 0 && <section><div className="mb-3 flex items-center gap-2"><span className="size-2.5 rounded-full bg-[var(--danger)]" /><h2 className="text-lg font-bold">Atrasados</h2><span className="text-sm text-[var(--muted)]">{late.length}</span></div><ReminderRows items={late} names={names} editable={editable} late /></section>}

@@ -12,6 +12,7 @@ import {
 import { ensureHousehold } from "@/lib/households";
 import { assertCanEdit } from "@/lib/roles";
 import { parsePetIds, resolveOptionalPetId } from "@/lib/pet-form";
+import { recurrenceAnchorDayForSave } from "@/lib/reminder-recurrence";
 import { createClient } from "@/lib/supabase/server";
 
 const value = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
@@ -94,6 +95,8 @@ export async function createReminder(formData: FormData): Promise<CreateReminder
 
     const { error } = await supabase.from("reminders").insert({
       id: reminderId,
+      series_id: reminderId,
+      recurrence_anchor_day: recurrence === "monthly" ? Number(dueAt.slice(8, 10)) : null,
       ...common,
       pet_id: target.petId,
     });
@@ -114,8 +117,12 @@ export async function createReminder(formData: FormData): Promise<CreateReminder
 }
 
 export async function completeReminder(reminderId: string) {
-  const { supabase, household } = await authContext();
-  await supabase.from("reminders").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", reminderId).eq("household_id", household.id);
+  const { supabase } = await authContext();
+  const { data, error } = await supabase.rpc("complete_reminder", { p_id: reminderId });
+  const result = data as { ok?: boolean } | null;
+  if (error || result?.ok !== true) {
+    redirect("/agenda?error=N%C3%A3o%20foi%20poss%C3%ADvel%20concluir%20este%20lembrete.");
+  }
   revalidatePath("/agenda");
   revalidatePath("/");
 }
@@ -127,7 +134,15 @@ export async function updateReminder(reminderId: string, formData: FormData) {
   if (!title || !categories.has(category) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dueAt)) redirect(`/agenda/${reminderId}/edit?error=Confira%20o%20t%C3%ADtulo%2C%20a%20categoria%20e%20a%20data.`);
   const recurrence = value(formData, "recurrence");
   const recurrenceRule = recurrence === "daily" ? "FREQ=DAILY" : recurrence === "weekly" ? "FREQ=WEEKLY" : recurrence === "monthly" ? "FREQ=MONTHLY" : null;
+  const recurrenceForm = recurrence === "daily" || recurrence === "weekly" || recurrence === "monthly" ? recurrence : "none";
   const { supabase, household } = await authContext();
+  const { data: current, error: currentError } = await supabase
+    .from("reminders")
+    .select("due_at, recurrence_rule, recurrence_anchor_day")
+    .eq("id", reminderId)
+    .eq("household_id", household.id)
+    .maybeSingle();
+  if (currentError || !current) redirect(`/agenda/${reminderId}/edit?error=N%C3%A3o%20foi%20poss%C3%ADvel%20atualizar%20este%20lembrete.`);
   const petIds = parsePetIds(formData);
   const petId = resolveOptionalPetId(petIds);
   const { error } = await supabase.from("reminders").update({
@@ -136,6 +151,14 @@ export async function updateReminder(reminderId: string, formData: FormData) {
     category,
     due_at: `${dueAt}:00-03:00`,
     recurrence_rule: recurrenceRule,
+    recurrence_anchor_day: recurrenceAnchorDayForSave({
+      recurrence: recurrenceForm,
+      submittedDue: dueAt,
+      currentDueAt: current.due_at,
+      currentRule: current.recurrence_rule,
+      currentAnchor: current.recurrence_anchor_day,
+      adoptDisplayedDay: formData.get("adopt_displayed_day") === "1",
+    }),
     notes: value(formData, "notes") || null,
     updated_at: new Date().toISOString(),
   }).eq("id", reminderId).eq("household_id", household.id);

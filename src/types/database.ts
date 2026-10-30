@@ -136,6 +136,8 @@ export type Reminder = {
   category: string;
   due_at: string;
   recurrence_rule: string | null;
+  series_id?: string;
+  recurrence_anchor_day?: number | null;
   status: ReminderStatus;
   completed_at: string | null;
   notes: string | null;
