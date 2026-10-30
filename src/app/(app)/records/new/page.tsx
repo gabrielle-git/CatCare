@@ -43,20 +43,20 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
   const options = pets.map((pet) => ({ id: pet.id, name: pet.name, neonatal: isNeonatalPet(pet), species: pet.species }));
 
   return (
-    <div className="mx-auto w-full max-w-[860px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
-      <Link href={backHref} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</Link>
+    <div className="cd-pet-page">
+      <Link href={backHref} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-semibold text-[var(--muted)]"><ArrowLeft size={16} aria-hidden /> Voltar</Link>
       <header className="mt-5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Um toque para registrar</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">O que aconteceu?</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">Peso, saúde e cuidados ficam juntos na linha do tempo do pet.</p>
+        <p className="cd-page-kicker">Um toque para registrar</p>
+        <h1 className="cd-page-title">Registrar cuidado</h1>
+        <p className="cd-page-lede">Registre saúde, rotina e cuidados na história do seu pet.</p>
       </header>
 
-      {query.error && <div role="alert" className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{query.error}</div>}
+      {query.error && <div role="alert" className="mt-6 text-sm font-semibold text-[var(--danger)]">{query.error}</div>}
 
       {configured && pets.length === 0 ? (
-        <section className="cat-card mt-6 p-7 text-center"><h2 className="text-lg font-bold">Primeiro precisamos de um pet</h2><p className="mt-2 text-sm text-[var(--muted)]">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={17} /> Adicionar pet</Link></section>
+        <section className="mt-8"><h2 className="cd-pet-section-title">Primeiro um pet</h2><p className="cd-body">Cadastre o perfil para associar os cuidados corretamente.</p><Link href="/pets/new" className="focus-ring mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lavender-strong)]"><Plus size={15} aria-hidden /> Adicionar pet</Link></section>
       ) : (
-        <DirectUploadForm action={createRecord} mode="records-create" className="cat-card mt-6 p-5 md:p-7">
+        <DirectUploadForm action={createRecord} mode="records-create" className="mt-6" previewOnly={!configured}>
           <RecordFields
             key={`${query.pet ?? ""}-${query.type ?? ""}-${query.types ?? ""}-${initialTitle ?? ""}-${query.lock_type ?? ""}-${query.vaccine_key ?? ""}-${query.dose_label ?? ""}-${returnTo ?? ""}-${query.context ?? ""}`}
             pets={options}
@@ -69,7 +69,6 @@ export default async function NewRecordPage({ searchParams }: { searchParams: Pr
             initialDoseLabel={query.dose_label}
             returnTo={returnTo}
             neonatalContext={neonatalContext}
-            disabled={!configured}
           />
         </DirectUploadForm>
       )}

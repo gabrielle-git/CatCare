@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   collectAttachmentIntentsFromForm,
   compensateIfNeeded,
   runDirectAttachmentUploads,
 } from "@/lib/attachment-direct-upload-client";
 import { resolveDirectUploadActionOutcome } from "@/lib/record-create-result";
+import { recordFormSubmitMode } from "@/lib/record-notes";
 
 type Mode = "records-create" | "records-edit" | "documents";
 
@@ -21,6 +22,7 @@ export function DirectUploadForm({
   mode,
   onActionResult,
   initialError,
+  previewOnly = false,
 }: {
   action: (formData: FormData) => void | Promise<unknown>;
   className?: string;
@@ -29,15 +31,31 @@ export function DirectUploadForm({
   /** For edit-record style results that return { ok, redirectTo }. */
   onActionResult?: (result: unknown) => void;
   initialError?: string | null;
+  /** Demo preview: keep the form interactive and never upload or call the server action. */
+  previewOnly?: boolean;
 }) {
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [status, setStatus] = useState<string | null>(null);
+  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
+  const previewRef = useRef<HTMLParagraphElement>(null);
   const [pending, startTransition] = useTransition();
+  const preview = recordFormSubmitMode(previewOnly) === "preview";
+
+  useEffect(() => {
+    if (previewNotice) previewRef.current?.scrollIntoView({ block: "nearest" });
+  }, [previewNotice]);
 
   return (
     <form
       className={className}
-      action={(formData) => {
+      onSubmit={preview ? (event) => {
+        event.preventDefault();
+        setError(null);
+        setStatus(null);
+        setPreviewNotice("Prévia concluída — nenhum dado foi salvo.");
+      } : undefined}
+      action={preview ? undefined : (formData) => {
+        setPreviewNotice(null);
         startTransition(async () => {
           setError(null);
           setStatus(null);
@@ -95,6 +113,11 @@ export function DirectUploadForm({
         </p>
       ) : null}
       {children}
+      {previewNotice ? (
+        <p ref={previewRef} className="cd-preview-status" role="status">
+          {previewNotice}
+        </p>
+      ) : null}
     </form>
   );
 }

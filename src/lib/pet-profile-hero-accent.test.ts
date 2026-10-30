@@ -84,10 +84,13 @@ describe("wave-2b profile hero builtin surface calibration", () => {
     assert.ok(filterBuiltinPetAvatars("other").every((item) => item.category === "other"));
   });
 
-  it("pet profile page applies resolveProfileHeroBackground without photo sampling", () => {
+  it("M1B light pet header: no hero gradient sampling on overview/chrome", () => {
     const page = readFileSync(join(root, "src/app/(app)/pets/[id]/page.tsx"), "utf8");
-    assert.match(page, /resolveProfileHeroBackground\(pet\.photo_path\)/);
-    assert.match(page, /style=\{\{ backgroundImage: heroBackground \}\}/);
-    assert.doesNotMatch(page, /getImageData|canvas|createImageBitmap|vibrant|color-thief/i);
+    const chrome = readFileSync(join(root, "src/components/pet-chrome.tsx"), "utf8");
+    // Approved M0.1V.1 direction: light header — hero tint stays in the avatar lib for other surfaces.
+    assert.doesNotMatch(page, /resolveProfileHeroBackground/);
+    assert.doesNotMatch(chrome, /resolveProfileHeroBackground/);
+    assert.doesNotMatch(page + chrome, /getImageData|createImageBitmap|vibrant|color-thief/i);
+    assert.match(chrome, /cd-pet-head/);
   });
 });

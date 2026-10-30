@@ -1,217 +1,273 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, BadgeCheck, Bug, Cpu, FileStack, HeartPulse, Pencil, Pill, Plus, Scale, Sparkles, Syringe } from "lucide-react";
-import { PetMicrochipSummary } from "@/components/pet-microchip-summary";
-import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
-import { PetProfilePhotoControl, PetAvatar } from "@/components/pet-avatar";
+import { Bug, HeartPulse, Pill, Plus, Scale, Syringe } from "lucide-react";
+import { PetChrome } from "@/components/pet-chrome";
 import { TimelineList } from "@/components/timeline-list";
-import { WeightChart } from "@/components/weight-chart";
-import { formatBirthDate, formatHumanEquivalentAge, formatPetAge, formatWeight, getPetLifeStage, isNeonatalPet, petLifeStageLabels } from "@/lib/format";
+import { formatShortDate, formatWeight, isNeonatalPet } from "@/lib/format";
+import { healthPlanContextLabel, listHealthPlansForPet } from "@/lib/health-plan";
+import { isRecentWeightDate } from "@/lib/pet-display";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
-import { countPetDocuments } from "@/lib/documents";
 import { getPet } from "@/lib/pets";
-import { isNeonatalTimelineItem, listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
 import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
 import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
-import { buildVaccineSchedule, type AppliedDose } from "@/lib/vaccine-schedule";
+import { buildVaccineSchedule, firstActionableVaccine, type AppliedDose } from "@/lib/vaccine-schedule";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { isLiveData } from "@/lib/demo-mode";
 import { getPerfTraceId, timed } from "@/lib/perf";
-import { resolveProfileHeroBackground } from "@/lib/pet-avatars";
-import { updatePetDescription } from "../actions";
+import type { HealthPlanWithCopays } from "@/types/database";
 
 async function loadPetPage(id: string) {
   const pageStart = performance.now();
   const trace = getPerfTraceId();
   if (!(await timed("/pets/:id.isLiveData", () => isLiveData()))) {
     const pet = demoPets.find((item) => item.id === id);
-    return { pet: pet ?? null, timeline: demoTimeline.filter((item) => item.pet_id === id), weights: demoWeights[id] ?? [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: false, editable: false };
+    return {
+      pet: pet ?? null,
+      timeline: demoTimeline.filter((item) => item.pet_id === id),
+      weights: demoWeights[id] ?? [],
+      vaccineDoses: [] as AppliedDose[],
+      dewormingDoses: [] as AppliedDeworming[],
+      plans: [] as HealthPlanWithCopays[],
+      configured: false,
+      editable: false,
+    };
   }
   const ctx = await getAuthenticatedContext();
-  if (!ctx) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: true, editable: false };
+  if (!ctx) {
+    return {
+      pet: null,
+      timeline: [],
+      weights: [],
+      vaccineDoses: [] as AppliedDose[],
+      dewormingDoses: [] as AppliedDeworming[],
+      plans: [] as HealthPlanWithCopays[],
+      configured: true,
+      editable: false,
+    };
+  }
   const pet = await timed("/pets/:id.getPet", () => getPet(ctx.supabase, id));
-  if (!pet) return { pet: null, timeline: [], weights: [], vaccineDoses: [] as AppliedDose[], dewormingDoses: [] as AppliedDeworming[], documentCount: 0, configured: true, editable: false };
-  const [timeline, weights, vaccineDoses, dewormingDoses, documentCount] = await Promise.all([
+  if (!pet) {
+    return {
+      pet: null,
+      timeline: [],
+      weights: [],
+      vaccineDoses: [] as AppliedDose[],
+      dewormingDoses: [] as AppliedDeworming[],
+      plans: [] as HealthPlanWithCopays[],
+      configured: true,
+      editable: false,
+    };
+  }
+  const [timeline, weights, vaccineDoses, dewormingDoses, plans] = await Promise.all([
     timed("/pets/:id.timeline", () => listPetTimeline(ctx.supabase, id)),
     timed("/pets/:id.weights", () => listPetWeights(ctx.supabase, id)),
     timed("/pets/:id.vaccines", () => listPetVaccineDoses(ctx.supabase, id)),
     timed("/pets/:id.deworming", () => listPetDewormingDoses(ctx.supabase, id)),
-    timed("/pets/:id.documents", () => countPetDocuments(ctx.supabase, id)),
+    timed("/pets/:id.plan", () => listHealthPlansForPet(ctx.supabase, ctx.household.id, id)),
   ]);
   console.log(`[CATCARE_PERF][trace ${trace}][/pets/:id] total=${Math.round(performance.now() - pageStart)}ms`);
-  return { pet, timeline, weights, vaccineDoses, dewormingDoses, documentCount, configured: true, editable: ctx.editable };
+  return { pet, timeline, weights, vaccineDoses, dewormingDoses, plans, configured: true, editable: ctx.editable };
 }
 
-export default async function PetDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; saved?: string; deleted?: string; error?: string }> }) {
+const QUICK = [
+  { type: "weight", label: "Peso", icon: Scale },
+  { type: "vaccine", label: "Vacina", icon: Syringe },
+  { type: "deworming", label: "Vermífugo", icon: Bug },
+  { type: "medication", label: "Remédio", icon: Pill },
+] as const;
+
+export default async function PetDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string; updated?: string; saved?: string; deleted?: string; error?: string }>;
+}) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, vaccineDoses, dewormingDoses, documentCount, configured, editable } = await loadPetPage(id);
+  const { pet, timeline, weights, vaccineDoses, dewormingDoses, plans, editable } = await loadPetPage(id);
   if (!pet) notFound();
+
   const neonatal = isNeonatalPet(pet);
-  const lifeStage = getPetLifeStage(pet.birth_date);
-  const hasNeonatalHistory = !neonatal && timeline.some(isNeonatalTimelineItem);
-  const profileTimeline = neonatal ? timeline : timeline.filter((item) => !isNeonatalTimelineItem(item));
-  const recentKinds = new Set(profileTimeline.slice(0, 6).map((item) => item.kind));
-  const age = formatPetAge(pet.birth_date, pet.birth_date_estimated);
-  const humanAge = formatHumanEquivalentAge(pet.birth_date);
-  const birthDate = formatBirthDate(pet.birth_date, pet.birth_date_estimated);
+  const hasNeonatalHistory = !neonatal && timeline.some((item: { source?: string }) => item.source === "neonatal");
+  const profileTimeline = neonatal ? timeline : timeline.filter((item: { source?: string }) => item.source !== "neonatal");
   const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses, { species: pet.species });
   const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
-  const suggestedDescription = [
-    `${pet.name} ${age ? `tem ${age}` : "faz parte da família"}${pet.color ? ` e tem pelagem ${pet.color.toLocaleLowerCase("pt-BR")}` : ""}.`,
-    recentKinds.has("weight") ? `A família acompanha seu peso, hoje em ${formatWeight(pet.current_weight_grams)}.` : null,
-    recentKinds.has("surgery") && pet.neutered ? "A castração foi registrada no histórico com data aproximada." : null,
-    recentKinds.has("medication") || recentKinds.has("vaccine") || recentKinds.has("deworming") ? "Os cuidados de saúde estão sendo registrados com atenção." : null,
-    neonatal ? "Como ainda é filhote, sua rotina neonatal merece acompanhamento bem de perto." : null,
-  ].filter(Boolean).join(" ");
-  const saveDescription = updatePetDescription.bind(null, pet.id);
-  const heroBackground = resolveProfileHeroBackground(pet.photo_path);
-
+  const actionableVaccine = firstActionableVaccine(vaccineSchedule);
+  const actionableDeworming =
+    dewormingSchedule.status === "due" || dewormingSchedule.status === "overdue" ? dewormingSchedule : null;
+  const lastWeight = weights.length ? weights[weights.length - 1] : null;
+  const showWeight = lastWeight ? isRecentWeightDate(lastWeight.date) : false;
   const petReturnTo = `/pets/${pet.id}`;
+  const planLabel = healthPlanContextLabel(plans);
 
-  const actions = [
-    { type: "weight", label: "Peso", icon: Scale, tone: "bg-[var(--lavender-soft)]" },
-    { type: "vaccine", label: "Vacina", icon: Syringe, tone: "bg-[var(--mint-soft)]" },
-    { type: "deworming", label: "Vermífugo", icon: Bug, tone: "bg-[#fbead9]" },
-    { type: "medication", label: "Remédio", icon: Pill, tone: "bg-[var(--cream)]" },
-  ];
+  const flash = (
+    <>
+      {(flags.created || flags.updated || flags.saved) && (
+        <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Tudo salvo direitinho.</div>
+      )}
+      {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
+      {flags.deleted && (
+        <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">
+          {Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}
+        </div>
+      )}
+    </>
+  );
 
   return (
-    <div className="mx-auto w-full max-w-[1040px] px-5 pb-8 pt-7 md:px-8 lg:px-10 lg:py-10">
-      <Link href="/pets" className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Meus pets</Link>
-      {(flags.created || flags.updated || flags.saved) && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">Tudo salvo direitinho.</div>}
-      {flags.error && <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{flags.error}</div>}
-      {flags.deleted && <div className="mt-5 rounded-[20px] bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--success)]">{Number(flags.deleted) === 1 ? "1 registro apagado." : `${flags.deleted} registros apagados.`}</div>}
-
-      <section className="cat-card mt-5 overflow-hidden">
-        <div className="p-5 md:p-7" style={{ backgroundImage: heroBackground }}>
-          <div className="flex items-start gap-4">
-            {editable ? (
-              <PetProfilePhotoControl
-                petId={pet.id}
-                name={pet.name}
-                photoUrl={pet.photo_url}
-                hasPhoto={Boolean(pet.photo_path)}
-                editable={editable}
-              />
-            ) : (
-              <PetAvatar name={pet.name} photoUrl={pet.photo_url} size="profile" />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-3xl font-bold tracking-[-0.04em]">{pet.name}</h1>
-                    <span className={`inline-flex items-center gap-1 rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-bold ${neonatal ? "text-[#9a536c]" : "text-[var(--lavender-strong)]"}`}>{neonatal && <HeartPulse size={12} />} {petLifeStageLabels[lifeStage]}</span>
-                  </div>
-                  <p className="mt-2 text-sm text-[var(--muted)]">{[pet.breed, pet.color].filter(Boolean).join(" • ") || "Perfil em construção"}</p>
-                  {birthDate && <p className="mt-1 text-xs text-[var(--muted)]">Nascimento: {birthDate}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">{age && <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold">{age} de vida</span>}{humanAge && <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold">{humanAge}</span>}{pet.neutered && <span className="inline-flex items-center gap-1 rounded-full bg-[var(--mint-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--success)]"><BadgeCheck size={12} /> Castrado</span>}{pet.has_microchip && <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold text-[var(--lavender-strong)]"><Cpu size={12} /> Microchip</span>}</div>
-                </div>
-                {editable ? <Link href={`/pets/${pet.id}/edit`} className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white/80 px-3.5 py-2.5 text-xs font-bold"><Pencil size={16} /> Editar perfil</Link> : null}
-              </div>
-              <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1.5 text-sm font-bold"><Scale size={16} /> {formatWeight(pet.current_weight_grams)}</p>
-            </div>
-          </div>
+    <PetChrome pet={pet} editable={editable} active="overview" flash={flash}>
+      <div className="cd-pet-read">
+      {editable ? (
+        <div className="cd-pet-actions" role="group" aria-label={`Registrar para ${pet.name}`}>
+          <span className="cd-pet-actions-label">
+            <Plus size={13} strokeWidth={2} aria-hidden />
+            Registrar
+          </span>
+          {QUICK.map(({ type, label, icon: Icon }) => (
+            <Link key={type} href={typedRecordHref(pet.id, type, petReturnTo)} className="cd-pet-action focus-ring">
+              <Icon size={14} strokeWidth={1.75} aria-hidden />
+              {label}
+            </Link>
+          ))}
         </div>
+      ) : null}
 
-        {editable && (
-          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4 md:gap-3 md:p-5">
-            {actions.map(({ type, label, icon: Icon, tone }) => (
-              <Link key={type} href={typedRecordHref(pet.id, type, petReturnTo)} className={`focus-ring flex flex-col items-center justify-center gap-2 rounded-[18px] px-2 py-3 text-xs font-bold ${tone}`}><Icon size={18} /> {label}</Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <Link
-        href={`/pets/${pet.id}/documents`}
-        className="focus-ring mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/80 px-4 py-2.5 text-sm"
-      >
-        <span className="inline-flex min-w-0 items-center gap-2 font-bold">
-          <FileStack size={16} className="shrink-0 text-[var(--lavender-strong)]" />
-          <span className="truncate">Documentos · {documentCount}</span>
-        </span>
-        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-[var(--muted)]">
-          Carteiras e arquivos
-          <ArrowRight size={14} />
-        </span>
-      </Link>
-
-      {neonatal && editable && (
-        <Link href={preselectRecordHref({ pet: pet.id, returnTo: petReturnTo })} className="focus-ring mt-4 flex items-center justify-between rounded-[22px] bg-[var(--rose)] p-4 font-bold text-white">
-          <span className="flex items-center gap-2"><HeartPulse size={19} /> Registrar cuidado neonatal</span><Plus size={18} />
+      {neonatal && editable ? (
+        <Link href={preselectRecordHref({ pet: pet.id, returnTo: petReturnTo })} className="cd-pet-neonatal-cta focus-ring">
+          <span className="inline-flex items-center gap-2">
+            <HeartPulse size={18} aria-hidden />
+            Registrar cuidado neonatal
+          </span>
+          <Plus size={18} aria-hidden />
         </Link>
-      )}
+      ) : null}
 
-      <div className="mt-6">
-        <WeightChart data={weights} petId={pet.id} petName={pet.name} />
-      </div>
-
-      <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section>
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
-              <h2 className="mt-1 text-xl font-bold">Atividades recentes</h2>
-            </div>
-            {profileTimeline.length > 8 && (
-              <Link href={`/pets/${pet.id}/historico`} className="focus-ring rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--lavender-strong)]">
-                Ver histórico completo
+      <div className="cd-pet-overview">
+          <section className="cd-pet-section" aria-label="Próximos cuidados">
+            <h2 className="cd-pet-section-title">Próximos cuidados</h2>
+            <ul className="cd-pet-rows">
+              {actionableVaccine ? (
+                <li>
+                  <Link href={`/pets/${pet.id}/saude`} className="cd-pet-row focus-ring">
+                    <span className="cd-pet-row-icon" data-tone="saude">
+                      <Syringe size={14} strokeWidth={1.75} aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block text-sm font-semibold">
+                        {actionableVaccine.name} · {actionableVaccine.doseLabel}
+                      </span>
+                      <span className="cd-meta block">
+                        {actionableVaccine.status === "overdue" ? "Atrasada" : actionableVaccine.status === "due" ? "Na hora" : "Em breve"}
+                      </span>
+                    </span>
+                    <span className="cd-pet-row-cta">Ver em Saúde</span>
+                  </Link>
+                </li>
+              ) : null}
+              {actionableDeworming ? (
+                <li>
+                  <Link href={`/pets/${pet.id}/saude`} className="cd-pet-row focus-ring">
+                    <span className="cd-pet-row-icon" data-tone="saude">
+                      <Bug size={14} strokeWidth={1.75} aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block text-sm font-semibold">Vermífugo</span>
+                      <span className="cd-meta block">
+                        {actionableDeworming.status === "overdue" ? "Atrasado" : "Na hora"}
+                      </span>
+                    </span>
+                    <span className="cd-pet-row-cta">Ver em Saúde</span>
+                  </Link>
+                </li>
+              ) : null}
+              {!actionableVaccine && !actionableDeworming ? (
+                <li>
+                  <p className="cd-pet-empty">Nada urgente no protocolo preventivo de {pet.name}.</p>
+                </li>
+              ) : null}
+            </ul>
+            <div className="cd-pet-links">
+              <Link href="/agenda" className="cd-pet-text-link focus-ring">
+                Ver agenda
               </Link>
-            )}
-          </div>
-          <TimelineList
-            items={profileTimeline}
-            limit={8}
-            fullHistoryHref={`/pets/${pet.id}/historico`}
-            editable={editable}
-            returnTo={`/pets/${pet.id}`}
-            filterMode={neonatal ? "neonatal" : "adult"}
-            newRecordPetId={pet.id}
-            showNewRecord={editable}
-          />
-        </section>
-
-        <aside className="space-y-4">
-          <div className="cat-card p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Personalidade</p><h2 className="mt-1 font-bold">Sobre {pet.name}</h2></div>
-              {editable ? <Link href={`/pets/${pet.id}/edit#description`} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--lavender-soft)] px-2.5 py-2 text-[11px] font-bold"><Pencil size={13} /> Editar</Link> : null}
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{pet.notes || "Nenhuma descrição pessoal foi adicionada ainda."}</p>
-            <details className="mt-4 rounded-2xl bg-[var(--cream)] p-3">
-              <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-xl text-xs font-bold"><Sparkles size={15} className="text-[var(--lavender-strong)]" /> Sugerir pelo histórico</summary>
-              <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">{suggestedDescription}</p>
-              <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Resumo automático feito com perfil e registros.</p>
-              {editable ? <form action={saveDescription} className="mt-3"><input type="hidden" name="notes" value={suggestedDescription} /><button className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[var(--graphite)] px-3 py-2 text-[11px] font-bold text-white"><Sparkles size={13} /> Usar esta sugestão</button></form> : null}
-            </details>
-          </div>
+          </section>
 
-          <PetPreventiveCareCard
-            vaccineSchedule={vaccineSchedule}
-            dewormingSchedule={dewormingSchedule}
-            petId={pet.id}
-            petName={pet.name}
-            editable={editable}
-          />
+          <section className="cd-pet-section" aria-label="Atividade recente">
+            <div className="cd-pet-section-head">
+              <h2 className="cd-pet-section-title">Atividade recente</h2>
+              {profileTimeline.length > 8 ? (
+                <Link href={`/pets/${pet.id}/historico`} className="cd-pet-text-link focus-ring">
+                  Ver histórico
+                </Link>
+              ) : null}
+            </div>
+            <TimelineList
+              items={profileTimeline}
+              limit={6}
+              fullHistoryHref={`/pets/${pet.id}/historico`}
+              editable={editable}
+              returnTo={`/pets/${pet.id}`}
+              filterMode={neonatal ? "neonatal" : "adult"}
+              newRecordPetId={pet.id}
+              showNewRecord={editable}
+              variant="rows"
+            />
+          </section>
 
-          <PetMicrochipSummary pet={pet} editable={editable} />
-        </aside>
+          {showWeight && lastWeight ? (
+            <section className="cd-pet-section" aria-label="Último peso">
+              <h2 className="cd-pet-section-title">Último peso</h2>
+              <p className="cd-body">
+                <strong>{formatWeight(lastWeight.grams)}</strong>
+                <span className="cd-meta"> · {formatShortDate(lastWeight.date)}</span>
+              </p>
+              <div className="cd-pet-links">
+                {editable ? (
+                  <Link href={typedRecordHref(pet.id, "weight", petReturnTo)} className="cd-pet-text-link focus-ring">
+                    Registrar peso
+                  </Link>
+                ) : null}
+                <Link href={`/pets/${pet.id}/saude`} className="cd-pet-text-link focus-ring">
+                  Ver em Saúde
+                </Link>
+              </div>
+            </section>
+          ) : null}
+
+          {planLabel ? (
+            <section className="cd-pet-section" aria-label="Plano de saúde">
+              <h2 className="cd-pet-section-title">Plano de saúde</h2>
+              <p className="cd-body">
+                {[planLabel.provider, planLabel.name].filter(Boolean).join(" · ")}
+                <span className="cd-meta"> · {planLabel.active ? "Ativo" : "Inativo"}{planLabel.more > 0 ? ` · +${planLabel.more}` : ""}</span>
+              </p>
+              <div className="cd-pet-links">
+                <Link href="/health-plan" className="cd-pet-text-link focus-ring">
+                  Ver plano
+                </Link>
+              </div>
+            </section>
+          ) : null}
       </div>
 
-      {hasNeonatalHistory && (
-        <section className="mt-8">
-          <Link href={`/pets/${pet.id}/neonatal-history`} className="focus-ring cat-card flex items-center justify-between gap-4 p-5">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a536c]">Arquivo neonatal</p>
-              <h2 className="mt-1 text-lg font-bold">Ver histórico neonatal</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">Alimentação, xixi e cocô registrados quando {pet.name} ainda era filhote.</p>
-            </div>
-            <HeartPulse className="shrink-0 text-[var(--rose)]" size={24} />
-          </Link>
-        </section>
-      )}
-    </div>
+      {hasNeonatalHistory ? (
+        <Link href={`/pets/${pet.id}/neonatal-history`} className="cd-pet-neonatal-archive focus-ring">
+          <span>
+            <span className="cd-pet-section-title" style={{ display: "block" }}>
+              Arquivo neonatal
+            </span>
+            <span className="mt-1 block text-sm font-semibold">Ver histórico neonatal</span>
+            <span className="mt-1 block text-xs text-[var(--muted)]">
+              Alimentação, xixi e cocô de quando {pet.name} ainda era filhote.
+            </span>
+          </span>
+          <HeartPulse className="shrink-0 text-[var(--rose)]" size={22} aria-hidden />
+        </Link>
+      ) : null}
+      </div>
+    </PetChrome>
   );
 }

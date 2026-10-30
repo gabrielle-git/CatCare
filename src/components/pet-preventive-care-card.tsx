@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bug, Check, ChevronDown, ChevronUp, Clock, HeartPulse, Syringe } from "lucide-react";
+import { AlertTriangle, Bug, Check, ChevronDown, ChevronUp, Clock, Syringe } from "lucide-react";
 import { formatFullDate } from "@/lib/format";
 import { dewormingAlertHref, typedRecordHref, vaccineAlertHref } from "@/lib/record-links";
 import { formatDueInDays, type DewormingStatus, type ScheduledDeworming } from "@/lib/deworming-schedule";
@@ -73,13 +73,22 @@ function VaccineRow({ vaccine, petId, editable, returnTo }: { vaccine: Scheduled
   );
 }
 
-function vaccineSummary(schedule: ScheduledVaccine[]) {
-  if (schedule.length === 0) return "Sem protocolo vacinal para esta espécie";
+function vaccineHeadline(schedule: ScheduledVaccine[]) {
+  if (schedule.length === 0) return "Sem protocolo para esta espécie";
   const overdue = schedule.filter((v) => v.status === "overdue").length;
   const due = schedule.filter((v) => v.status === "due").length;
-  if (overdue > 0) return `${overdue} atrasada${overdue > 1 ? "s" : ""}`;
-  if (due > 0) return `${due} para aplicar agora`;
+  if (overdue === 1) return "1 vacina atrasada";
+  if (overdue > 1) return `${overdue} vacinas atrasadas`;
+  if (due === 1) return "1 vacina na hora";
+  if (due > 1) return `${due} vacinas na hora`;
   return "Em dia";
+}
+
+function dewormingHeadline(schedule: ScheduledDeworming) {
+  if (schedule.status === "overdue") return "1 vermífugo atrasado";
+  if (schedule.status === "due") return "Vermífugo na hora";
+  if (schedule.status === "upcoming" && schedule.appliedAt) return "Em dia";
+  return dewormingStatusConfig[schedule.status].label;
 }
 
 function dewormingSummary(schedule: ScheduledDeworming) {
@@ -92,130 +101,180 @@ export function PetPreventiveCareCard({
   dewormingSchedule,
   petId,
   editable,
+  compact = false,
 }: {
   vaccineSchedule: ScheduledVaccine[];
   dewormingSchedule: ScheduledDeworming;
   petId: string;
   petName: string;
   editable: boolean;
+  /** Overview: summary first, protocol expands on demand. */
+  compact?: boolean;
 }) {
   const vaccineOverdue = vaccineSchedule.filter((v) => v.status === "overdue").length;
   const vaccineDue = vaccineSchedule.filter((v) => v.status === "due").length;
   const dewormingOverdue = dewormingSchedule.status === "overdue";
   const dewormingDue = dewormingSchedule.status === "due";
   const hasAlert = vaccineOverdue > 0 || vaccineDue > 0 || dewormingOverdue || dewormingDue;
-  const [vaccinesOpen, setVaccinesOpen] = useState(vaccineOverdue > 0 || vaccineDue > 0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [vaccinesOpen, setVaccinesOpen] = useState(false);
+  const [dewormingOpen, setDewormingOpen] = useState(false);
   const firstVaccine = firstActionableVaccine(vaccineSchedule);
   const petReturnTo = `/pets/${petId}`;
   const firstVaccineHref = firstVaccine ? vaccineAlertHref(petId, firstVaccine.name, firstVaccine.doseLabel, petReturnTo, firstVaccine.key) : null;
   const dewormingAlertLink = dewormingAlertHref(petId, petReturnTo);
   const dewormingRegisterLink = typedRecordHref(petId, "deworming", petReturnTo);
   const vaccineRegisterLink = typedRecordHref(petId, "vaccine", petReturnTo);
+  const saudeHref = `/pets/${petId}/saude`;
+
+  const summaryLines = [
+    vaccineOverdue > 0
+      ? vaccineOverdue === 1
+        ? "1 vacina atrasada"
+        : `${vaccineOverdue} vacinas atrasadas`
+      : vaccineDue > 0
+        ? vaccineDue === 1
+          ? "1 vacina na hora"
+          : `${vaccineDue} vacinas na hora`
+        : null,
+    dewormingOverdue ? "Vermífugo atrasado" : dewormingDue ? "Vermífugo na hora" : null,
+  ].filter(Boolean) as string[];
 
   return (
-    <div className="cat-card p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[15px] bg-[var(--mint-soft)]">
-            <HeartPulse size={18} className="text-[var(--success)]" />
-          </span>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--success)]">Prevenção</p>
-            <h2 className="mt-1 font-bold">Saúde preventiva</h2>
+    <div className={compact ? "cd-pet-preventive" : "cd-pet-preventive cd-pet-preventive-full"} data-compact={compact ? "true" : undefined}>
+      {compact ? (
+        <div className="cd-pet-preventive-summary">
+          <div className="min-w-0 flex-1">
+            <p className="cd-pet-section-title" style={{ display: "block" }}>
+              Saúde preventiva
+            </p>
+            {summaryLines.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {summaryLines.map((line) => (
+                  <li key={line} className="text-sm font-semibold text-[var(--text-primary)]">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-[var(--muted)]">Protocolo em dia.</p>
+            )}
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <button
+              type="button"
+              className="cd-pet-text-link focus-ring"
+              onClick={() => setDetailsOpen((open) => !open)}
+            >
+              {detailsOpen ? "Ocultar" : "Detalhes"}
+            </button>
+            <Link href={saudeHref} className="cd-pet-text-link focus-ring">
+              Ver em Saúde
+            </Link>
           </div>
         </div>
-      </div>
+      ) : null}
 
-      {hasAlert && (
-        <div className="mt-4 space-y-2">
-          {vaccineOverdue > 0 && firstVaccineHref && (
-            <Link href={firstVaccineHref} className="focus-ring flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-[var(--danger)]">
-              <AlertTriangle size={14} />
-              {vaccineOverdue === 1 ? "1 vacina atrasada — registrar agora" : `${vaccineOverdue} vacinas atrasadas — registrar agora`}
-            </Link>
-          )}
-          {vaccineOverdue === 0 && vaccineDue > 0 && firstVaccineHref && (
-            <Link href={firstVaccineHref} className="focus-ring flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-              <Clock size={14} />
-              {vaccineDue === 1 ? "1 vacina para aplicar agora" : `${vaccineDue} vacinas para aplicar agora`}
-            </Link>
-          )}
-          {dewormingOverdue && (
-            <Link href={dewormingAlertLink} className="focus-ring flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-[var(--danger)]">
-              <AlertTriangle size={14} />
-              Vermífugo atrasado — registrar agora
-            </Link>
-          )}
-          {!dewormingOverdue && dewormingDue && (
-            <Link href={dewormingAlertLink} className="focus-ring flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-              <Clock size={14} />
-              Hora do vermífugo — registrar agora
-            </Link>
-          )}
-        </div>
-      )}
-
-      <div className="mt-4 space-y-2">
-        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--cream)]/40">
-          <button
-            type="button"
-            onClick={() => setVaccinesOpen(!vaccinesOpen)}
-            className="focus-ring flex w-full items-center gap-3 px-3.5 py-3 text-left"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[var(--mint-soft)]">
-              <Syringe size={15} className="text-[var(--success)]" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">Vacinas</p>
-              <p className="mt-0.5 text-[11px] text-[var(--muted)]">{vaccineSummary(vaccineSchedule)}</p>
-            </div>
-            <span className="text-[var(--muted)]">{vaccinesOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
-          </button>
-          {vaccinesOpen && (
-            <div className="space-y-2 border-t border-[var(--border)] bg-white px-3.5 py-3">
-              {vaccineSchedule.length === 0 ? (
-                <p className="text-xs leading-relaxed text-[var(--muted)]">
-                  Ainda não há calendário preventivo de vacinas para esta espécie. Você pode registrar vacinas no histórico sem baixa automática de protocolo.
-                </p>
-              ) : (
-                vaccineSchedule.map((vaccine, i) => (
-                  <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} returnTo={petReturnTo} />
-                ))
+      {(compact ? detailsOpen : true) && (
+        <>
+          {compact && hasAlert && (
+            <div className="cd-pet-preventive-alerts">
+              {vaccineOverdue > 0 && firstVaccineHref && (
+                <Link href={firstVaccineHref} className="cd-pet-alert-link focus-ring" data-tone="danger">
+                  <AlertTriangle size={14} />
+                  {vaccineOverdue === 1 ? "1 vacina atrasada — registrar agora" : `${vaccineOverdue} vacinas atrasadas — registrar agora`}
+                </Link>
               )}
-              {editable && (
-                <Link href={vaccineRegisterLink} className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[var(--mint-soft)] px-3 py-2 text-[11px] font-bold text-[var(--success)]">
-                  <Syringe size={13} /> Registrar vacina
+              {vaccineOverdue === 0 && vaccineDue > 0 && firstVaccineHref && (
+                <Link href={firstVaccineHref} className="cd-pet-alert-link focus-ring" data-tone="warn">
+                  <Clock size={14} />
+                  {vaccineDue === 1 ? "1 vacina para aplicar agora" : `${vaccineDue} vacinas para aplicar agora`}
+                </Link>
+              )}
+              {dewormingOverdue && (
+                <Link href={dewormingAlertLink} className="cd-pet-alert-link focus-ring" data-tone="danger">
+                  <AlertTriangle size={14} />
+                  Vermífugo atrasado — registrar agora
+                </Link>
+              )}
+              {!dewormingOverdue && dewormingDue && (
+                <Link href={dewormingAlertLink} className="cd-pet-alert-link focus-ring" data-tone="warn">
+                  <Clock size={14} />
+                  Hora do vermífugo — registrar agora
                 </Link>
               )}
             </div>
           )}
-        </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--cream)]/40 px-3.5 py-3">
-          <div className="flex items-center gap-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[#fbead9]">
-              <Bug size={15} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">Vermífugo</p>
-              <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                {dewormingSummary(dewormingSchedule)}
-                {dewormingSchedule.dueAt ? ` • ${formatDueInDays(dewormingSchedule.dueAt)}` : ""}
-              </p>
-              {dewormingSchedule.appliedAt && (
-                <p className="mt-0.5 text-[10px] text-[var(--muted)]">
-                  Último: {formatFullDate(`${dewormingSchedule.appliedAt.slice(0, 10)}T12:00:00-03:00`)}
-                </p>
+          <div className="cd-pet-preventive-blocks">
+            <div className="cd-pet-preventive-block">
+              <button
+                type="button"
+                onClick={() => setVaccinesOpen(!vaccinesOpen)}
+                className="focus-ring cd-pet-preventive-toggle"
+              >
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--mint-soft)]">
+                  <Syringe size={14} className="text-[var(--success)]" />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="cd-pet-section-title" style={{ display: "block" }}>Vacinas</span>
+                  <span className="cd-body mt-1 block font-semibold">{vaccineHeadline(vaccineSchedule)}</span>
+                </span>
+                <span className="text-[var(--muted)]">{vaccinesOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
+              </button>
+              {vaccinesOpen && (
+                <div className="cd-pet-preventive-detail">
+                  {vaccineSchedule.length === 0 ? (
+                    <p className="text-xs leading-relaxed text-[var(--muted)]">
+                      Ainda não há calendário preventivo de vacinas para esta espécie. Você pode registrar vacinas no histórico sem baixa automática de protocolo.
+                    </p>
+                  ) : (
+                    vaccineSchedule.map((vaccine, i) => (
+                      <VaccineRow key={`${vaccine.key}-${i}`} vaccine={vaccine} petId={petId} editable={editable} returnTo={petReturnTo} />
+                    ))
+                  )}
+                  {editable && (
+                    <Link href={vaccineRegisterLink} className="focus-ring mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--success)]">
+                      <Syringe size={13} /> Registrar vacina
+                    </Link>
+                  )}
+                </div>
               )}
             </div>
-            {editable && (
-              <Link href={dewormingRegisterLink} className="focus-ring shrink-0 rounded-xl bg-[#fbead9] px-2.5 py-2 text-[10px] font-bold">
-                Registrar
-              </Link>
-            )}
+
+            <div className="cd-pet-preventive-block cd-pet-preventive-deworm">
+              <button type="button" onClick={() => setDewormingOpen(!dewormingOpen)} className="focus-ring cd-pet-preventive-toggle">
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[#fbead9]">
+                  <Bug size={14} />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="cd-pet-section-title" style={{ display: "block" }}>Vermífugo</span>
+                  <span className="cd-body mt-1 block font-semibold">{dewormingHeadline(dewormingSchedule)}</span>
+                </span>
+                <span className="text-[var(--muted)]">{dewormingOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
+              </button>
+              {dewormingOpen ? (
+                <div className="cd-pet-preventive-detail">
+                  <p className="text-xs leading-relaxed text-[var(--muted)]">
+                    {dewormingSummary(dewormingSchedule)}
+                    {dewormingSchedule.dueAt ? ` • ${formatDueInDays(dewormingSchedule.dueAt)}` : ""}
+                  </p>
+                  {dewormingSchedule.appliedAt ? (
+                    <p className="text-xs text-[var(--muted)]">
+                      Último: {formatFullDate(`${dewormingSchedule.appliedAt.slice(0, 10)}T12:00:00-03:00`)}
+                    </p>
+                  ) : null}
+                  {editable ? (
+                    <Link href={dewormingRegisterLink} className="cd-pet-text-link focus-ring">
+                      Registrar
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

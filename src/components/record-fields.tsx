@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Bath, ClipboardPlus, Droplets, FlaskConical, Milk, Pill, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
+import { Bug, Bath, ClipboardPlus, Droplets, FlaskConical, Milk, Pill, Plus, Scale, Stethoscope, Syringe, Thermometer, type LucideIcon } from "lucide-react";
 import { FactualDateTimeInput } from "@/components/factual-datetime-input";
 import { HealthRecordAttachmentsFields } from "@/components/health-record-attachments-fields";
 import { PetMultiSelect } from "@/components/pet-multi-select";
@@ -44,6 +44,10 @@ import {
   vaccineDisplayName,
 } from "@/lib/vaccine-schedule";
 import {
+  notesFieldNameForPetType,
+  notesFieldNameForType,
+} from "@/lib/record-notes";
+import {
   FEEDING_SUBTYPES,
   FEEDING_SUBTYPE_LABELS,
   FEEDING_UNIT_PRESET_LABELS,
@@ -53,7 +57,6 @@ import {
   notesTargetPetFieldName,
   resolveFeedingAmount,
   showPerPetNotesToggle,
-  syncPerPetNotesTargets,
   type FeedingUnitPreset,
 } from "@/lib/neonatal-feeding";
 import type { FeedingItem } from "@/types/database";
@@ -80,6 +83,29 @@ const options: RecordOption[] = [
 ];
 
 const optionByType = Object.fromEntries(options.map((option) => [option.value, option])) as Record<QuickRecordType, RecordOption>;
+
+/** Visual groups only. Values stay the existing QuickRecordType union. */
+const TYPE_GROUPS: { id: string; label: string; types: QuickRecordType[] }[] = [
+  { id: "saude", label: "Saúde", types: ["consultation", "vaccine", "medication", "deworming", "exam"] },
+  { id: "medidas", label: "Medidas", types: ["weight"] },
+  { id: "rotina", label: "Alimentação e higiene", types: ["feeding", "hygiene"] },
+  { id: "neonatal", label: "Neonatal", types: ["urine", "stool", "temperature"] },
+  { id: "outros", label: "Outros", types: ["observation"] },
+];
+
+const TYPE_DISPLAY: Partial<Record<QuickRecordType, string>> = {
+  weight: "Peso",
+  hygiene: "Higiene",
+};
+
+function typeDisplay(type: QuickRecordType) {
+  return TYPE_DISPLAY[type] ?? optionByType[type]?.label ?? type;
+}
+
+function joinPt(names: string[]) {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+}
 
 function currentLocalDateTime() {
   return toLocalDateTimeInput(new Date().toISOString());
@@ -122,7 +148,7 @@ function QualitySelect({
   return (
     <label className="block text-sm font-bold">
       {label}
-      <select disabled={disabled} name={name} defaultValue={defaultValue ?? (allowEmpty ? "" : "normal")} className="field mt-2">
+      <select disabled={disabled} name={name} defaultValue={defaultValue ?? (allowEmpty ? "" : "normal")} className="cd-form-control">
         {allowEmpty ? <option value="">Não informar</option> : null}
         <option value="normal">Normal</option>
         <option value="good">Foi bem</option>
@@ -246,6 +272,7 @@ export function RecordFields({
     if (neonatalContext) return ["feeding"];
     return [];
   });
+  const [showMoreTypes, setShowMoreTypes] = useState(false);
 
   const suggestedTitle = initialTitle ?? (validInitial === "deworming" ? "Vermífugo" : "");
   const [title, setTitle] = useState(defaultValues?.title ?? suggestedTitle);
@@ -316,7 +343,8 @@ export function RecordFields({
     });
   });
   const [perPetNotesEnabled, setPerPetNotesEnabled] = useState(false);
-  const [perPetNotesTargets, setPerPetNotesTargets] = useState<string[]>([]);
+  const [perTypePetNotes, setPerTypePetNotes] = useState<Record<string, boolean>>({});
+  const [shareNotesAcrossCares, setShareNotesAcrossCares] = useState(false);
   const [perPetNotesDraft, setPerPetNotesDraft] = useState<Record<string, string>>({});
 
   const lockTitleFromUrl = mode === "create" && Boolean(initialTitle);
@@ -382,9 +410,6 @@ export function RecordFields({
 
   const occurredDefault = defaultValues?.occurred_at ? toLocalDateTimeInput(defaultValues.occurred_at) : currentLocalDateTime();
   const noNeonatalPets = restrictToNeonatal && visiblePets.length === 0;
-  const hasHealthType = activeTypes.some((type) =>
-    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation" || type === "hygiene",
-  );
   const hasReminderType = !multiType && activeTypes.some((type) =>
     type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation",
   );
@@ -506,22 +531,41 @@ export function RecordFields({
   }, [mode, visibleSelectedIds, activeTypes, hygieneSubtypes]);
 
   useEffect(() => {
-    if (!showPerPetNotesToggle(mode, visibleSelectedIds.length)) {
+    if (mode !== "create") return;
+    if (visibleSelectedIds.length < 2) {
       setPerPetNotesEnabled(false);
-      setPerPetNotesTargets([]);
-      setPerPetNotesDraft({});
-      return;
+      setPerTypePetNotes({});
     }
-    setPerPetNotesTargets((prev) => syncPerPetNotesTargets(visibleSelectedIds, prev));
+    const allowed = new Set(visibleSelectedIds);
     setPerPetNotesDraft((prev) => {
-      const allowed = new Set(visibleSelectedIds);
       const next: Record<string, string> = {};
-      for (const [id, text] of Object.entries(prev)) {
-        if (allowed.has(id)) next[id] = text;
+      for (const [key, text] of Object.entries(prev)) {
+        if (key === "global" || key.startsWith("type:")) {
+          next[key] = text;
+          continue;
+        }
+        const petId = key.includes("::") ? key.slice(key.lastIndexOf("::") + 2) : key;
+        if (allowed.has(petId)) next[key] = text;
       }
       return next;
     });
   }, [mode, visibleSelectedIds]);
+
+  useEffect(() => {
+    if (activeTypes.length < 2) setShareNotesAcrossCares(false);
+  }, [activeTypes.length]);
+
+  const careTypeKey = activeTypes.join(",");
+  useEffect(() => {
+    if (mode !== "create" || shareNotesAcrossCares) return;
+    const types = careTypeKey.split(",").filter(Boolean);
+    if (types.length < 2 || !types[0]) return;
+    const firstKey = `type:${types[0]}`;
+    setPerPetNotesDraft((prev) => {
+      if (!prev.global || prev[firstKey]) return prev;
+      return { ...prev, [firstKey]: prev.global, global: "" };
+    });
+  }, [mode, careTypeKey, shareNotesAcrossCares]);
 
   const toggleType = (value: QuickRecordType) => {
     if (disabled) return;
@@ -536,11 +580,6 @@ export function RecordFields({
     setSelectedTypes((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
   };
 
-  const clearTypes = () => {
-    if (disabled) return;
-    setSelectedTypes([]);
-  };
-
   const petHint = mode === "create"
     ? neonatalContext
       ? "Modo neonatal — só filhotes com até 8 semanas aparecem aqui."
@@ -548,6 +587,10 @@ export function RecordFields({
         ? "Só filhotes em fase neonatal aparecem para este tipo de cuidado."
         : "Pode escolher mais de um — o registro será criado para cada pet selecionado."
     : undefined;
+  const progressiveCreate = mode === "create" && allowMultiType;
+  const showNeonatalGroup = neonatalContext || neonatalPets.length > 0 || activeTypes.some(isNeonatalCareType);
+  const detailsReady = !progressiveCreate || (activeTypes.length > 0 && visibleSelectedIds.length > 0 && !noNeonatalPets);
+  const simpleBatch = recordCount === visibleSelectedIds.length * activeTypes.length && !activeTypes.includes("hygiene");
 
   const weightUsesPerPetFields = mode === "create" && visibleSelectedIds.length > 1;
 
@@ -565,7 +608,7 @@ export function RecordFields({
                 inputMode="decimal"
                 value={weightKgByPetId[petId] ?? ""}
                 onChange={(event) => setWeightKgByPetId((prev) => ({ ...prev, [petId]: event.target.value }))}
-                className="field mt-2"
+                className="cd-form-control"
                 placeholder="Ex.: 4,2"
                 aria-required="true"
               />
@@ -592,13 +635,178 @@ export function RecordFields({
           inputMode="decimal"
           value={weightKg}
           onChange={(event) => setWeightKg(event.target.value)}
-          className="field mt-2"
+          className="cd-form-control"
           placeholder="Ex.: 4,2"
           aria-required="true"
         />
       </label>
     );
   }
+
+  const clinicUiTypes = activeTypes.filter((type) =>
+    type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam",
+  );
+  const clinicAnchor = clinicUiTypes[0] ?? null;
+  const clinicRecipients = activeTypes.filter((type) =>
+    type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation",
+  );
+  const clinicField = clinicAnchor ? (
+    <label className="cd-form-label mt-4">
+      Clínica ou veterinário
+      <span className="cd-form-help">
+        {clinicRecipients.length > 1
+          ? `Um único texto, gravado em ${joinPt(clinicRecipients.map((type) => typeDisplay(type)))}.`
+          : "Opcional."}
+      </span>
+      <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="cd-form-control" placeholder="Opcional" />
+    </label>
+  ) : null;
+
+  const whenBlock = (
+    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <label className="cd-form-label">
+        Quando?
+        {activeTypes.length > 1 ? <span className="cd-form-help">Vale para todos os cuidados deste lançamento.</span> : null}
+        <FactualDateTimeInput disabled={disabled} required name="occurred_at" defaultValue={occurredDefault} className="cd-form-control" />
+      </label>
+      {mode === "create" && hasReminderType ? (
+        <label className="cd-form-label">
+          Lembrar novamente em
+          <input disabled={disabled} type="datetime-local" name="reminder_due_at" className="cd-form-control" />
+        </label>
+      ) : null}
+    </div>
+  );
+
+  const writeDraft = (key: string, text: string) => {
+    setPerPetNotesDraft((prev) => ({ ...prev, [key]: text }));
+  };
+
+  const careNotes = (careType: QuickRecordType) => {
+    const severalCares = mode === "create" && activeTypes.length > 1;
+    const sharedLaunch = severalCares && shareNotesAcrossCares;
+    if (sharedLaunch && careType !== activeTypes[0]) return null;
+
+    const granular = severalCares && !sharedLaunch;
+    const multiPet = showPerPetNotesToggle(mode, visibleSelectedIds.length);
+    const personalized = granular ? Boolean(perTypePetNotes[careType]) : perPetNotesEnabled;
+    const noteLabel = hygieneOnly ? "Quer acrescentar algo importante?" : "Observação";
+
+    return (
+      <div className="mt-5">
+        {severalCares && careType === activeTypes[0] ? (
+          <label className="mb-3 flex min-h-11 items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={shareNotesAcrossCares}
+              disabled={disabled}
+              onChange={(event) => setShareNotesAcrossCares(event.target.checked)}
+            />
+            <span>Usar a mesma observação em todos os cuidados</span>
+          </label>
+        ) : null}
+        <p className="cd-form-label">{noteLabel}</p>
+        {multiPet ? (
+          <div className="mt-3 space-y-3" role="radiogroup" aria-label={`Observação · ${typeDisplay(careType)}`}>
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="radio"
+                checked={!personalized}
+                disabled={disabled}
+                onChange={() => {
+                  if (granular) setPerTypePetNotes((prev) => ({ ...prev, [careType]: false }));
+                  else setPerPetNotesEnabled(false);
+                }}
+              />
+              {granular ? "Mesma para todos os pets" : "Mesma para todos"}
+            </label>
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="radio"
+                checked={personalized}
+                disabled={disabled}
+                onChange={() => {
+                  if (granular) setPerTypePetNotes((prev) => ({ ...prev, [careType]: true }));
+                  else setPerPetNotesEnabled(true);
+                }}
+              />
+              Personalizar por pet
+            </label>
+            {!personalized ? (
+              <label className="cd-form-label">
+                {granular ? "Observação deste cuidado" : "Observação para todos"}
+                <span className="cd-form-help">
+                  {sharedLaunch
+                    ? "Entra em todos os cuidados deste lançamento, para cada pet."
+                    : granular
+                      ? "Entra neste cuidado, para cada pet."
+                      : "Este texto entra no registro de cada pet."}
+                </span>
+                <textarea
+                  disabled={disabled}
+                  name={granular ? notesFieldNameForType(careType) : "notes"}
+                  rows={3}
+                  className="cd-form-control"
+                  placeholder="Opcional"
+                  value={perPetNotesDraft[granular ? `type:${careType}` : "global"] ?? ""}
+                  onChange={(event) => writeDraft(granular ? `type:${careType}` : "global", event.target.value)}
+                />
+              </label>
+            ) : (
+              <div className="space-y-3">
+                {granular ? null : <input type="hidden" name="include_per_pet_notes" value="1" />}
+                <p className="cd-form-help">
+                  {sharedLaunch
+                    ? "Entra em todos os cuidados deste pet."
+                    : granular
+                      ? "Só neste cuidado, para este pet."
+                      : "Cada texto entra só no registro daquele pet."}
+                </p>
+                {visibleSelectedIds.map((petId) => {
+                  const draftKey = granular ? `${careType}::${petId}` : petId;
+                  return (
+                    <label key={draftKey} className="cd-form-label">
+                      {petNames.get(petId) ?? "Pet"}
+                      {granular ? null : <input type="hidden" name={notesTargetPetFieldName()} value={petId} />}
+                      <textarea
+                        disabled={disabled}
+                        name={granular ? notesFieldNameForPetType(careType, petId) : notesFieldNameForPet(petId)}
+                        rows={2}
+                        className="cd-form-control"
+                        placeholder="Só para este pet"
+                        value={perPetNotesDraft[draftKey] ?? ""}
+                        onChange={(event) => writeDraft(draftKey, event.target.value)}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : mode === "edit" ? (
+          <textarea
+            disabled={disabled}
+            name="notes"
+            rows={3}
+            defaultValue={defaultValues?.notes ?? ""}
+            className="cd-form-control"
+            placeholder="Opcional — qualquer detalhe que ajude depois"
+          />
+        ) : (
+          <textarea
+            disabled={disabled}
+            name={granular ? notesFieldNameForType(careType) : "notes"}
+            rows={3}
+            className="cd-form-control"
+            placeholder="Opcional — qualquer detalhe que ajude depois"
+            value={perPetNotesDraft[granular ? `type:${careType}` : "global"] ?? ""}
+            onChange={(event) => writeDraft(granular ? `type:${careType}` : "global", event.target.value)}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -612,57 +820,36 @@ export function RecordFields({
         <input key={type} type="hidden" name="record_type" value={type} />
       ))}
 
-      <section>
-        <p className="text-sm font-bold">1. {mode === "edit" ? "Pet" : "Quais pets?"}</p>
-        <div className="mt-2">
-          {noNeonatalPets ? (
-            <p className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-4 text-sm text-[var(--muted)]">
-              Nenhum filhote com até 8 semanas no momento.
-            </p>
-          ) : (
-            <PetMultiSelect
-              key={`${visiblePets.map((pet) => pet.id).join(",")}-${visibleSelectedIds.join(",")}`}
-              pets={visiblePets}
-              defaultSelectedIds={visibleSelectedIds}
-              disabled={disabled || visiblePets.length === 0}
-              multiple={mode === "create"}
-              required
-              legend=""
-              hint={petHint}
-              onSelectionChange={setSelectedPetIds}
-            />
-          )}
-        </div>
-        {droppedPetNames.length > 0 && (
-          <p className="mt-2 text-xs font-semibold text-[#9a536c]" role="status">
-            {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — xixi, cocô e temperatura só valem para filhotes.
-          </p>
-        )}
-        {mode === "create" && recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
-          <p className="mt-2 text-xs font-semibold text-[var(--muted)]" role="status">
-            {recordCount} registros serão criados
-            {activeTypes.includes("hygiene") && hygieneSubtypes.length > 0
-              ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${hygieneSubtypes.length} ${hygieneSubtypes.length === 1 ? "cuidado" : "cuidados"}${activeTypes.length > 1 ? ` + outros tipos` : ""})`
-              : activeTypes.includes("feeding") && feedingComponents.length > 0 && activeTypes.length === 1
-                ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "refeição" : "refeições"})`
-                : ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${activeTypes.length} ${activeTypes.length === 1 ? "tipo" : "tipos"})`}
-            .
-          </p>
-        )}
-      </section>
+      {mode === "edit" ? (
+        <section className="mt-6">
+          <p className="text-sm font-bold">Pet</p>
+          <div className="mt-2">
+            {noNeonatalPets ? (
+              <p className="py-3 text-sm text-[var(--muted)]">Nenhum filhote com até 8 semanas no momento.</p>
+            ) : (
+              <PetMultiSelect
+                key={`${visiblePets.map((pet) => pet.id).join(",")}-${visibleSelectedIds.join(",")}`}
+                pets={visiblePets}
+                defaultSelectedIds={visibleSelectedIds}
+                disabled={disabled || visiblePets.length === 0}
+                multiple={false}
+                required
+                legend=""
+                hint={petHint}
+                appearance="quiet"
+                onSelectionChange={setSelectedPetIds}
+              />
+            )}
+          </div>
+        </section>
+      ) : null}
 
-      <section className="mt-6">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <p className="text-sm font-bold">2. O que aconteceu?</p>
-          {allowMultiType && (
-            <p className="text-[11px] font-semibold text-[var(--muted)]">Você pode registrar vários cuidados de uma vez</p>
-          )}
-        </div>
+      <section className="mt-8">
         {lockedType ? (
-          <p className="mt-2 rounded-2xl bg-[var(--cream)] px-4 py-3 text-sm font-semibold">{optionByType[primaryType]?.label ?? primaryType}</p>
-        ) : (
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" role="group" aria-label="Tipo de cuidado">
-            {options.map(({ value, shortLabel, icon: Icon }) => {
+          <p className="text-sm font-semibold">{typeDisplay(primaryType)}</p>
+        ) : mode === "edit" ? (
+          <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Tipo de cuidado">
+            {options.map(({ value, icon: Icon }) => {
               const active = selectedTypes.includes(value);
               return (
                 <button
@@ -671,61 +858,150 @@ export function RecordFields({
                   disabled={disabled}
                   onClick={() => toggleType(value)}
                   aria-pressed={active}
-                  className={`focus-ring flex min-h-20 flex-col items-center justify-center gap-2 rounded-[18px] border px-2 text-xs font-bold transition ${
-                    active
-                      ? "border-[var(--lavender)] bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                      : "border-[var(--border)] bg-white text-[var(--muted)] hover:border-[var(--lavender)]/40"
+                  className={`focus-ring inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold ${
+                    active ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]" : "text-[var(--muted)]"
                   }`}
                 >
-                  <Icon size={19} aria-hidden /> {shortLabel}
+                  <Icon size={16} aria-hidden /> {typeDisplay(value)}
                 </button>
               );
             })}
           </div>
-        )}
-        {allowMultiType && activeTypes.length >= 2 && (
-          <div className="mt-3 rounded-[14px] bg-[var(--cream)] px-3 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-[var(--muted)]">
-                {activeTypes.length} cuidados selecionados
-              </p>
+        ) : (
+          <>
+            {activeTypes.length > 0 ? (
+              <ul className="mt-1 flex flex-col items-start">
+                {activeTypes.map((type) => {
+                  const Icon = optionByType[type]?.icon;
+                  return (
+                    <li key={type} className="inline-flex items-center gap-3 py-2">
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                        {Icon ? <Icon size={16} aria-hidden /> : null}
+                        {typeDisplay(type)}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => toggleType(type)}
+                        className="focus-ring text-xs font-semibold text-[var(--muted)]"
+                      >
+                        Remover
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm font-semibold">O que você quer registrar?</p>
+            )}
+            {activeTypes.length > 0 ? (
               <button
                 type="button"
                 disabled={disabled}
-                onClick={clearTypes}
-                className="focus-ring text-[11px] font-bold text-[var(--lavender-strong)] underline disabled:opacity-50"
+                onClick={() => setShowMoreTypes((open) => !open)}
+                className="focus-ring mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--lavender-strong)]"
               >
-                Limpar seleção
+                <Plus size={15} aria-hidden />
+                Adicionar outro cuidado
               </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {activeTypes.map((type) => (
-                <span
-                  key={type}
-                  className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-1 text-[10px] font-bold text-[var(--lavender-strong)]"
-                >
-                  {optionByType[type]?.shortLabel ?? type}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {allowMultiType && activeTypes.length === 0 && (
-          <p className="mt-3 rounded-[14px] border border-dashed border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--muted)]">
-            Nenhum tipo selecionado — toque em uma ou mais opções acima para abrir o formulário.
-          </p>
+            ) : null}
+            {(activeTypes.length === 0 || showMoreTypes) && (
+              <div className={activeTypes.length > 0 ? "mt-4" : "mt-4"}>
+                {TYPE_GROUPS.filter((group) => group.id !== "neonatal" || showNeonatalGroup).map((group) => {
+                  const types = group.types.filter((type) => activeTypes.length === 0 || !selectedTypes.includes(type));
+                  if (types.length === 0) return null;
+                  return (
+                    <div key={group.id} className="mt-6 first:mt-0">
+                      <p className="cd-pet-section-title">{group.label}</p>
+                      <div className="flex flex-wrap gap-1" role="group" aria-label={group.label}>
+                        {types.map((value) => {
+                          const Icon = optionByType[value].icon;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                toggleType(value);
+                                setShowMoreTypes(false);
+                              }}
+                              aria-pressed={false}
+                              className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[var(--text-primary)]"
+                            >
+                              <Icon size={16} aria-hidden />
+                              {typeDisplay(value)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </section>
 
-      <section className="mt-6 space-y-4">
-        {activeTypes.length === 0 ? (
-          <div className="rounded-[18px] border border-dashed border-[var(--border)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-            Escolha o que aconteceu para preencher os detalhes.
+      {mode === "create" ? (
+        <section className="mt-8" hidden={progressiveCreate && activeTypes.length === 0}>
+          <p className="cd-pet-section-title">Para quem?</p>
+          <div className="mt-1">
+            {noNeonatalPets ? (
+              <p className="py-3 text-sm text-[var(--muted)]">Nenhum filhote com até 8 semanas no momento.</p>
+            ) : (
+              <PetMultiSelect
+                key={`${visiblePets.map((pet) => pet.id).join(",")}-${visibleSelectedIds.join(",")}`}
+                pets={visiblePets}
+                defaultSelectedIds={visibleSelectedIds}
+                disabled={disabled || visiblePets.length === 0}
+                multiple
+                required
+                legend=""
+                hint={petHint}
+                appearance="quiet"
+                onSelectionChange={setSelectedPetIds}
+              />
+            )}
           </div>
-        ) : (
+          {visibleSelectedIds.length > 0 ? (
+            <p className="cd-meta mt-2" role="status">
+              {visibleSelectedIds.length} {visibleSelectedIds.length === 1 ? "pet selecionado" : "pets selecionados"}
+            </p>
+          ) : null}
+          {droppedPetNames.length > 0 && (
+            <p className="mt-2 text-xs font-semibold text-[#9a536c]" role="status">
+              {droppedPetNames.join(" e ")} {droppedPetNames.length === 1 ? "foi desmarcado" : "foram desmarcados"} — xixi, cocô e temperatura só valem para filhotes.
+            </p>
+          )}
+          {recordCount > 1 && visibleSelectedIds.length > 0 && activeTypes.length > 0 && (
+            <p className="cd-meta mt-3" role="status">
+              {simpleBatch ? (
+                <>
+                  {visibleSelectedIds.length} {visibleSelectedIds.length === 1 ? "pet" : "pets"} × {activeTypes.length} {activeTypes.length === 1 ? "cuidado" : "cuidados"}
+                  <span className="mt-1 block">{recordCount} registros serão criados</span>
+                </>
+              ) : (
+                <>
+                  {recordCount} registros serão criados
+                  {activeTypes.includes("hygiene") && hygieneSubtypes.length > 0
+                    ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${hygieneSubtypes.length} ${hygieneSubtypes.length === 1 ? "cuidado" : "cuidados"}${activeTypes.length > 1 ? " + outros tipos" : ""})`
+                    : activeTypes.includes("feeding") && feedingComponents.length > 0 && activeTypes.length === 1
+                      ? ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "refeição" : "refeições"})`
+                      : ` (${visibleSelectedIds.length} ${visibleSelectedIds.length === 1 ? "pet" : "pets"} × ${activeTypes.length} ${activeTypes.length === 1 ? "tipo" : "tipos"})`}
+                  .
+                </>
+              )}
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      <div className={progressiveCreate && !detailsReady ? "cd-register-fields hidden" : "cd-register-fields"}>
+      <section className="mt-8 space-y-8">
+        {activeTypes.length === 0 ? null : (
           activeTypes.map((type) => {
             const meta = optionByType[type];
-            const showCard = multiType;
             const qualityName = multiType ? `quality_${type}` : "quality";
             const titleName = multiType ? `title_${type}` : "title";
             const healthType = type === "vaccine" || type === "deworming" || type === "medication" || type === "consultation" || type === "exam" || type === "observation";
@@ -789,20 +1065,19 @@ export function RecordFields({
                           name="feeding_custom_label"
                           value={feedingCustomLabel}
                           onChange={(event) => setFeedingCustomLabel(event.target.value)}
-                          className="field mt-2"
+                          className="cd-form-control"
                           placeholder="Ex.: Frango cozido"
                           aria-required="true"
                         />
                       </label>
                     )}
                     {feedingComponents.length > 0 && (
-                      <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-white/70 p-3">
-                        <p className="text-xs font-bold text-[var(--muted)]">Quantidades (opcional)</p>
+                      <div className="space-y-1">
                         {feedingComponents.map((key) => {
                           const preset = FEEDING_CARE_PRESETS.find((entry) => entry.key === key)!;
                           const amount = feedingAmounts[key] ?? { value: "", unitPreset: "ml" as FeedingUnitPreset, unitOther: "" };
                           return (
-                            <div key={key} className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem]">
+                            <div key={key} className="grid items-center gap-2 border-b border-[color-mix(in_srgb,var(--cuidadim-purple-100)_75%,transparent)] py-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem]">
                               <p className="text-sm font-semibold self-center">{preset.label}</p>
                               <input
                                 disabled={disabled}
@@ -817,7 +1092,7 @@ export function RecordFields({
                                   ...prev,
                                   [key]: { ...amount, value: event.target.value },
                                 }))}
-                                className="field"
+                                className="cd-form-control"
                                 placeholder="Qtd"
                               />
                               <select
@@ -828,7 +1103,7 @@ export function RecordFields({
                                   ...prev,
                                   [key]: { ...amount, unitPreset: event.target.value as FeedingUnitPreset },
                                 }))}
-                                className="field"
+                                className="cd-form-control"
                               >
                                 {FEEDING_UNIT_PRESETS.map((unit) => (
                                   <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
@@ -843,7 +1118,7 @@ export function RecordFields({
                                     ...prev,
                                     [key]: { ...amount, unitOther: event.target.value },
                                   }))}
-                                  className="field sm:col-span-3"
+                                  className="cd-form-control sm:col-span-3"
                                   placeholder="Qual unidade?"
                                   maxLength={32}
                                 />
@@ -880,7 +1155,7 @@ export function RecordFields({
                           </span>
                         </label>
                         {feedingAmountOverridesEnabled && (
-                          <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
+                          <section className="space-y-3" aria-label="Quantidades por pet">
                             <p className="text-sm font-bold">Para qual pet?</p>
                             <div className="flex flex-wrap gap-2">
                               {visibleSelectedIds.map((petId) => {
@@ -918,7 +1193,7 @@ export function RecordFields({
                                   const preset = FEEDING_CARE_PRESETS.find((entry) => entry.key === key)!;
                                   const amount = feedingOverrideAmounts[petId]?.[key] ?? { value: "", unitPreset: "ml" as FeedingUnitPreset, unitOther: "" };
                                   return (
-                                    <div key={key} className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem]">
+                                    <div key={key} className="grid items-center gap-2 border-b border-[color-mix(in_srgb,var(--cuidadim-purple-100)_75%,transparent)] py-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem]">
                                       <p className="text-sm font-semibold self-center">{preset.label}</p>
                                       <input
                                         disabled={disabled}
@@ -936,7 +1211,7 @@ export function RecordFields({
                                             [key]: { ...amount, value: event.target.value },
                                           },
                                         }))}
-                                        className="field"
+                                        className="cd-form-control"
                                         placeholder="Herdar"
                                       />
                                       <select
@@ -950,7 +1225,7 @@ export function RecordFields({
                                             [key]: { ...amount, unitPreset: event.target.value as FeedingUnitPreset },
                                           },
                                         }))}
-                                        className="field"
+                                        className="cd-form-control"
                                       >
                                         {FEEDING_UNIT_PRESETS.map((unit) => (
                                           <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
@@ -968,7 +1243,7 @@ export function RecordFields({
                                               [key]: { ...amount, unitOther: event.target.value },
                                             },
                                           }))}
-                                          className="field sm:col-span-3"
+                                          className="cd-form-control sm:col-span-3"
                                           placeholder="Qual unidade?"
                                           maxLength={32}
                                         />
@@ -1001,7 +1276,7 @@ export function RecordFields({
                       </button>
                     </div>
                     {editFeedingRows.map((row, index) => (
-                      <div key={row.key} className="space-y-2 rounded-[18px] border border-[var(--border)] bg-white/70 p-3">
+                      <div key={row.key} className="space-y-2 border-b border-[color-mix(in_srgb,var(--cuidadim-purple-100)_75%,transparent)] py-3">
                         <div className="flex items-start justify-between gap-2">
                           <label className="block flex-1 text-sm font-bold">
                             Alimento
@@ -1017,7 +1292,7 @@ export function RecordFields({
                                     : item
                                 )));
                               }}
-                              className="field mt-2"
+                              className="cd-form-control"
                               aria-required="true"
                             >
                               <option value="" disabled>Escolha…</option>
@@ -1047,7 +1322,7 @@ export function RecordFields({
                               onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
                                 i === index ? { ...item, customLabel: event.target.value } : item
                               )))}
-                              className="field mt-2"
+                              className="cd-form-control"
                               placeholder="Ex.: Frango cozido"
                               aria-required="true"
                             />
@@ -1068,7 +1343,7 @@ export function RecordFields({
                               onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
                                 i === index ? { ...item, value: event.target.value } : item
                               )))}
-                              className="field mt-2"
+                              className="cd-form-control"
                               placeholder="Ex.: 25"
                             />
                           </label>
@@ -1081,7 +1356,7 @@ export function RecordFields({
                               onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
                                 i === index ? { ...item, unitPreset: event.target.value as FeedingUnitPreset } : item
                               )))}
-                              className="field mt-2"
+                              className="cd-form-control"
                             >
                               {FEEDING_UNIT_PRESETS.map((unit) => (
                                 <option key={unit} value={unit}>{FEEDING_UNIT_PRESET_LABELS[unit]}</option>
@@ -1098,7 +1373,7 @@ export function RecordFields({
                                 onChange={(event) => setEditFeedingRows((prev) => prev.map((item, i) => (
                                   i === index ? { ...item, unitOther: event.target.value } : item
                                 )))}
-                                className="field mt-2"
+                                className="cd-form-control"
                                 placeholder="Ex.: sachê"
                                 maxLength={32}
                               />
@@ -1118,7 +1393,7 @@ export function RecordFields({
                         name="feeding_subtype"
                         value={feedingSubtype}
                         onChange={(event) => setFeedingSubtype(event.target.value)}
-                        className="field mt-2"
+                        className="cd-form-control"
                         aria-required={!initialFeeding.legacyWithoutSubtype}
                       >
                         {mode === "edit" && initialFeeding.legacyWithoutSubtype ? (
@@ -1147,7 +1422,7 @@ export function RecordFields({
                         inputMode="decimal"
                         value={feedingAmountValue}
                         onChange={(event) => setFeedingAmountValue(event.target.value)}
-                        className="field mt-2"
+                        className="cd-form-control"
                         placeholder="Ex.: 18"
                         aria-required="true"
                       />
@@ -1159,7 +1434,7 @@ export function RecordFields({
                         name="feeding_amount_unit_preset"
                         value={feedingUnitPreset}
                         onChange={(event) => setFeedingUnitPreset(event.target.value as FeedingUnitPreset)}
-                        className="field mt-2"
+                        className="cd-form-control"
                         aria-required="true"
                       >
                         {FEEDING_UNIT_PRESETS.map((unit) => (
@@ -1177,7 +1452,7 @@ export function RecordFields({
                           name="feeding_amount_unit_other"
                           value={feedingUnitOther}
                           onChange={(event) => setFeedingUnitOther(event.target.value)}
-                          className="field mt-2"
+                          className="cd-form-control"
                           placeholder="Ex.: sachê, gotas…"
                           maxLength={32}
                           aria-required="true"
@@ -1199,7 +1474,7 @@ export function RecordFields({
                       inputMode="decimal"
                       value={temperatureC}
                       onChange={(event) => setTemperatureC(event.target.value)}
-                      className="field mt-2"
+                      className="cd-form-control"
                       placeholder="Ex.: 37,8"
                       aria-required="true"
                     />
@@ -1208,7 +1483,7 @@ export function RecordFields({
                 {(type === "feeding" || type === "urine" || type === "stool") && (
                   <QualitySelect
                     name={qualityName}
-                    label={multiType ? `Como foi o ${meta?.label.toLowerCase() ?? type}?` : "Como foi?"}
+                    label="Como foi?"
                     disabled={disabled}
                     defaultValue={defaultValues?.quality}
                     allowEmpty={type === "feeding" && useSessionFeedingUi}
@@ -1242,7 +1517,7 @@ export function RecordFields({
                             setDoseLabel("");
                             if (next === "other") setTitle("");
                           }}
-                          className="field mt-2"
+                          className="cd-form-control"
                           aria-required="true"
                         >
                           <option value="">Selecione</option>
@@ -1260,7 +1535,7 @@ export function RecordFields({
                             name="title"
                             value={title}
                             onChange={(event) => setTitle(event.target.value)}
-                            className="field mt-2"
+                            className="cd-form-control"
                             placeholder="Ex.: Vacina específica da clínica"
                             aria-required="true"
                           />
@@ -1273,7 +1548,7 @@ export function RecordFields({
                             name="dose_label"
                             value={doseLabel}
                             onChange={(event) => setDoseLabel(event.target.value)}
-                            className="field mt-2"
+                            className="cd-form-control"
                             aria-required="true"
                           >
                             <option value="">Selecione</option>
@@ -1358,7 +1633,7 @@ export function RecordFields({
                           name="hygiene_custom_label"
                           value={hygieneCustomLabel}
                           onChange={(event) => setHygieneCustomLabel(event.target.value)}
-                          className="field mt-2"
+                          className="cd-form-control"
                           placeholder="Ex.: Limpeza das patas"
                           aria-required="true"
                         />
@@ -1381,7 +1656,7 @@ export function RecordFields({
                           disabled={disabled}
                           name={titleName}
                           defaultValue={type === "deworming" ? "Vermífugo" : ""}
-                          className="field mt-2"
+                          className="cd-form-control"
                           placeholder={
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
@@ -1396,7 +1671,7 @@ export function RecordFields({
                           name="title"
                           value={title}
                           onChange={(event) => setTitle(event.target.value)}
-                          className="field mt-2"
+                          className="cd-form-control"
                           placeholder={
                             type === "deworming" ? "Ex.: Vermífugo"
                               : type === "medication" ? "Ex.: Antipulgas"
@@ -1409,12 +1684,6 @@ export function RecordFields({
                     </label>
                   )
                 )}
-                {(type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && !multiType && (
-                  <label className="block text-sm font-bold sm:col-span-2">
-                    Clínica ou veterinário
-                    <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder={type === "exam" ? "Opcional — clínica, lab ou veterinário" : "Opcional"} />
-                  </label>
-                )}
               </div>
             );
 
@@ -1425,38 +1694,23 @@ export function RecordFields({
 
             const attachmentsBlock = showCreateAttachmentsForType ? (
               multiPetAttachments ? (
-                <section className="mt-5 space-y-3" aria-label={`Arquivos por pet — ${meta?.label ?? type}`}>
-                  <p className="text-sm font-bold">Arquivos por pet</p>
-                  <p className="text-xs text-[var(--muted)]">
-                    Cada arquivo fica só no registro deste pet e deste tipo.
-                  </p>
-                  <div className="space-y-2">
+                <section className="mt-5" aria-label={`Arquivos por pet — ${meta?.label ?? type}`}>
+                  <p className="cd-form-help">Cada arquivo fica só no registro deste pet, neste cuidado.</p>
+                  <div className="mt-2 space-y-4">
                     {visibleSelectedIds.map((petId) => {
                       const petName = petNames.get(petId) ?? "Pet";
                       return (
-                        <details
-                          key={`${petId}:${type}`}
-                          className="rounded-[16px] border border-[var(--border)] bg-white/70 px-3 py-2 open:pb-3"
-                        >
-                          <summary className="focus-ring cursor-pointer list-none rounded-xl py-1.5 text-sm font-bold text-[var(--graphite)]">
-                            <span className="inline-flex items-center gap-2">
-                              <span className="rounded-full bg-[var(--lavender-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--lavender-strong)]">
-                                {petName}
-                              </span>
-                              <span className="text-xs font-semibold text-[var(--muted)]">Arquivos · toque para abrir</span>
-                            </span>
-                          </summary>
-                          <div className="mt-2">
-                            <HealthRecordAttachmentsFields
-                              disabled={disabled}
-                              careType={type}
-                              petId={petId}
-                              compact
-                              heading={attachmentHeadingForPetCareType(petName, type, meta?.label)}
-                              pickerId={`health-record-create-attachments-${petId}-${type}`}
-                            />
-                          </div>
-                        </details>
+                        <div key={`${petId}:${type}`}>
+                          <p className="cd-form-label">{petName}</p>
+                          <HealthRecordAttachmentsFields
+                            disabled={disabled}
+                            careType={type}
+                            petId={petId}
+                            compact
+                            heading={attachmentHeadingForPetCareType(petName, type, meta?.label)}
+                            pickerId={`health-record-create-attachments-${petId}-${type}`}
+                          />
+                        </div>
                       );
                     })}
                   </div>
@@ -1472,177 +1726,36 @@ export function RecordFields({
               )
             ) : null;
 
-            if (!showCard) {
-              return (
-                <div key={type}>
-                  {fields}
-                  {attachmentsBlock}
-                </div>
-              );
-            }
-
             return (
-              <div key={type} className="rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">{meta?.label ?? type}</p>
+              <div key={type} className="pt-1">
+                <p className="cd-pet-section-title">{typeDisplay(type)}</p>
                 <div className="mt-3">{fields}</div>
+                {type === clinicAnchor ? clinicField : null}
                 {attachmentsBlock}
+                {activeTypes.length === 1 ? (
+                  <>
+                    {editAttachmentsAllowed ? (
+                      <HealthRecordAttachmentsFields
+                        disabled={disabled}
+                        existingAttachments={existingAttachments}
+                        showExisting
+                        editableExistingNames
+                        pickerId="health-record-edit-attachments"
+                        heading={attachmentHeadingForCareType(activeTypes[0] ?? "other", optionByType[activeTypes[0] as QuickRecordType]?.label)}
+                        careType={activeTypes[0]}
+                      />
+                    ) : null}
+                    {careNotes(type)}
+                    {whenBlock}
+                  </>
+                ) : careNotes(type)}
               </div>
             );
           })
         )}
 
-        {hasHealthType && multiType && activeTypes.some((type) => type === "vaccine" || type === "deworming" || type === "consultation" || type === "exam") && (
-          <label className="block text-sm font-bold">
-            Clínica ou veterinário
-            <input disabled={disabled} name="clinic_or_vet" defaultValue={defaultValues?.clinic_or_vet ?? ""} className="field mt-2" placeholder="Opcional — vale para os tipos de saúde" />
-          </label>
-        )}
+        {activeTypes.length > 1 ? whenBlock : null}
       </section>
-
-      <section className="mt-5 grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-bold">
-          Quando?
-          <FactualDateTimeInput disabled={disabled} required name="occurred_at" defaultValue={occurredDefault} className="field mt-2" />
-        </label>
-        {mode === "create" && hasReminderType && (
-          <label className="block text-sm font-bold">
-            Lembrar novamente em
-            <input disabled={disabled} type="datetime-local" name="reminder_due_at" className="field mt-2" />
-          </label>
-        )}
-      </section>
-
-      <label className="mt-5 block text-sm font-bold">
-        {hygieneOnly
-          ? "Quer acrescentar algo importante?"
-          : showPerPetNotesToggle(mode, visibleSelectedIds.length)
-            ? "Observação para todos (opcional)"
-            : "Observação (opcional)"}
-        <textarea
-          disabled={disabled}
-          name="notes"
-          rows={3}
-          defaultValue={defaultValues?.notes ?? ""}
-          className="field mt-2 resize-none"
-          placeholder={
-            hygieneOnly
-              ? "Opcional — qualquer detalhe que ajude depois"
-              : showPerPetNotesToggle(mode, visibleSelectedIds.length)
-                ? "Opcional — vale para todos os pets deste lançamento"
-                : "Opcional — qualquer detalhe que ajude depois"
-          }
-        />
-      </label>
-
-      {showPerPetNotesToggle(mode, visibleSelectedIds.length) && (
-        <div className="mt-4 space-y-3">
-          <label className="flex cursor-pointer items-start gap-3 text-sm font-bold">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 accent-[var(--graphite)]"
-              disabled={disabled}
-              checked={perPetNotesEnabled}
-              name={perPetNotesEnabled ? "include_per_pet_notes" : undefined}
-              value="1"
-              onChange={(event) => {
-                const next = event.target.checked;
-                setPerPetNotesEnabled(next);
-                if (!next) {
-                  setPerPetNotesTargets([]);
-                  setPerPetNotesDraft({});
-                }
-              }}
-            />
-            <span>
-              Quer adicionar uma observação individual?
-              <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">
-                Por padrão não — só a observação para todos é usada.
-              </span>
-            </span>
-          </label>
-
-          {perPetNotesEnabled && (
-            <section className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--cream)]/40 p-4" aria-label="Observações individuais">
-              <fieldset disabled={disabled} className="min-w-0">
-                <legend className="text-sm font-bold">Para qual pet?</legend>
-                <p className="mt-1 text-xs text-[var(--muted)]">Pode escolher um ou mais — só eles ganham campo próprio.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {visibleSelectedIds.map((petId) => {
-                    const checked = perPetNotesTargets.includes(petId);
-                    return (
-                      <label
-                        key={petId}
-                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                          checked
-                            ? "border-[var(--graphite)] bg-[var(--graphite)] text-white"
-                            : "border-[var(--border)] bg-white text-[var(--graphite)]"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          name={notesTargetPetFieldName()}
-                          value={petId}
-                          checked={checked}
-                          onChange={() => {
-                            setPerPetNotesTargets((prev) => {
-                              if (prev.includes(petId)) {
-                                setPerPetNotesDraft((draft) => {
-                                  const next = { ...draft };
-                                  delete next[petId];
-                                  return next;
-                                });
-                                return prev.filter((id) => id !== petId);
-                              }
-                              return [...prev, petId];
-                            });
-                          }}
-                        />
-                        {petNames.get(petId) ?? "Pet"}
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              {perPetNotesTargets.length > 0 && (
-                <div className="space-y-3 border-t border-[var(--border)] pt-3">
-                  <p className="text-xs text-[var(--muted)]">Se preenchida, substitui a observação geral só naquele pet.</p>
-                  {perPetNotesTargets.map((petId) => (
-                    <label key={petId} className="block text-sm font-bold">
-                      {petNames.get(petId) ?? "Pet"}
-                      <textarea
-                        disabled={disabled}
-                        name={notesFieldNameForPet(petId)}
-                        rows={2}
-                        className="field mt-2 resize-none"
-                        placeholder="Opcional — só para este pet"
-                        value={perPetNotesDraft[petId] ?? ""}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setPerPetNotesDraft((prev) => ({ ...prev, [petId]: value }));
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-      )}
-
-      {editAttachmentsAllowed && (
-        <HealthRecordAttachmentsFields
-          disabled={disabled}
-          existingAttachments={existingAttachments}
-          showExisting
-          editableExistingNames
-          pickerId="health-record-edit-attachments"
-          heading={attachmentHeadingForCareType(activeTypes[0] ?? "other", optionByType[activeTypes[0] as QuickRecordType]?.label)}
-          careType={activeTypes[0]}
-        />
-      )}
 
       {validationMessage && (
         <p className="mt-5 text-sm font-semibold text-[var(--danger)]" role="alert">
@@ -1653,10 +1766,11 @@ export function RecordFields({
       <SubmitButton
         disabled={submitBlocked}
         pendingLabel="Salvando..."
-        className="focus-ring mt-3 w-full rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#2a2230]/15 disabled:cursor-not-allowed disabled:opacity-55"
+        className="focus-ring mt-8 w-full rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
       >
         {resolvedSubmitLabel}
       </SubmitButton>
+      </div>
     </>
   );
 }

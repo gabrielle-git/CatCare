@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Cpu, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { formatFullDate } from "@/lib/format";
 import type { Pet } from "@/types/database";
 
@@ -9,20 +9,12 @@ export function PetMicrochipSummary({ pet, editable }: { pet: Pet; editable: boo
     : "Não registrado";
 
   return (
-    <details className="cat-card group">
-      <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--lavender-soft)]">
-            <Cpu size={16} className="text-[var(--lavender-strong)]" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-bold">Microchip</p>
-            <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{summary}</p>
-          </div>
-        </div>
-        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)] group-open:hidden">Ver</span>
+    <details className="cd-pet-microchip group">
+      <summary className="focus-ring cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="cd-meta">Microchip</span>
+        <span className="cd-body mt-1 block">{summary}</span>
       </summary>
-      <div className="border-t border-[var(--border)] px-5 pb-5 pt-4">
+      <div className="cd-pet-microchip-more">
         {pet.has_microchip ? (
           <dl className="space-y-3 text-sm">
             <div>

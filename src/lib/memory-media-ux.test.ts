@@ -104,6 +104,7 @@ describe("wave-2b-ux pet profile photo", () => {
   const petFields = readFileSync(join(root, "src/components/pet-fields.tsx"), "utf8");
   const petAvatar = readFileSync(join(root, "src/components/pet-avatar.tsx"), "utf8");
   const petPage = readFileSync(join(root, "src/app/(app)/pets/[id]/page.tsx"), "utf8");
+  const petChrome = readFileSync(join(root, "src/components/pet-chrome.tsx"), "utf8");
   const createPetForm = readFileSync(join(root, "src/components/create-pet-form.tsx"), "utf8");
   const editPetForm = readFileSync(join(root, "src/components/edit-pet-form.tsx"), "utf8");
   const cropDialog = readFileSync(join(root, "src/components/profile-photo-crop-dialog.tsx"), "utf8");
@@ -124,8 +125,9 @@ describe("wave-2b-ux pet profile photo", () => {
     assert.match(petAvatar, /Alterar foto de perfil/);
     assert.match(petAvatar, /Adicionar foto/);
     assert.match(petAvatar, /<Camera/);
-    assert.match(petPage, /PetProfilePhotoControl|PetAvatar/);
-    assert.match(petPage, /size="profile"|PetProfilePhotoControl/);
+    assert.match(petChrome, /PetProfilePhotoControl|PetAvatar/);
+    assert.match(petChrome, /size="profile"|PetProfilePhotoControl/);
+    assert.match(petPage, /PetChrome/);
   });
 
   it("avatar is circular with object-cover object-center", () => {

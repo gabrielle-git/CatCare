@@ -1,86 +1,63 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Cat, Home, Menu, Plus } from "lucide-react";
-import { MoreMenuSheet } from "@/components/more-menu-sheet";
-import { isMoreMenuPath } from "@/lib/more-menu";
+import { Plus, Wallet } from "lucide-react";
+import { FinalNavImg } from "@/components/brand/cuidadim/final-asset-img";
+import { FourPointStar } from "@/components/brand/cuidadim/icons/FourPointStar";
+import { ShellNavLink } from "@/components/shell-nav-link";
+import { PRIMARY_NAV, type PrimaryNavId, resolveShellTarget } from "@/lib/app-navigation";
 import { isRecordEditPath } from "@/lib/record-edit-nav";
 
-const items: {
-  href: string;
-  label: string;
-  icon: typeof Home;
-  primary?: boolean;
-}[] = [
-  { href: "/", label: "Início", icon: Home },
-  { href: "/pets", label: "Pets", icon: Cat },
-  { href: "/records/new", label: "Registrar", icon: Plus, primary: true },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
-];
+function PrimaryNavIcon({ id, size = 19 }: { id: PrimaryNavId; size?: number }) {
+  if (id === "registrar") {
+    return (
+      <span className="cd-shell-nav-action" aria-hidden="true">
+        <Plus size={size - 5} strokeWidth={2} />
+      </span>
+    );
+  }
+  if (id === "financas") return <Wallet size={size} strokeWidth={1.6} aria-hidden="true" />;
+  if (id === "inicio") return <FinalNavImg id="agora" theme="light" size={size} />;
+  return <FinalNavImg id={id} theme="light" size={size} />;
+}
 
+/**
+ * Mobile/tablet shell (< lg) — Exploration B:
+ * five-destination dock (Início · Pets · Registrar · Cuidados · Finanças).
+ * Registrar is the center action. Mais + Conta live in the mobile header.
+ * z-40 keeps the legacy fixed z-50 overlays above the bar.
+ */
 export function BottomNav() {
   const pathname = usePathname();
   const forceDocumentNav = isRecordEditPath(pathname);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreActive = moreOpen || isMoreMenuPath(pathname);
+  const target = resolveShellTarget(pathname);
 
   return (
-    <>
-      <nav
-        aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[rgba(250,247,242,0.94)] px-2 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"
-      >
-        <div className="mx-auto grid max-w-[520px] grid-cols-5 gap-1">
-          {items.map(({ href, label, icon: Icon, primary }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            const className = `focus-ring flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition ${
-              primary
-                ? "bg-[var(--graphite)] text-white shadow-lg shadow-[#2a2230]/15"
-                : active
-                  ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                  : "text-[var(--muted)]"
-            }`;
-            const content = (
-              <>
-                <Icon size={primary ? 21 : 19} strokeWidth={active || primary ? 2.5 : 2} aria-hidden="true" />
-                <span>{label}</span>
-              </>
-            );
-            if (forceDocumentNav) {
-              return (
-                <a key={href} href={href} className={className}>
-                  {content}
-                </a>
-              );
-            }
+    <div data-brand="cuidadim" data-theme="light" className="cd-app-mobile-bar fixed inset-x-0 bottom-0 z-40 lg:hidden">
+      <div className="cd-app-mobile-bar-inner">
+        <nav aria-label="Navegação principal" className="cd-mob-dock cd-app-dock-b">
+          {PRIMARY_NAV.map((item) => {
+            const active = target === item.id;
             return (
-              <Link key={href} href={href} prefetch={false} className={className}>
-                {content}
-              </Link>
+              <ShellNavLink
+                key={item.id}
+                href={item.href}
+                forceDocumentNav={forceDocumentNav}
+                className="cd-mob-dock-item focus-ring"
+                data-nav={item.id}
+                data-active={active ? "true" : undefined}
+                aria-current={active ? "page" : undefined}
+              >
+                <span className="cd-mob-dock-icon">
+                  <PrimaryNavIcon id={item.id} />
+                  {active ? <FourPointStar size={7} color="#A8834A" className="cd-nav-star" /> : null}
+                </span>
+                <span>{item.label}</span>
+              </ShellNavLink>
             );
           })}
-
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            className={`focus-ring flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition ${
-              moreActive
-                ? "bg-[var(--lavender-soft)] text-[var(--lavender-strong)]"
-                : "text-[var(--muted)]"
-            }`}
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            aria-label="Abrir menu Mais"
-          >
-            <Menu size={19} strokeWidth={moreActive ? 2.5 : 2} aria-hidden="true" />
-            <span>Mais</span>
-          </button>
-        </div>
-      </nav>
-
-      <MoreMenuSheet open={moreOpen} onClose={() => setMoreOpen(false)} />
-    </>
+        </nav>
+      </div>
+    </div>
   );
 }

@@ -14,6 +14,7 @@ export function PetMultiSelect({
   legend = "Quais pets?",
   hint = "Pode escolher mais de um.",
   onSelectionChange,
+  appearance = "default",
 }: {
   pets: PetMultiSelectOption[];
   name?: string;
@@ -24,6 +25,7 @@ export function PetMultiSelect({
   legend?: string;
   hint?: string;
   onSelectionChange?: (ids: string[]) => void;
+  appearance?: "default" | "quiet";
 }) {
   const initial =
     defaultSelectedIds !== undefined
@@ -69,12 +71,16 @@ export function PetMultiSelect({
           return (
             <label
               key={pet.id}
-              className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                disabled ? "cursor-not-allowed opacity-55" : ""
-              } ${
+              className={`flex items-center gap-2.5 text-sm font-semibold transition ${
+                appearance === "quiet" ? "rounded-xl border px-3 py-2" : "cursor-pointer gap-3 rounded-2xl border px-4 py-3"
+              } ${disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer"} ${
                 isSelected
-                  ? "border-[var(--lavender)] bg-[var(--lavender-soft)]/50 text-[var(--foreground)]"
-                  : "border-[var(--border)] bg-white text-[var(--muted)]"
+                  ? appearance === "quiet"
+                    ? "border-[color-mix(in_srgb,var(--cuidadim-purple-300)_55%,transparent)] bg-[color-mix(in_srgb,var(--cuidadim-purple-50)_80%,#faf6f2)] text-[var(--cuidadim-purple-900)]"
+                    : "border-[var(--lavender)] bg-[var(--lavender-soft)]/50 text-[var(--foreground)]"
+                  : appearance === "quiet"
+                    ? "border-[color-mix(in_srgb,var(--cuidadim-purple-100)_80%,transparent)] bg-transparent text-[var(--muted)]"
+                    : "border-[var(--border)] bg-white text-[var(--muted)]"
               }`}
             >
               <input
@@ -85,8 +91,13 @@ export function PetMultiSelect({
                 onChange={() => toggle(pet.id)}
                 disabled={disabled}
                 required={required && !multiple && selected.size === 0}
-                className="size-4 shrink-0 accent-[var(--lavender)]"
+                className={appearance === "quiet" ? "size-3.5 shrink-0 accent-[var(--cuidadim-purple-700)]" : "size-4 shrink-0 accent-[var(--lavender)]"}
               />
+              {appearance === "quiet" ? (
+                <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--cuidadim-rosa-light)_45%,#faf6f2)] text-[11px] font-semibold text-[var(--cuidadim-purple-700)]">
+                  {pet.name.slice(0, 1)}
+                </span>
+              ) : null}
               <span className="min-w-0 flex-1">
                 {pet.name}
                 {pet.neonatal ? " • filhote" : ""}

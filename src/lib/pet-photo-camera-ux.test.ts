@@ -24,6 +24,7 @@ const root = process.cwd();
 describe("wave-2b pet photo camera UX", () => {
   const petAvatar = readFileSync(join(root, "src/components/pet-avatar.tsx"), "utf8");
   const petPage = readFileSync(join(root, "src/app/(app)/pets/[id]/page.tsx"), "utf8");
+  const petChrome = readFileSync(join(root, "src/components/pet-chrome.tsx"), "utf8");
   const editForm = readFileSync(join(root, "src/components/edit-pet-form.tsx"), "utf8");
   const petFields = readFileSync(join(root, "src/components/pet-fields.tsx"), "utf8");
   const petActions = readFileSync(join(root, "src/app/(app)/pets/actions.ts"), "utf8");
@@ -40,8 +41,9 @@ describe("wave-2b pet photo camera UX", () => {
     assert.match(petAvatar, /Excluir foto/);
     assert.match(petAvatar, /Cancelar/);
     assert.doesNotMatch(petAvatar, /editHref|href=\{`\/pets\/\$\{.*\}\/edit`\}|Link[\s\S]*Camera/);
-    assert.match(petPage, /PetProfilePhotoControl/);
-    assert.doesNotMatch(petPage, /editHref=/);
+    assert.match(petChrome, /PetProfilePhotoControl/);
+    assert.doesNotMatch(petChrome, /editHref=/);
+    assert.match(petPage, /PetChrome/);
   });
 
   it("Edit Profile no longer exposes photo input / crop", () => {

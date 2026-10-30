@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type RefObject } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { MORE_MENU_ACCOUNT, MORE_MENU_GROUPS } from "@/lib/more-menu";
 
-export function MoreMenuSheet({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
+function useModalDialog(
+  dialogRef: RefObject<HTMLDialogElement | null>,
+  initialFocusRef: RefObject<HTMLElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -27,7 +22,7 @@ export function MoreMenuSheet({
 
     dialog.addEventListener("cancel", onCancel);
     return () => dialog.removeEventListener("cancel", onCancel);
-  }, [onClose]);
+  }, [dialogRef, onClose]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -35,12 +30,27 @@ export function MoreMenuSheet({
 
     if (open) {
       if (!dialog.open) dialog.showModal();
-      closeButtonRef.current?.focus();
+      initialFocusRef.current?.focus();
       return;
     }
 
     if (dialog.open) dialog.close();
-  }, [open]);
+  }, [dialogRef, initialFocusRef, open]);
+}
+
+/** Mobile Mais: bottom sheet opened from the action strip. */
+export function MoreMenuSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useModalDialog(dialogRef, closeButtonRef, open, onClose);
 
   return (
     <dialog
@@ -57,7 +67,7 @@ export function MoreMenuSheet({
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">CatCare</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">Cuidadim</p>
             <h2 id={titleId} className="text-lg font-bold tracking-[-0.03em]">
               Mais recursos
             </h2>
@@ -123,6 +133,64 @@ export function MoreMenuSheet({
               </Link>
             </section>
           </div>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+/**
+ * Desktop rail Mais: overflow next to the rail (Visual Freeze V1 `cd-med-overflow`).
+ * Conta stays as its own rail link, so it is not repeated here.
+ */
+export function MoreMenuPopover({
+  open,
+  onClose,
+  bottomOffset,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Distance from the viewport bottom to the trigger's bottom edge, in px. */
+  bottomOffset: number;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const firstLinkRef = useRef<HTMLAnchorElement>(null);
+
+  useModalDialog(dialogRef, firstLinkRef, open, onClose);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="fixed inset-0 z-[80] m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 backdrop:bg-transparent"
+      aria-labelledby={titleId}
+      onClick={(event) => {
+        if (event.target === dialogRef.current) onClose();
+      }}
+    >
+      <div data-brand="cuidadim" data-theme="light" className="cd-app-overflow-anchor" style={{ bottom: bottomOffset }}>
+        <div className="cd-med-overflow cd-app-overflow" role="document">
+          <p id={titleId} className="cd-label">
+            Mais
+          </p>
+          {MORE_MENU_GROUPS.map((group, groupIndex) => (
+            <section key={group.id} aria-label={group.label} className="cd-app-overflow-group">
+              <p className="cd-label cd-app-overflow-group-label">{group.label}</p>
+              {group.items.map(({ label, href, icon: Icon }, itemIndex) => (
+                <Link
+                  key={href}
+                  ref={groupIndex === 0 && itemIndex === 0 ? firstLinkRef : undefined}
+                  href={href}
+                  prefetch={false}
+                  onClick={onClose}
+                  className="cd-med-overflow-row focus-ring"
+                >
+                  <Icon size={16} color="currentColor" aria-hidden="true" />
+                  <span>{label}</span>
+                </Link>
+              ))}
+            </section>
+          ))}
         </div>
       </div>
     </dialog>

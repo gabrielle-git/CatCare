@@ -82,6 +82,18 @@ export async function listHealthPlansForPet(
   return plans.filter((plan) => plan.pet_id === petId);
 }
 
+/** One line for a pet screen. Extra active plans stay reachable in Finanças. */
+export function healthPlanContextLabel(plans: HealthPlanWithCopays[]) {
+  const active = plans.filter((plan) => plan.active);
+  const shown = active[0] ?? plans[0] ?? null;
+  if (!shown) return null;
+  const provider =
+    shown.provider in HEALTH_PLAN_PROVIDER_LABELS
+      ? HEALTH_PLAN_PROVIDER_LABELS[shown.provider as keyof typeof HEALTH_PLAN_PROVIDER_LABELS]
+      : shown.provider;
+  return { provider, name: shown.plan_name, active: shown.active, more: Math.max(0, active.length - 1) };
+}
+
 export type HealthPlanCreateOwnershipResult =
   | { ok: true; status: "create" | "reuse" }
   | { ok: false; reason: "invalid_id" | "foreign_household" | "pet_mismatch" };

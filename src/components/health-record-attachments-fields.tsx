@@ -88,67 +88,61 @@ function AccumulatingHealthFilePicker({
 
   return (
     <div>
-      <p className="text-sm font-bold">
-        {heading} — {slots.label}
-      </p>
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        Opcional · JPG, PNG, WebP ou PDF · máx. 5 MB cada.
-        {remainingSlots === 0 ? " Limite atingido." : ` Você ainda pode adicionar ${remainingSlots}.`}
+      <p className="cd-form-label">Arquivos</p>
+      {heading ? <span className="sr-only">{heading}</span> : null}
+      <p className="cd-form-help">
+        JPG, PNG, WebP ou PDF · até {ATTACHMENT_MAX_PER_DOCUMENT} arquivos · 5 MB cada
+        {selected.length > 0 ? ` · ${slots.label}` : ""}
+        {remainingSlots === 0 ? " · limite atingido" : ""}
       </p>
 
       {selected.length > 0 && (
-        <div className="mt-3">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--lavender-strong)]">
-            {existingStoredCount > 0 ? "Novos arquivos" : "Arquivos"} — {selected.length}
-            {existingStoredCount === 0 ? ` de ${ATTACHMENT_MAX_PER_DOCUMENT}` : ""}
-          </p>
-          <ul className="mt-2 space-y-3">
-            {selected.map((item) => (
-              <li key={item.id} className="rounded-[16px] border border-[var(--border)] bg-[var(--cream)] px-3 py-3 text-xs">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-[var(--muted)]">{item.file.name}</p>
-                    <p className="mt-0.5 text-[var(--muted)]">
-                      {attachmentKindLabel(item.file.type)} · {formatAttachmentBytes(item.file.size)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => {
-                      unregisterPendingAttachmentFile(item.id);
-                      setSelected((current) => current.filter((entry) => entry.id !== item.id));
-                      setNameError(null);
-                    }}
-                    className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 font-bold text-[var(--danger)]"
-                  >
-                    <Trash2 size={12} /> Remover
-                  </button>
+        <ul className="mt-2">
+          {selected.map((item) => (
+            <li key={item.id} className="border-b border-[color-mix(in_srgb,var(--cuidadim-purple-100)_80%,transparent)] py-2.5 text-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-[var(--text-primary)]">{item.file.name}</p>
+                  <p className="mt-0.5 text-[var(--muted)]">
+                    {attachmentKindLabel(item.file.type)} · {formatAttachmentBytes(item.file.size)}
+                  </p>
                 </div>
-                <label className="mt-3 block text-[11px] font-bold text-[var(--graphite)]">
-                  Nome no CatCare
-                  <input
-                    disabled={disabled}
-                    name={fieldNames.displayNames}
-                    value={item.displayName}
-                    onChange={(event) => updateDisplayName(item.id, event.target.value)}
-                    maxLength={160}
-                    className="field mt-1.5 text-sm font-semibold"
-                    placeholder="Ex.: Resultado do hemograma"
-                  />
-                </label>
-                <input type="hidden" name={fieldNames.attachmentIds} value={item.id} />
-              </li>
-            ))}
-          </ul>
-        </div>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    unregisterPendingAttachmentFile(item.id);
+                    setSelected((current) => current.filter((entry) => entry.id !== item.id));
+                    setNameError(null);
+                  }}
+                  className="focus-ring inline-flex shrink-0 items-center gap-1 px-1 py-1 font-semibold text-[var(--danger)]"
+                >
+                  <Trash2 size={12} /> Remover
+                </button>
+              </div>
+              <label className="cd-form-label mt-2">
+                Nome do arquivo
+                <input
+                  disabled={disabled}
+                  name={fieldNames.displayNames}
+                  value={item.displayName}
+                  onChange={(event) => updateDisplayName(item.id, event.target.value)}
+                  maxLength={160}
+                  className="cd-form-control"
+                  placeholder="Ex.: Resultado do hemograma"
+                />
+              </label>
+              <input type="hidden" name={fieldNames.attachmentIds} value={item.id} />
+            </li>
+          ))}
+        </ul>
       )}
 
       <label
         htmlFor={pickerId}
-        className={`mt-3 flex items-center justify-center gap-2 rounded-[18px] border border-dashed border-[var(--lavender)] bg-[var(--lavender-soft)] px-4 py-4 text-xs font-bold text-[var(--lavender-strong)] ${disabled || remainingSlots === 0 ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
+        className={`cd-file-add ${disabled || remainingSlots === 0 ? "cursor-not-allowed opacity-55" : ""}`}
       >
-        <FilePlus2 size={17} /> + Adicionar arquivos
+        <FilePlus2 size={15} /> + Adicionar arquivos
       </label>
       <input
         id={pickerId}

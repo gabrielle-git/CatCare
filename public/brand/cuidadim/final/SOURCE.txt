@@ -1,0 +1,5 @@
+SOURCE OF TRUTH: ../../../../assets finais
+Copied byte-identical. Do not edit originals.
+3C: 21 nav/logo/brand icons.
+3C.1: four-point-star.svg (estrela.svg) · pictogram-couple.svg (icon sempre juntos.svg).
+Still MISSING FROM FINAL FOLDER: Cuidado Pet · Memórias illustration.
