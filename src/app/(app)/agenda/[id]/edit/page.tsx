@@ -6,6 +6,7 @@ import { ensureHousehold } from "@/lib/households";
 import { getReminder } from "@/lib/commerce";
 import { listPets } from "@/lib/pets";
 import { toLocalDateTimeInput } from "@/lib/record-form";
+import { clampedMonthlyOccurrence } from "@/lib/reminder-recurrence";
 import { isLiveData } from "@/lib/demo-mode";
 import { createClient } from "@/lib/supabase/server";
 import { deleteReminder, updateReminder } from "../../actions";
@@ -32,6 +33,7 @@ export default async function EditReminderPage({ params, searchParams }: { param
 
   const save = updateReminder.bind(null, id);
   const remove = deleteReminder.bind(null, id);
+  const clamped = clampedMonthlyOccurrence(reminder.due_at, reminder.recurrence_rule, reminder.recurrence_anchor_day);
 
   return (
     <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
@@ -48,6 +50,7 @@ export default async function EditReminderPage({ params, searchParams }: { param
           <PetMultiSelect pets={pets.map((pet) => ({ id: pet.id, name: pet.name }))} defaultSelectedIds={reminder.pet_id ? [reminder.pet_id] : []} required={false} legend="Pet" hint="Opcional — deixe vazio para lembrete da família toda." />
           <label className="text-sm font-bold">Repetição<select name="recurrence" defaultValue={recurrenceValue(reminder.recurrence_rule)} className="field mt-2"><option value="none">Não repetir</option><option value="daily">Todos os dias</option><option value="weekly">Toda semana</option><option value="monthly">Todo mês</option></select></label>
         </div>
+        {clamped && <label className="flex items-start gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--lavender-soft)] p-4 text-sm"><input type="checkbox" name="adopt_displayed_day" value="1" className="mt-1" /><span><span className="font-bold">Passar a repetir sempre no dia {clamped.shown}</span><span className="mt-1 block font-medium text-[var(--muted)]">Esta ocorrência caiu no dia {clamped.shown} porque o mês não tem dia {clamped.anchor}. Sem esta marcação, o dia {clamped.anchor} continua valendo nos meses seguintes.</span></span></label>}
         <label className="block text-sm font-bold">Detalhes<textarea name="notes" rows={3} defaultValue={reminder.notes ?? ""} className="field mt-2 resize-none" /></label>
         <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--graphite)] px-5 py-3.5 text-sm font-bold text-white"><CalendarPlus size={18} /> Salvar alterações</button>
       </form>

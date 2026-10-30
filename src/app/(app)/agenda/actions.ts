@@ -157,6 +157,7 @@ export async function updateReminder(reminderId: string, formData: FormData) {
       currentDueAt: current.due_at,
       currentRule: current.recurrence_rule,
       currentAnchor: current.recurrence_anchor_day,
+      adoptDisplayedDay: formData.get("adopt_displayed_day") === "1",
     }),
     notes: value(formData, "notes") || null,
     updated_at: new Date().toISOString(),

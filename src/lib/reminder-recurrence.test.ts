@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  clampedMonthlyOccurrence,
   nextReminderDue,
   recurrenceAnchorDayForSave,
   saoPauloWallClock,
@@ -81,12 +82,74 @@ describe("reminder recurrence calendar", () => {
       currentAnchor: 31,
     }), null);
   });
+
+  it("adopts the displayed day in one save only when that choice is explicit", () => {
+    const clamped = clampedMonthlyOccurrence("2025-02-28T23:50:00-03:00", "FREQ=MONTHLY", 31);
+    assert.deepEqual(clamped, { shown: 28, anchor: 31 });
+    assert.equal(clampedMonthlyOccurrence("2024-02-29T00:10:00-03:00", "FREQ=MONTHLY", 31)?.shown, 29);
+    assert.equal(clampedMonthlyOccurrence("2025-03-31T23:50:00-03:00", "FREQ=MONTHLY", 31), null);
+    assert.equal(recurrenceAnchorDayForSave({
+      recurrence: "monthly",
+      submittedDue: "2025-02-28T23:50",
+      currentDueAt: "2025-02-28T23:50:00-03:00",
+      currentRule: "FREQ=MONTHLY",
+      currentAnchor: 31,
+      adoptDisplayedDay: true,
+    }), 28);
+    assert.equal(recurrenceAnchorDayForSave({
+      recurrence: "monthly",
+      submittedDue: "2024-02-29T00:10",
+      currentDueAt: "2024-02-29T00:10:00-03:00",
+      currentRule: "FREQ=MONTHLY",
+      currentAnchor: 31,
+      adoptDisplayedDay: true,
+    }), 29);
+  });
+
+  it("clears the anchor outside monthly recurrence and sets it from the chosen day when monthly starts", () => {
+    const base = {
+      submittedDue: "2025-02-28T23:50",
+      currentDueAt: "2025-02-28T23:50:00-03:00",
+      currentAnchor: 31,
+    };
+    for (const recurrence of ["none", "daily", "weekly"] as const) {
+      assert.equal(recurrenceAnchorDayForSave({
+        ...base,
+        recurrence,
+        currentRule: "FREQ=MONTHLY",
+        adoptDisplayedDay: true,
+      }), null);
+    }
+    for (const currentRule of [null, "FREQ=DAILY", "FREQ=WEEKLY", "FREQ=MONTHLY"]) {
+      assert.equal(recurrenceAnchorDayForSave({
+        ...base,
+        recurrence: "monthly",
+        currentRule,
+        currentAnchor: currentRule === "FREQ=MONTHLY" ? null : 31,
+      }), 28);
+    }
+    assert.equal(recurrenceAnchorDayForSave({
+      recurrence: "weekly",
+      submittedDue: "2026-10-26T21:30",
+      currentDueAt: "2026-10-26T21:30:00-03:00",
+      currentRule: "FREQ=WEEKLY",
+      currentAnchor: 31,
+    }), null);
+    assert.equal(recurrenceAnchorDayForSave({
+      recurrence: "monthly",
+      submittedDue: "2025-02-28T08:00",
+      currentDueAt: "2025-02-28T23:50:00-03:00",
+      currentRule: "FREQ=MONTHLY",
+      currentAnchor: 31,
+    }), 31);
+  });
 });
 
 describe("0040 recurring reminder migration contract", () => {
   const root = process.cwd();
   const sql = readFileSync(join(root, "supabase/migrations/0040_recurring_reminder_completion.sql"), "utf8");
   const actions = readFileSync(join(root, "src/app/(app)/agenda/actions.ts"), "utf8");
+  const editPage = readFileSync(join(root, "src/app/(app)/agenda/[id]/edit/page.tsx"), "utf8");
   const healthCreate = readFileSync(join(root, "src/app/(app)/records/new/actions.ts"), "utf8");
   const migrations = readdirSync(join(root, "supabase/migrations")).filter((name) => name.endsWith(".sql"));
 
@@ -120,6 +183,9 @@ describe("0040 recurring reminder migration contract", () => {
   it("wires completion through the database function and leaves health reminders non-recurring", () => {
     assert.match(actions, /rpc\("complete_reminder"/);
     assert.match(actions, /series_id: reminderId/);
+    assert.match(actions, /adopt_displayed_day/);
+    assert.match(editPage, /clampedMonthlyOccurrence/);
+    assert.match(editPage, /name="adopt_displayed_day"/);
     assert.doesNotMatch(actions, /status: "done"/);
     const reminderInsert = healthCreate.slice(healthCreate.indexOf('from("reminders").insert'));
     assert.doesNotMatch(reminderInsert, /recurrence_rule/);

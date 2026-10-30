@@ -134,9 +134,18 @@ export function submittedCalendarDay(submittedDue: string) {
   return day >= 1 && day <= 31 ? day : null;
 }
 
+/** The occurrence day differs from the stored monthly day, as in 28 February for an anchor of 31. */
+export function clampedMonthlyOccurrence(dueAt: string, rule: string | null, anchor: number | null | undefined) {
+  if (rule !== "FREQ=MONTHLY" || anchor == null) return null;
+  const shown = displayedCalendarDay(dueAt);
+  if (shown == null || shown === anchor) return null;
+  return { shown, anchor };
+}
+
 /**
  * Monthly anchor follows the programmed day.
- * Editing notes or the time, while the displayed day stays the same, keeps a clamped month's original day.
+ * A clamped month keeps that day until the person explicitly adopts the displayed day.
+ * Daily, weekly and one-time reminders do not keep an anchor.
  */
 export function recurrenceAnchorDayForSave(input: {
   recurrence: "none" | "daily" | "weekly" | "monthly";
@@ -144,12 +153,14 @@ export function recurrenceAnchorDayForSave(input: {
   currentDueAt?: string | null;
   currentRule?: string | null;
   currentAnchor?: number | null;
+  adoptDisplayedDay?: boolean;
 }) {
   if (input.recurrence !== "monthly") return null;
   const submittedDay = submittedCalendarDay(input.submittedDue);
   if (submittedDay == null) return null;
   if (
-    input.currentRule === "FREQ=MONTHLY"
+    !input.adoptDisplayedDay
+    && input.currentRule === "FREQ=MONTHLY"
     && input.currentAnchor != null
     && input.currentDueAt
   ) {
