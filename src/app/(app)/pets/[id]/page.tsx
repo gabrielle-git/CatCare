@@ -4,11 +4,11 @@ import { Bug, HeartPulse, Pill, Plus, Scale, Syringe } from "lucide-react";
 import { PetChrome } from "@/components/pet-chrome";
 import { TimelineList } from "@/components/timeline-list";
 import { formatShortDate, formatWeight, isNeonatalPet } from "@/lib/format";
-import { HEALTH_PLAN_PROVIDER_LABELS, getHealthPlanForPet } from "@/lib/health-plan";
+import { healthPlanContextLabel, listHealthPlansForPet } from "@/lib/health-plan";
 import { isRecentWeightDate } from "@/lib/pet-display";
 import { demoPets, demoTimeline, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
-import { isNeonatalTimelineItem, listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
+import { listPetTimeline, listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
 import { preselectRecordHref, typedRecordHref } from "@/lib/record-links";
 import { buildDewormingSchedule, type AppliedDeworming } from "@/lib/deworming-schedule";
 import { buildVaccineSchedule, firstActionableVaccine, type AppliedDose } from "@/lib/vaccine-schedule";
@@ -28,7 +28,7 @@ async function loadPetPage(id: string) {
       weights: demoWeights[id] ?? [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       configured: false,
       editable: false,
     };
@@ -41,7 +41,7 @@ async function loadPetPage(id: string) {
       weights: [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       configured: true,
       editable: false,
     };
@@ -54,20 +54,20 @@ async function loadPetPage(id: string) {
       weights: [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       configured: true,
       editable: false,
     };
   }
-  const [timeline, weights, vaccineDoses, dewormingDoses, plan] = await Promise.all([
+  const [timeline, weights, vaccineDoses, dewormingDoses, plans] = await Promise.all([
     timed("/pets/:id.timeline", () => listPetTimeline(ctx.supabase, id)),
     timed("/pets/:id.weights", () => listPetWeights(ctx.supabase, id)),
     timed("/pets/:id.vaccines", () => listPetVaccineDoses(ctx.supabase, id)),
     timed("/pets/:id.deworming", () => listPetDewormingDoses(ctx.supabase, id)),
-    timed("/pets/:id.plan", () => getHealthPlanForPet(ctx.supabase, ctx.household.id, id)),
+    timed("/pets/:id.plan", () => listHealthPlansForPet(ctx.supabase, ctx.household.id, id)),
   ]);
   console.log(`[CATCARE_PERF][trace ${trace}][/pets/:id] total=${Math.round(performance.now() - pageStart)}ms`);
-  return { pet, timeline, weights, vaccineDoses, dewormingDoses, plan, configured: true, editable: ctx.editable };
+  return { pet, timeline, weights, vaccineDoses, dewormingDoses, plans, configured: true, editable: ctx.editable };
 }
 
 const QUICK = [
@@ -86,12 +86,12 @@ export default async function PetDetailPage({
 }) {
   const { id } = await params;
   const flags = await searchParams;
-  const { pet, timeline, weights, vaccineDoses, dewormingDoses, plan, editable } = await loadPetPage(id);
+  const { pet, timeline, weights, vaccineDoses, dewormingDoses, plans, editable } = await loadPetPage(id);
   if (!pet) notFound();
 
   const neonatal = isNeonatalPet(pet);
-  const hasNeonatalHistory = !neonatal && timeline.some(isNeonatalTimelineItem);
-  const profileTimeline = neonatal ? timeline : timeline.filter((item) => !isNeonatalTimelineItem(item));
+  const hasNeonatalHistory = !neonatal && timeline.some((item: { source?: string }) => item.source === "neonatal");
+  const profileTimeline = neonatal ? timeline : timeline.filter((item: { source?: string }) => item.source !== "neonatal");
   const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses, { species: pet.species });
   const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
   const actionableVaccine = firstActionableVaccine(vaccineSchedule);
@@ -100,7 +100,7 @@ export default async function PetDetailPage({
   const lastWeight = weights.length ? weights[weights.length - 1] : null;
   const showWeight = lastWeight ? isRecentWeightDate(lastWeight.date) : false;
   const petReturnTo = `/pets/${pet.id}`;
-  const providerLabel = plan ? HEALTH_PLAN_PROVIDER_LABELS[plan.provider] : null;
+  const planLabel = healthPlanContextLabel(plans);
 
   const flash = (
     <>
@@ -237,12 +237,12 @@ export default async function PetDetailPage({
             </section>
           ) : null}
 
-          {plan ? (
+          {planLabel ? (
             <section className="cd-pet-section" aria-label="Plano de saúde">
               <h2 className="cd-pet-section-title">Plano de saúde</h2>
               <p className="cd-body">
-                {[providerLabel, plan.plan_name].filter(Boolean).join(" · ")}
-                <span className="cd-meta"> · {plan.active ? "Ativo" : "Inativo"}</span>
+                {[planLabel.provider, planLabel.name].filter(Boolean).join(" · ")}
+                <span className="cd-meta"> · {planLabel.active ? "Ativo" : "Inativo"}{planLabel.more > 0 ? ` · +${planLabel.more}` : ""}</span>
               </p>
               <div className="cd-pet-links">
                 <Link href="/health-plan" className="cd-pet-text-link focus-ring">

@@ -47,14 +47,14 @@ export default async function EditRecordPage({ params, searchParams }: { params:
   console.log(`[CATCARE_PERF][trace ${trace}][/records/:id/edit] total=${Math.round(performance.now() - pageStart)}ms`);
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
+    <div className="cd-pet-page">
       {/* Native <a>: leaving edit via soft-nav can hang; document navigation is reliable. */}
-      <a href={returnTo} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-bold text-[var(--muted)]"><ArrowLeft size={17} /> Voltar</a>
+      <a href={returnTo} className="focus-ring inline-flex items-center gap-2 rounded-xl py-2 text-sm font-semibold text-[var(--muted)]"><ArrowLeft size={16} aria-hidden /> Voltar</a>
       <header className="mt-5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Histórico</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em]">Editar registro</h1>
+        <p className="cd-page-kicker">Histórico</p>
+        <h1 className="cd-page-title">Editar registro</h1>
       </header>
-      <EditRecordForm action={save} className="cat-card mt-6 p-5 md:p-7" initialError={query.error ?? null}>
+      <EditRecordForm action={save} className="mt-6" initialError={query.error ?? null}>
         <RecordFields
           pets={petOptions}
           mode="edit"
@@ -83,9 +83,9 @@ export default async function EditRecordPage({ params, searchParams }: { params:
           <input type="hidden" name="return_to" value={returnTo} />
         </form>
       ))}
-      <section className="mt-5 rounded-[22px] border border-red-100 bg-white p-5">
-        <h2 className="font-bold">Apagar registro</h2>
-        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">Remove este cuidado do histórico permanentemente.</p>
+      <section className="mt-10">
+        <h2 className="cd-pet-section-title">Apagar registro</h2>
+        <p className="cd-meta">Remove este cuidado do histórico permanentemente.</p>
         <form action={remove} className="mt-4">
           <input type="hidden" name="return_to" value={returnTo} />
           <ConfirmButton message="Apagar este registro permanentemente? Esta ação não pode ser desfeita." className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-xs font-bold text-[var(--danger)]"><Trash2 size={15} /> Apagar registro</ConfirmButton>

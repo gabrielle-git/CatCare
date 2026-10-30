@@ -27,11 +27,7 @@ import {
   insertVaccineDose,
 } from "@/lib/vaccine-doses";
 import { dosesForVaccineKey, formatVaccineRecordTitle, isProtocolVaccineKey } from "@/lib/vaccine-schedule";
-import {
-  notesFieldNameForPet,
-  notesTargetPetFieldName,
-  resolvePetNotesForCreate,
-} from "@/lib/neonatal-feeding";
+import { resolveRecordNoteFromForm } from "@/lib/record-notes";
 import { buildHygieneFieldsList, hygieneRecordTitle } from "@/lib/hygiene-care";
 import {
   resolveHygieneCreateStableId,
@@ -308,20 +304,8 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
     }
   }
 
-  const notesShared = value(formData, "notes") || null;
-  const perPetNotesEnabled = value(formData, "include_per_pet_notes") === "1";
-  const notesTargetPets = new Set(
-    perPetNotesEnabled
-      ? formData.getAll(notesTargetPetFieldName()).map((entry) => String(entry)).filter(Boolean)
-      : [],
-  );
-  const notesForPet = (petId: string) =>
-    resolvePetNotesForCreate({
-      shared: notesShared,
-      individual: value(formData, notesFieldNameForPet(petId)),
-      perPetNotesEnabled,
-      petSelectedForIndividual: notesTargetPets.has(petId),
-    });
+  const notesForRecord = (petId: string, careType: string) =>
+    resolveRecordNoteFromForm(formData, petId, careType);
   const reminderRaw = value(formData, "reminder_due_at");
   const reminderAt = reminderRaw ? parseLocalDateTime(reminderRaw) : null;
   const reminderTitles: Record<string, string> = { vaccine: "Próxima vacina de", deworming: "Próximo vermífugo de", medication: "Medicamento de", consultation: "Retorno de" };
@@ -371,7 +355,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
           continue;
         }
 
-        const petNotes = notesForPet(pet.id);
+        const petNotes = notesForRecord(pet.id, type);
         const { error } = await supabase.from("weight_records").insert({
           id: stableId,
           household_id: household.id,
@@ -428,7 +412,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
 
       const batch = buildFeedingSessionBatchPayload({
         petIds: petIdList,
-        notesByPetId: (petId) => notesForPet(petId),
+        notesByPetId: (petId) => notesForRecord(petId, type),
         defaultItems,
         formData,
         overridePetIds,
@@ -468,7 +452,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
           fields: {
             temperature_c: type === "temperature" ? temperature : null,
             quality: type === "urine" || type === "stool" ? quality : null,
-            notes: notesForPet(pet.id),
+            notes: notesForRecord(pet.id, type),
           },
           failHere,
         });
@@ -492,7 +476,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
           fields: {
             temperature_c: null,
             quality: null,
-            notes: notesForPet(pet.id),
+            notes: notesForRecord(pet.id, type),
           },
           failHere,
         });
@@ -524,7 +508,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
       const hygieneItems = hygiene.ok ? hygiene.items : [];
       const petIdList = pets.map((row) => row.id);
       for (const pet of pets) {
-        const petNotes = notesForPet(pet.id);
+        const petNotes = notesForRecord(pet.id, type);
         for (const fields of hygieneItems) {
           const stableId = resolveHygieneCreateStableId({
             formData,
@@ -688,7 +672,7 @@ async function createRecordOrRedirect(formData: FormData): Promise<void> {
         if (existingDose) failHere("Esta dose já está registrada como aplicada.");
       }
 
-      const petNotes = notesForPet(pet.id);
+      const petNotes = notesForRecord(pet.id, type);
       if (!reused) {
         const { data, error } = await supabase.from("health_records").insert({
           id: stableId,

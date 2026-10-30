@@ -4164,3 +4164,97 @@ header[data-brand="cuidadim"]:has(.cd-mob-header),
 [data-brand="cuidadim"] .cd-pet-page .cat-card h2 {
   font-size: 1.05rem;
 }
+
+/* Register form controls used by the integrated V2 fields.
+   The canvas candidate above stays the frozen review color. */
+[data-brand="cuidadim"] .cd-form-label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--cuidadim-purple-700);
+}
+
+[data-brand="cuidadim"] .cd-form-help {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+[data-brand="cuidadim"] .cd-form-control {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--cuidadim-purple-300) 42%, transparent);
+  border-radius: 12px;
+  background-color: color-mix(in srgb, #faf6f2 72%, #fff);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.35;
+  padding: 0.55rem 0.8rem;
+  outline: none;
+}
+
+[data-brand="cuidadim"] textarea.cd-form-control {
+  min-height: 5.5rem;
+  height: auto;
+  resize: vertical;
+}
+
+[data-brand="cuidadim"] select.cd-form-control {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--cuidadim-purple-500) 50%),
+    linear-gradient(135deg, var(--cuidadim-purple-500) 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2.25rem;
+}
+
+[data-brand="cuidadim"] .cd-form-control:focus {
+  border-color: var(--cuidadim-purple-500);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cuidadim-purple-500) 28%, transparent);
+}
+
+[data-brand="cuidadim"] .cd-register-fields label {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--cuidadim-purple-700);
+}
+
+[data-brand="cuidadim"] .cd-file-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0;
+  border: 0;
+  background: none;
+  color: var(--cuidadim-purple-700);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+[data-brand="cuidadim"] .cd-file-add:hover {
+  color: var(--cuidadim-purple-900);
+}
+
+[data-brand="cuidadim"] .cd-preview-status {
+  margin-top: 0.75rem;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--cuidadim-purple-700);
+}

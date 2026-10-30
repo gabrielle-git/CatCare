@@ -5,7 +5,7 @@ import { PetChrome } from "@/components/pet-chrome";
 import { PetPreventiveCareCard } from "@/components/pet-preventive-care-card";
 import { WeightChart } from "@/components/weight-chart";
 import { isNeonatalPet } from "@/lib/format";
-import { HEALTH_PLAN_PROVIDER_LABELS, getHealthPlanForPet } from "@/lib/health-plan";
+import { healthPlanContextLabel, listHealthPlansForPet } from "@/lib/health-plan";
 import { demoPets, demoWeights } from "@/lib/mock-data";
 import { getPet } from "@/lib/pets";
 import { listPetDewormingDoses, listPetVaccineDoses, listPetWeights } from "@/lib/records";
@@ -24,7 +24,7 @@ async function loadSaude(id: string) {
       weights: pet ? (demoWeights[pet.id] ?? []) : [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       editable: false,
     };
   }
@@ -35,7 +35,7 @@ async function loadSaude(id: string) {
       weights: [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       editable: false,
     };
   }
@@ -46,17 +46,17 @@ async function loadSaude(id: string) {
       weights: [],
       vaccineDoses: [] as AppliedDose[],
       dewormingDoses: [] as AppliedDeworming[],
-      plan: null as HealthPlanWithCopays | null,
+      plans: [] as HealthPlanWithCopays[],
       editable: false,
     };
   }
-  const [weights, vaccineDoses, dewormingDoses, plan] = await Promise.all([
+  const [weights, vaccineDoses, dewormingDoses, plans] = await Promise.all([
     listPetWeights(ctx.supabase, id),
     listPetVaccineDoses(ctx.supabase, id),
     listPetDewormingDoses(ctx.supabase, id),
-    getHealthPlanForPet(ctx.supabase, ctx.household.id, id),
+    listHealthPlansForPet(ctx.supabase, ctx.household.id, id),
   ]);
-  return { pet, weights, vaccineDoses, dewormingDoses, plan, editable: ctx.editable };
+  return { pet, weights, vaccineDoses, dewormingDoses, plans, editable: ctx.editable };
 }
 
 const CATEGORIES = [
@@ -70,14 +70,14 @@ const CATEGORIES = [
 
 export default async function PetSaudePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { pet, weights, vaccineDoses, dewormingDoses, plan, editable } = await loadSaude(id);
+  const { pet, weights, vaccineDoses, dewormingDoses, plans, editable } = await loadSaude(id);
   if (!pet) notFound();
 
   const neonatal = isNeonatalPet(pet);
   const vaccineSchedule = buildVaccineSchedule(pet.birth_date, vaccineDoses, { species: pet.species });
   const dewormingSchedule = buildDewormingSchedule(pet.birth_date, dewormingDoses);
   const returnTo = `/pets/${pet.id}/saude`;
-  const providerLabel = plan ? HEALTH_PLAN_PROVIDER_LABELS[plan.provider] : null;
+  const planLabel = healthPlanContextLabel(plans);
 
   return (
     <PetChrome pet={pet} editable={editable} active="saude">
@@ -154,14 +154,14 @@ export default async function PetSaudePage({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      {plan ? (
+      {planLabel ? (
         <section className="cd-pet-section" aria-label="Plano">
           <h2 className="cd-pet-section-title">Plano de saúde</h2>
           <p className="text-sm font-semibold">
-            {[providerLabel, plan.plan_name].filter(Boolean).join(" · ")}
+            {[planLabel.provider, planLabel.name].filter(Boolean).join(" · ")}
             <span className="cd-meta font-normal">
               {" "}
-              · {plan.active ? "Ativo" : "Inativo"}
+              · {planLabel.active ? "Ativo" : "Inativo"}{planLabel.more > 0 ? ` · +${planLabel.more}` : ""}
             </span>
           </p>
           <div className="cd-pet-links">

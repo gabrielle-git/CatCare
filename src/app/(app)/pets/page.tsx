@@ -27,10 +27,11 @@ export default async function PetsPage({ searchParams }: { searchParams: Promise
 
   return (
     <div data-brand="cuidadim" data-theme="light" className="cd-pet-page cd-pet-page-list">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="cd-page-kicker">Pets</p>
+          <p className="cd-page-kicker">Sua família</p>
           <h1 className="cd-page-title">Pets</h1>
+          <p className="cd-page-lede">Acompanhe saúde, cuidados e momentos de cada pet.</p>
         </div>
         {editable ? (
           <Link
