@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ChevronRight, HeartPulse, Plus } from "lucide-react";
 import { HomeAssistantCard } from "@/components/home-assistant-card";
 import { HomeCareAlerts } from "@/components/home-care-alerts";
+import { LocalHomeGreeting } from "@/components/local-home-greeting";
 import { getAuthenticatedContext } from "@/lib/auth-context";
-import { formatDateTime, formatLongDate, isNeonatalPet } from "@/lib/format";
+import { formatDateTime, isNeonatalPet } from "@/lib/format";
 import { HOME_ACTIVITY_PREVIEW_LIMIT } from "@/lib/family-history";
 import { demoPets, demoTimeline } from "@/lib/mock-data";
 import { listPets } from "@/lib/pets";
@@ -15,13 +16,6 @@ import { dewormingAlertHref, vaccineAlertHref } from "@/lib/record-links";
 import { buildVaccineSchedule, countOverdue, countDue, firstActionableVaccine } from "@/lib/vaccine-schedule";
 
 export const dynamic = "force-dynamic";
-
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
-}
 
 type VaccineAlert = { petId: string; petName: string; overdue: number; due: number; registerHref: string | null };
 type DewormingAlert = { petId: string; petName: string; overdue: boolean; due: boolean; registerHref: string };
@@ -91,11 +85,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   return (
     <div className="mx-auto w-full min-w-0 max-w-[860px] px-4 pb-8 pt-6 sm:px-5 md:px-8 lg:px-10 lg:py-10">
       <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">{formatLongDate()}</p>
-          <h1 className="mt-2 text-[1.65rem] font-bold leading-tight tracking-[-0.04em] sm:text-3xl md:text-4xl">{greeting()}, família.</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">O que precisa de você agora — e o que aconteceu por aqui.</p>
-        </div>
+        <LocalHomeGreeting />
         {editable && (
           <Link
             href="/records/new?return_to=%2F"
