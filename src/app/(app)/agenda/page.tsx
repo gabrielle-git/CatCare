@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Check, Clock3, Pencil, Plus, Repeat2, Trash2 } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { groupAgendaReminders } from "@/lib/agenda-grouping";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { ensureHousehold } from "@/lib/households";
 import { demoPets, demoReminders } from "@/lib/mock-data";
@@ -42,13 +43,7 @@ function ReminderRows({ items, names, editable, late = false }: { items: Reminde
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
   const [{ pets, reminders, configured, editable, now }, flags] = await Promise.all([loadAgenda(), searchParams]);
   const names = new Map(pets.map((pet) => [pet.id, pet.name]));
-  const today = new Date(now); today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfter = new Date(tomorrow); dayAfter.setDate(dayAfter.getDate() + 1);
-  const late = reminders.filter((item) => new Date(item.due_at).getTime() < now);
-  const todayItems = reminders.filter((item) => { const due = new Date(item.due_at).getTime(); return due >= now && due < tomorrow.getTime(); });
-  const tomorrowItems = reminders.filter((item) => { const due = new Date(item.due_at).getTime(); return due >= tomorrow.getTime() && due < dayAfter.getTime(); });
-  const later = reminders.filter((item) => new Date(item.due_at).getTime() >= dayAfter.getTime());
+  const { late, todayItems, tomorrowItems, later } = groupAgendaReminders(reminders, now);
 
   return <div className="mx-auto w-full max-w-[980px] px-5 pb-8 pt-7 md:px-8 lg:py-10">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--lavender-strong)]">Rotina organizada</p><h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] md:text-4xl">Agenda</h1><p className="mt-2 max-w-[620px] text-sm text-[var(--muted)]">Hoje, amanhã e tudo que não pode ficar só na memória.</p></div>{editable && <Link href="/agenda/new" className="focus-ring inline-flex w-fit items-center gap-2 rounded-2xl bg-[var(--graphite)] px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Novo lembrete</Link>}</header>
